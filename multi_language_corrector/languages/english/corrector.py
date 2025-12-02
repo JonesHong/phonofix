@@ -62,6 +62,12 @@ class EnglishCorrector:
             for alias in self.term_mapping.keys()
         }
         
+        # 預先計算所有別名的 token 數量 (用於視窗大小匹配)
+        self.alias_token_counts = {
+            alias: len(self.tokenizer.tokenize(alias))
+            for alias in self.term_mapping.keys()
+        }
+        
         # 計算專有名詞的最大 Token 長度，用於限制滑動視窗的大小
         self.max_token_len = 0
         for alias in self.term_mapping.keys():
@@ -130,6 +136,12 @@ class EnglishCorrector:
                 
                 # 與所有別名進行比對
                 for alias, alias_phonetic in self.alias_phonetics.items():
+                    # 檢查視窗 token 數量是否與別名相符
+                    # 只允許精確匹配，避免誤匹配到不相關的前置詞
+                    alias_token_count = self.alias_token_counts[alias]
+                    if length != alias_token_count:
+                        continue
+                    
                     # 範例: alias="1kg", alias_phonetic=/i keɪ dʒi/
                     # 比較 /wʌn keɪ dʒi/ 與 /i keɪ dʒi/
                     if self.phonetic.are_fuzzy_similar(window_phonetic, alias_phonetic):

@@ -389,9 +389,18 @@ class ChineseCorrector:
         }
 
     def _process_exact_match(self, asr_text, start_idx, original_segment, item):
-        """處理完全匹配的情況 (主要用於上下文加分驗證)"""
+        """處理完全匹配的情況 (別名精確匹配)"""
         if original_segment != item["term"]:
             return None
+        
+        # 檢查關鍵字必要條件：如果有定義 keywords 但沒命中，則跳過
+        if not self._has_required_keyword(asr_text, item["keywords"]):
+            return None
+        
+        # 檢查排除關鍵字：如果有定義 exclusions 且命中，則跳過
+        if self._has_exclusion_keyword(asr_text, item["exclusions"]):
+            return None
+        
         has_context, context_distance = self._check_context_bonus(
             asr_text, start_idx, start_idx + item["len"], item["keywords"]
         )
