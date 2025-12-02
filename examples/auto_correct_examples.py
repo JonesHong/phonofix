@@ -1,9 +1,11 @@
 """
 auto_correct 功能範例
-展示 ChineseTextCorrector.from_terms() 類方法的各種使用方式
+展示 ChineseCorrector.from_terms() 類方法的各種使用方式
 """
 
-from chinese_text_corrector import ChineseTextCorrector
+# from chinese_text_corrector import ChineseCorrector
+from multi_language_corrector.languages.chinese.corrector import ChineseCorrector
+
 
 
 def example_1_simple_list():
@@ -13,7 +15,7 @@ def example_1_simple_list():
     print("=" * 60)
 
     # 僅提供關鍵字,自動生成所有可能的模糊音變體
-    corrector = ChineseTextCorrector.from_terms(["台北車站", "牛奶", "發揮"])
+    corrector = ChineseCorrector.from_terms(["台北車站", "牛奶", "發揮"])
 
     test_cases = [
         "我在北車等你",
@@ -35,7 +37,7 @@ def example_2_dict_with_aliases():
     print("=" * 60)
 
     # 提供部分別名,系統會過濾掉拼音相同的
-    corrector = ChineseTextCorrector.from_terms({
+    corrector = ChineseCorrector.from_terms({
         "台北車站": ["北車", "台北車站", "臺北車站"],  # 後兩個拼音相同,只保留第一個
         "阿斯匹靈": ["阿斯匹林", "二四批林"]
     })
@@ -59,7 +61,7 @@ def example_3_full_format():
     print("=" * 60)
 
     # 完整配置
-    corrector = ChineseTextCorrector.from_terms({
+    corrector = ChineseCorrector.from_terms({
         "永和豆漿": {
             "aliases": ["永豆", "勇豆"],
             "keywords": ["吃", "喝", "買", "宵夜"],
@@ -92,7 +94,7 @@ def example_4_mixed_format():
     print("=" * 60)
 
     # 混合使用不同格式
-    corrector = ChineseTextCorrector.from_terms({
+    corrector = ChineseCorrector.from_terms({
         "台北車站": ["北車"],  # 手動提供別名
         "牛奶": {},  # 空字典,自動生成別名
         "發揮": {  # 提供關鍵字和權重,自動生成別名
@@ -119,7 +121,7 @@ def example_5_with_exclusions():
     print("=" * 60)
 
     # 排除某些詞不進行修正
-    corrector = ChineseTextCorrector.from_terms(
+    corrector = ChineseCorrector.from_terms(
         ["台北車站"],
         exclusions=["北車站", "車站"]  # 這些詞不會被修正
     )
@@ -143,7 +145,7 @@ def example_6_comprehensive():
     print("範例 6: 綜合範例")
     print("=" * 60)
 
-    corrector = ChineseTextCorrector.from_terms({
+    corrector = ChineseCorrector.from_terms({
         # 自動生成別名
         "台北車站": {},
         "牛奶": {},
@@ -168,7 +170,7 @@ def example_6_comprehensive():
 
 
 if __name__ == "__main__":
-    print("\n🚀 ChineseTextCorrector.from_terms() 功能範例\n")
+    print("\n🚀 ChineseCorrector.from_terms() 功能範例\n")
 
     try:
         example_1_simple_list()

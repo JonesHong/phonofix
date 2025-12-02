@@ -8,8 +8,8 @@ Chinese Text Corrector - 完整使用範例
 """
 
 import json
-from chinese_text_corrector import (
-    ChineseTextCorrector,
+from multi_language_corrector.languages.chinese.corrector import (
+    ChineseCorrector,
     FuzzyDictionaryGenerator,
 )
 
@@ -43,7 +43,7 @@ def example_1_fuzzy_dictionary_generation():
     ]
 
     # 生成模糊音詞典
-    fuzzy_dict = generator.generate_fuzzy_dictionary(input_terms)
+    fuzzy_dict = generator.generate_fuzzy_variants(input_terms)
 
     # 輸出結果
     print(json.dumps(fuzzy_dict, indent=2, ensure_ascii=False))
@@ -62,7 +62,7 @@ def example_2_homophone_filtering():
     # 還有不同的音: 車試 (che shi)
     test_list = ["測試", "側試", "策試", "測是", "車試", "車是", "台北車站"]
 
-    result = generator.filter_homophones(test_list)
+    result = generator .filter_homophones(test_list)
 
     print("原始列表:")
     print(json.dumps(test_list, indent=2, ensure_ascii=False))
@@ -72,9 +72,9 @@ def example_2_homophone_filtering():
 
 
 def example_3_canonical_normalization():
-    """範例 3: 開啟歸一化 (修正為標準詞)"""
+    """範例 3: 歸一化模式 (修正為標準詞)"""
     print("=" * 60)
-    print("範例 3: 開啟歸一化 (修正為標準詞)")
+    print("範例 3: 歸一化模式 (修正為標準詞)")
     print("=" * 60)
 
     # 詞庫定義
@@ -86,10 +86,8 @@ def example_3_canonical_normalization():
 
     exclusions = ["北側", "南側", "東側", "西側"]
 
-    # 建立校正器 (歸一化模式)
-    corrector = ChineseTextCorrector(
-        term_mapping, exclusions=exclusions, use_canonical_normalization=True
-    )
+    # V2 固定為歸一化模式，不需要 use_canonical_normalization 參數
+    corrector = ChineseCorrector(term_mapping, exclusions=exclusions)
 
     # 測試案例
     test_cases = [
@@ -107,27 +105,32 @@ def example_3_canonical_normalization():
 
 
 def example_4_alias_preservation():
-    """範例 4: 關閉歸一化 (保留簡稱)"""
+    """
+    範例 4: 別名保留模式 (V2 已移除)
+    
+    說明: V2 版本固定使用歸一化模式，所有別名都會被修正為標準詞。
+    若需保留簡稱，請將簡稱設為標準詞 (字典的 key)。
+    """
     print("=" * 60)
-    print("範例 4: 關閉歸一化 (保留簡稱)")
+    print("範例 4: V2 固定歸一化模式 說明")
     print("=" * 60)
 
+    # V2 版本: 若需保留簡稱，請將簡稱設為 key
+    # 例如: 想保留 "北車"，則將 "北車" 設為 key
     term_mapping = {
-        "台北車站": ["北車"],
-        "台大醫院": ["台大"],
+        "北車": ["台北車站", "臺北車站"],  # "北車" 是標準詞
+        "台大": ["台大醫院"],  # "台大" 是標準詞
     }
 
     exclusions = ["北側"]
 
-    # 建立校正器 (非歸一化模式)
-    corrector = ChineseTextCorrector(
-        term_mapping, exclusions=exclusions, use_canonical_normalization=False
-    )
+    corrector = ChineseCorrector(term_mapping, exclusions=exclusions)
 
-    text = "我去過台大看病,然後去北側搭車。"
+    text = "我去過台大醫院看病,然後去北側搭車。"
     print(f"原句: {text}")
     result = corrector.correct(text)
-    print(f"結果: {result}\n")
+    print(f"結果: {result}")
+    print("說明: '台大醫院' -> '台大' (因為 '台大' 是標準詞)\n")
 
 
 def example_5_context_based_correction():
@@ -148,7 +151,7 @@ def example_5_context_based_correction():
         },
     }
 
-    corrector = ChineseTextCorrector(term_mapping)
+    corrector = ChineseCorrector(term_mapping)
 
     test_cases = [
         ("我去買勇鬥當宵夜", "食物情境"),
@@ -182,7 +185,7 @@ def example_6_english_mixed_terms():
         "App": ["APP", "欸屁屁", "A屁屁"],
     }
 
-    corrector = ChineseTextCorrector(term_mapping)
+    corrector = ChineseCorrector(term_mapping)
 
     test_cases = [
         "我正在寫Pyson程式。",
@@ -210,7 +213,7 @@ def example_7_taiwan_accent_features():
         "你好": ["李好", "尼好"],
         "南方": ["蘭方"],
     }
-    corrector_nl = ChineseTextCorrector(term_mapping_nl)
+    corrector_nl = ChineseCorrector(term_mapping_nl)
 
     test_nl = ["我要喝流奶。", "李好,很高興認識你。"]
     for text in test_nl:
@@ -224,7 +227,7 @@ def example_7_taiwan_accent_features():
         "肉": ["樓", "漏"],
         "然後": ["蘭後", "那後"],
     }
-    corrector_rl = ChineseTextCorrector(term_mapping_rl)
+    corrector_rl = ChineseCorrector(term_mapping_rl)
 
     test_rl = ["我買了一斤樓。", "我先去吃飯,覽侯再去找你。"]
     for text in test_rl:
@@ -240,7 +243,7 @@ def example_7_taiwan_accent_features():
         "風景": ["轟景"],
     }
     exclusions_fh = ["話費"]
-    corrector_fh = ChineseTextCorrector(term_mapping_fh, exclusions=exclusions_fh)
+    corrector_fh = ChineseCorrector(term_mapping_fh, exclusions=exclusions_fh)
 
     test_fh = [
         "他充分花揮了自己的才能。",
@@ -265,7 +268,7 @@ def example_8_final_fuzzy_matching():
         "先生": ["香生"],  # ian -> iang
     }
 
-    corrector = ChineseTextCorrector(term_mapping)
+    corrector = ChineseCorrector(term_mapping)
 
     test_cases = [
         "我在些校讀書。",
@@ -293,7 +296,7 @@ def example_9_comprehensive_test():
         "學校": ["些校"],
     }
 
-    corrector = ChineseTextCorrector(term_mapping)
+    corrector = ChineseCorrector(term_mapping)
 
     text = "我在北車買了流奶,蘭後去些校找朋友,他充分花揮了才能。"
     print(f"原句: {text}")
@@ -313,7 +316,7 @@ def example_10_weight_system():
         "上帝": {"aliases": ["上帝"], "weight": 0.1},  # 低權重
     }
 
-    corrector = ChineseTextCorrector(term_mapping)
+    corrector = ChineseCorrector(term_mapping)
 
     text = "道成的路生是安點,你可能忽略了這個重要的真理。"
     print(f"原句: {text}")
@@ -354,7 +357,7 @@ def  example_11_long_article_test():
     term_list = ['聖靈', '道成肉身', '聖經', '新約', '舊約', '新舊約', '榮光', '使徒', '福音', '默示', '感孕', '充滿', '章節', '恩典', '上帝', '這就是', '太初', '放縱', '父獨生子']
     exclusions = ["什麼是","道成的文字"]
 
-    corrector = ChineseTextCorrector.from_terms(term_list, exclusions=exclusions)
+    corrector = ChineseCorrector.from_terms(term_list, exclusions=exclusions)
     long_article = (
         "什麼是上帝的道那你應該知道這本聖經就是上帝的道上帝的話就是上帝的道"
         "沒有錯我在說道太出與上帝同在道是聖林帶到人間的所以聖林借著莫氏就約的先知跟新約的使徒 "

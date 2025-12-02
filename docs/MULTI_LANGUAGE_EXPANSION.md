@@ -105,39 +105,36 @@ class ChinesePhoneticSystem(PhoneticSystem):
         return 0.40
 ```
 
-### 3️⃣ 英文實現範例（需結合 IPA + Homophone 辨識）
+### 3️⃣ 英文實現範例（基於專有名詞的語音相似度搜索）
 
 ```python
 # languages/english/phonetic_impl.py
-import epitran
-from spellchecker import SpellChecker
+import eng_to_ipa as ipa  # 或使用 epitran
 
 class EnglishPhoneticSystem(PhoneticSystem):
-    def __init__(self, lexicon=None):
-        self.epi = epitran.Epitran('eng-Latn')  # 英文 → IPA
-        self.spell = SpellChecker() if lexicon is None else lexicon
+    def __init__(self):
+        # 不需要通用字典，只關注語音轉換
+        pass
 
     def to_phonetic(self, text: str) -> str:
-        return self.epi.transliterate(text.lower())
+        # 將文本轉換為 IPA (International Phonetic Alphabet)
+        # 例如: "EKG" -> "iˌkeɪˈdʒi"
+        # 例如: "1kg" -> "wʌn keɪ dʒi" (注意: 數字需先轉文字)
+        return ipa.convert(text)
 
     def are_fuzzy_similar(self, ipa1: str, ipa2: str) -> bool:
-        # 單靠 IPA 會把 right / write 視為 identical，需要加上詞頻+同音詞列表
-        if ipa1 == ipa2:
-            return True
-        return self._check_english_fuzzy_rules(ipa1, ipa2)
+        # 計算 IPA 之間的編輯距離
+        # "iˌkeɪˈdʒi" vs "wʌn keɪ dʒi" -> 距離較近
+        # "TensorFlow" (tɛnsərfloʊ) vs "Ten so floor" (tɛn soʊ flɔr) -> 距離極近
+        distance = self._levenshtein_distance(ipa1, ipa2)
+        return distance <= self.get_tolerance(len(ipa1))
 
-    def resolve_homophones(self, word: str, context: str) -> str:
-        """結合詞頻、語境打分決定同音詞正解"""
-        candidates = self.spell.candidates(word)
-        return self._rank_by_context(candidates, context)
-
-    def get_tolerance(self, word_length: int) -> float:
-        # 英文 ASR 錯誤常牽涉同音詞，需要更寬容並依照詞頻調整
-        base = 0.35 if word_length <= 4 else 0.45
-        return self._adjust_by_frequency(base)
+    def get_tolerance(self, phonetic_length: int) -> float:
+        # 根據音標長度決定容錯閾值
+        return 0.30 if phonetic_length <= 5 else 0.40
 ```
 
-> ⚠️ **重要**：英文 ASR 錯誤更偏向「同音詞／詞形變化」而非單純音節差異，實務上必須同時使用 IPA + 詞頻／語境重新打分，否則 `right`、`write` 會因為 IPA 相同而無法區分。
+> ⚠️ **核心差異**：我們不使用通用拼寫檢查（Spell Checker）。我們的目標是修正 ASR 聽錯的「專有名詞」。例如使用者定義了 "EKG"，當 ASR 輸出 "1kg" 或 "egg cage" 時，我們透過 IPA 相似度將其還原為 "EKG"。這與中文模式完全一致：**只糾正字典裡有的詞**。
 
 ### 4️⃣ 日文實現範例
 
@@ -150,20 +147,15 @@ class JapanesePhoneticSystem(PhoneticSystem):
         self.kks = pykakasi.kakasi()
 
     def to_phonetic(self, text: str) -> str:
-        # 轉為羅馬音（romaji）
+        # 轉為平假名或羅馬音作為語音基礎
+        # 使用者詞典: "任天堂" -> "nintendo"
+        # ASR 錯誤: "認定堂" -> "ninteidou"
         result = self.kks.convert(text)
         return ''.join([item['hepburn'] for item in result])
 
     def are_fuzzy_similar(self, romaji1: str, romaji2: str) -> bool:
-        # 日文常見模糊音：
-        # - づ(zu) ↔ ず(zu)
-        # - じ(ji) ↔ ぢ(di → ji)
-        # - を(wo) ↔ お(o)
-        return self._check_japanese_fuzzy_rules(romaji1, romaji2)
-
-    def get_tolerance(self, word_length: int) -> float:
-        # 日文可能需要不同的容錯邏輯
-        return 0.30 if word_length <= 3 else 0.40
+        # 比較羅馬音的相似度
+        return self._levenshtein_distance(romaji1, romaji2) <= threshold
 ```
 
 ---

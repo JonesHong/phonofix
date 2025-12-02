@@ -9,5 +9,8 @@ python-Levenshtein>=0.12.2
 # 拼音轉漢字
 Pinyin2Hanzi>=0.1.1
 
+# 英文發音處理
+eng-to-ipa>=0.0.2
+
 # 簡繁轉換
 hanziconv>=0.3.2
