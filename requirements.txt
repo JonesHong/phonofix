@@ -1,0 +1,13 @@
+# Chinese Text Corrector 依賴套件
+
+# 拼音處理
+pypinyin>=0.44.0
+
+# 字串相似度計算
+python-Levenshtein>=0.12.2
+
+# 拼音轉漢字
+Pinyin2Hanzi>=0.1.1
+
+# 簡繁轉換
+hanziconv>=0.3.2
