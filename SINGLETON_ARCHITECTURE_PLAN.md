@@ -442,11 +442,14 @@ class CorrectorEngine(ABC):
 - 保留: search_index, correct() 邏輯
 ```
 
-#### 3.3 重構 UnifiedCorrector 🔄 待更新
+#### 3.3 重構 UnifiedCorrector ✅ 已完成
+
+**提交**: `b5ecf80` - feat: complete UnifiedCorrector integration with Engine
 
 ```python
 # correction/unified_corrector.py
-- 移除: 直接建立 ChineseCorrector, EnglishCorrector
+- 新增: _from_engine() 工廠方法
+- 處理 None 子 Corrector 的情況
 - 改為: 透過 UnifiedEngine.create_corrector() 建立
 ```
 
@@ -478,22 +481,23 @@ from .backend import (
 )
 ```
 
-### Phase 5: 更新測試與範例
+### Phase 5: 更新測試與範例 ✅ 已完成
 
-#### 5.1 更新測試
+**提交**: `e806d05` - test: add comprehensive Engine layer tests
+
+#### 5.1 更新測試 ✅
 
 ```python
-# tests/test_english_corrector.py
-- 測試 Engine 建立
-- 測試多個 Corrector 共享 Engine
-- 驗證第二個 Corrector 建立時間 < 100ms
+# tests/test_engine.py (新增)
+- TestEnglishEngine: 初始化、建立 Corrector、快取共享、修正功能
+- TestChineseEngine: 初始化、建立 Corrector、修正功能
+- TestUnifiedEngine: 初始化、混合/純中/純英文 Corrector
+- TestBackendSingleton: 單例模式、快取持久性
 
-# tests/test_singleton.py (新增)
-- 測試 Backend 單例
-- 測試跨執行緒安全
+# 40 個測試全部通過
 ```
 
-#### 5.2 更新範例
+#### 5.2 更新範例 ⬜ 待完成
 
 ```python
 # examples/mixed_language_examples.py
