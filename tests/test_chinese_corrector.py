@@ -2,7 +2,7 @@
 中文替換器測試
 """
 import pytest
-from chinese_text_corrector import ChineseTextCorrector
+from multi_language_corrector.languages.chinese.corrector import ChineseCorrector as ChineseTextCorrector
 
 
 class TestChineseCorrector:
@@ -10,7 +10,11 @@ class TestChineseCorrector:
 
     def test_basic_substitution(self):
         """測試基本替換功能"""
-        corrector = ChineseTextCorrector.from_terms(["台北車站", "牛奶"])
+        # 注意：「北車」不是「台北車站」的模糊變體，需要手動指定
+        corrector = ChineseTextCorrector.from_terms({
+            "台北車站": {"aliases": ["北車"]},
+            "牛奶": {}
+        })
         
         result = corrector.correct("我在北車買了流奶")
         assert "台北車站" in result

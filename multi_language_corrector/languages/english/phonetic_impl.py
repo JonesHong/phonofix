@@ -249,7 +249,28 @@ class EnglishPhoneticSystem(PhoneticSystem):
     - 將英文文本轉換為 IPA 音標字串 (使用 phonemizer + espeak-ng)
     - 處理常見的 ASR 錯誤 (如縮寫、數字)
     - 計算 IPA 字串間的編輯距離以判斷相似度
+    
+    使用方式:
+    1. 舊版 API (使用模組層級快取):
+       phonetic = EnglishPhoneticSystem()
+       
+    2. 新版 API (使用 Backend 單例):
+       from multi_language_corrector.backend import get_english_backend
+       backend = get_english_backend()
+       backend.initialize()
+       phonetic = EnglishPhoneticSystem(backend=backend)
     """
+    
+    def __init__(self, backend=None):
+        """
+        初始化英文發音系統
+        
+        Args:
+            backend: 可選的 EnglishPhoneticBackend 實例。
+                     如果提供，將使用 Backend 的快取；
+                     否則使用模組層級的 cached_ipa_convert() 快取。
+        """
+        self._backend = backend
 
     def to_phonetic(self, text: str) -> str:
         """
@@ -287,9 +308,14 @@ class EnglishPhoneticSystem(PhoneticSystem):
                    .replace("6", "six ").replace("7", "seven ").replace("8", "eight ")\
                    .replace("9", "nine ")
 
-        # 使用快取版的 IPA 轉換
+        # 使用 Backend 或模組層級快取進行 IPA 轉換
         try:
-            result = cached_ipa_convert(text)
+            if self._backend:
+                # 新架構：使用 Backend 的快取
+                result = self._backend.to_phonetic(text)
+            else:
+                # 舊架構：使用模組層級快取
+                result = cached_ipa_convert(text)
         except RuntimeError:
             # phonemizer 不可用時，返回原文的小寫版本作為 fallback
             result = text.lower()

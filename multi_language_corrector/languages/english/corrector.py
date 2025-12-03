@@ -5,13 +5,16 @@
 """
 
 import re
-from typing import List, Dict, Union, Optional, Set
+from typing import List, Dict, Union, Optional, Set, TYPE_CHECKING
 from multi_language_corrector.core.phonetic_interface import PhoneticSystem
 from multi_language_corrector.core.tokenizer_interface import Tokenizer
 from .phonetic_impl import EnglishPhoneticSystem
 from .tokenizer import EnglishTokenizer
 from .fuzzy_generator import EnglishFuzzyGenerator
 from .config import EnglishPhoneticConfig
+
+if TYPE_CHECKING:
+    from multi_language_corrector.engine.english_engine import EnglishEngine
 
 
 class EnglishCorrector:
@@ -25,7 +28,47 @@ class EnglishCorrector:
     - 支援自動生成 ASR 錯誤變體
     - 支援 keywords 條件過濾 (需要上下文關鍵字才替換)
     - 支援 exclusions 保護 (排除詞不被替換)
+    
+    建立方式:
+    1. [推薦] 使用 EnglishEngine.create_corrector() (快速，共享 Backend)
+    2. [舊版] 使用 EnglishCorrector.from_terms() (會重新初始化 espeak-ng)
     """
+
+    @classmethod
+    def _from_engine(
+        cls,
+        engine: "EnglishEngine",
+        term_mapping: Dict[str, str],
+        keywords: Optional[Dict[str, List[str]]] = None,
+        exclusions: Optional[Dict[str, List[str]]] = None,
+    ) -> "EnglishCorrector":
+        """
+        從 Engine 建立輕量 Corrector 實例 (內部方法)
+        
+        這是 Engine.create_corrector() 呼叫的內部方法，
+        不會重新初始化 espeak-ng，非常快速。
+        
+        Args:
+            engine: EnglishEngine 實例
+            term_mapping: 別名到標準詞的映射
+            keywords: 關鍵字映射
+            exclusions: 排除詞映射
+            
+        Returns:
+            EnglishCorrector: 輕量實例
+        """
+        instance = cls.__new__(cls)
+        instance._engine = engine
+        instance.phonetic = engine.phonetic
+        instance.tokenizer = engine.tokenizer
+        instance.term_mapping = term_mapping
+        instance.keywords = keywords or {}
+        instance.exclusions = exclusions or {}
+        
+        # 預先計算所有別名的發音特徵
+        instance._compute_alias_phonetics()
+        
+        return instance
 
     @classmethod
     def from_terms(cls, term_dict, config=None, warmup="init"):
@@ -136,6 +179,7 @@ class EnglishCorrector:
         if warmup and warmup != "none":
             warmup_ipa_cache(mode=warmup)
         
+        self._engine = None  # 舊版 API 不使用 Engine
         self.phonetic = EnglishPhoneticSystem()
         self.tokenizer = EnglishTokenizer()
         
@@ -152,8 +196,15 @@ class EnglishCorrector:
         self.exclusions = exclusions or {}
         
         # 預先計算所有別名的發音特徵
-        # 重要：使用逐 token 計算再合併的方式，與 correct() 中的處理保持一致
-        # 這樣 "view js" 會被拆成 ["view", "js"]，"js" 會被識別為縮寫並正確轉換
+        self._compute_alias_phonetics()
+    
+    def _compute_alias_phonetics(self) -> None:
+        """
+        預先計算所有別名的發音特徵
+        
+        重要：使用逐 token 計算再合併的方式，與 correct() 中的處理保持一致
+        這樣 "view js" 會被拆成 ["view", "js"]，"js" 會被識別為縮寫並正確轉換
+        """
         aliases = list(self.term_mapping.keys())
         
         def compute_alias_ipa(alias):

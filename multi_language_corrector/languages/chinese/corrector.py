@@ -13,10 +13,13 @@ import pypinyin
 import Levenshtein
 import re
 from functools import lru_cache
-from typing import Generator, Optional, Callable, Dict, List, Any
+from typing import Generator, Optional, Callable, Dict, List, Any, TYPE_CHECKING, Union
 from .config import ChinesePhoneticConfig
 from .utils import ChinesePhoneticUtils
 from .fuzzy_generator import ChineseFuzzyGenerator
+
+if TYPE_CHECKING:
+    from multi_language_corrector.engine.chinese_engine import ChineseEngine
 
 
 # =============================================================================
@@ -47,6 +50,40 @@ class ChineseCorrector:
     - 結合拼音模糊比對與上下文關鍵字驗證
     - 修正 ASR 產生的同音異字或近音字錯誤
     """
+    
+    # =========================================================================
+    # 工廠方法
+    # =========================================================================
+    
+    @classmethod
+    def _from_engine(
+        cls,
+        engine: "ChineseEngine",
+        term_mapping: Dict[str, Dict],
+        exclusions: Optional[set] = None,
+    ) -> "ChineseCorrector":
+        """
+        由 ChineseEngine 調用的內部工廠方法
+        
+        此方法使用 Engine 提供的共享元件，避免重複初始化。
+        
+        Args:
+            engine: ChineseEngine 實例
+            term_mapping: 正規化的專有名詞映射
+            exclusions: 排除詞集合
+            
+        Returns:
+            ChineseCorrector: 輕量實例
+        """
+        instance = cls.__new__(cls)
+        instance._engine = engine
+        instance.config = engine.config
+        instance.utils = engine.utils
+        instance.use_canonical = True  # V2 固定為 True
+        instance.exclusions = exclusions or set()
+        instance.search_index = instance._build_search_index(term_mapping)
+        
+        return instance
 
     @staticmethod
     def _filter_aliases_by_pinyin(aliases, utils):
@@ -122,6 +159,7 @@ class ChineseCorrector:
             exclusions: 排除詞列表 (這些詞不會被修正)
             config: ChinesePhoneticConfig 實例
         """
+        self._engine = None  # 舊版 API 不使用 Engine
         self.use_canonical = True  # V2 固定為 True，一律修正為標準詞
         self.config = config or ChinesePhoneticConfig
         self.utils = ChinesePhoneticUtils(config=self.config)
