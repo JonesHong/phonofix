@@ -35,7 +35,7 @@ dependencies = [
     "pypinyin>=0.44.0",
     "python-Levenshtein>=0.12.2",
     "Pinyin2Hanzi>=0.1.1",
-    "eng-to-ipa>=0.0.2",
+    "phonemizer>=3.3.0",
     "hanziconv>=0.3.2",
 ]
 
