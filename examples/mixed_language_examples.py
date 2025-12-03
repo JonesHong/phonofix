@@ -1,7 +1,7 @@
-"""
+﻿"""
 混合語言校正範例
 
-本檔案展示 UnifiedCorrector 的混合語言校正功能：
+本檔案展示 UnifiedEngine 的混合語言校正功能：
 1. 中英文混合文本的校正
 2. 英文拼寫錯誤修正 (IPA 音標比對)
 3. 英文詞彙的 keywords/exclusions 支援
@@ -17,7 +17,10 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from multi_language_corrector.correction.unified_corrector import UnifiedCorrector
+from multi_language_corrector import UnifiedEngine
+
+# 全域 Engine (單例模式，避免重複初始化)
+engine = UnifiedEngine()
 
 
 # =============================================================================
@@ -31,7 +34,7 @@ def example_1_basic_mixed():
     print("範例 1: 基礎混合語言校正")
     print("=" * 60)
 
-    corrector = UnifiedCorrector({
+    corrector = engine.create_corrector({
         # 中文詞彙 (使用簡稱作為別名)
         "台北車站": ["北車"],
         
@@ -68,7 +71,7 @@ def example_2_english_keywords_exclusions():
     print("範例 2: 英文 Keywords 和 Exclusions")
     print("=" * 60)
 
-    corrector = UnifiedCorrector({
+    corrector = engine.create_corrector({
         "EKG": {
             "aliases": ["1 kg", "1kg", "one kg"],
             "keywords": ["設備", "心電圖", "檢查", "device", "heart", "medical"],
@@ -114,7 +117,7 @@ def example_3_technical_terms():
     print("範例 3: 專業術語校正")
     print("=" * 60)
 
-    corrector = UnifiedCorrector({
+    corrector = engine.create_corrector({
         # 程式語言
         "Python": ["Pyton", "python", "pie thon"],
         "JavaScript": ["java script", "Java Script"],
@@ -163,7 +166,7 @@ def example_4_exclusion_priority():
     print("範例 4: Exclusions 優先級")
     print("=" * 60)
 
-    corrector = UnifiedCorrector({
+    corrector = engine.create_corrector({
         "EKG": {
             "aliases": ["1kg", "1 kg"],
             "keywords": ["設備", "device", "醫療", "medical"],
@@ -197,7 +200,7 @@ def example_5_full_test():
     print("範例 5: 完整測試案例")
     print("=" * 60)
 
-    corrector = UnifiedCorrector({
+    corrector = engine.create_corrector({
         "台北車站": ["北車"],
         "Python": ["Pyton", "Pyson"],
         "TensorFlow": ["Ten so floor", "Tensor flow"],

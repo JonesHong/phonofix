@@ -1,8 +1,8 @@
-"""
+﻿"""
 中文語音辨識校正範例
 
-本檔案展示 ChineseCorrector 的所有核心功能：
-1. 基礎用法 - from_terms() 類方法
+本檔案展示 ChineseEngine 的所有核心功能：
+1. 基礎用法 - Engine.create_corrector() 工廠方法
 2. 模糊詞典生成 - 自動生成同音/近音變體
 3. 同音字過濾 - 避免無意義的替換
 4. 台灣口音支援 - n/l, r/l, f/h 混淆
@@ -16,7 +16,10 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from multi_language_corrector.languages.chinese.corrector import ChineseCorrector
+from multi_language_corrector import ChineseEngine
+
+# 全域 Engine (單例模式，避免重複初始化)
+engine = ChineseEngine()
 
 
 # =============================================================================
@@ -31,7 +34,7 @@ def example_1_basic_usage():
     print("=" * 60)
 
     # 只需提供正確的詞彙，系統會自動生成同音/近音的錯誤變體
-    corrector = ChineseCorrector.from_terms(
+    corrector = engine.create_corrector(
         [
             "台北車站",  # 自動生成: 胎北車站, 太北車站, 臺北車站...
             "牛奶",  # 自動生成: 流奶, 留奶...
@@ -69,7 +72,7 @@ def example_2_manual_aliases():
     print("範例 2: 手動提供別名 + 拼音去重")
     print("=" * 60)
 
-    corrector = ChineseCorrector.from_terms(
+    corrector = engine.create_corrector(
         {
             # "北車" 是縮寫，拼音與 "台北車站" 不同，所以需要手動添加
             "台北車站": [
@@ -109,7 +112,7 @@ def example_3_taiwan_accent():
     print("範例 3: 台灣口音特色 (n/l, r/l, f/h 混淆)")
     print("=" * 60)
 
-    corrector = ChineseCorrector.from_terms(
+    corrector = engine.create_corrector(
         [
             "牛奶",  # n/l: 流奶
             "然後",  # r/l: 蘭後
@@ -147,7 +150,7 @@ def example_4_context_keywords():
     print("範例 4: 上下文關鍵字 (keywords)")
     print("=" * 60)
 
-    corrector = ChineseCorrector.from_terms(
+    corrector = engine.create_corrector(
         {
             "永和豆漿": {
                 "aliases": ["永豆", "勇豆", "永鬥"],
@@ -192,7 +195,7 @@ def example_5_exclusions():
     print("範例 5: 豁免排除 (exclusions)")
     print("=" * 60)
 
-    corrector = ChineseCorrector.from_terms(
+    corrector = engine.create_corrector(
         {
             "心電圖設備": {
                 "aliases": ["心電圖社北", "心電圖社備"],  # 語音辨識可能的錯誤
@@ -230,7 +233,7 @@ def example_6_weight_system():
     print("範例 6: 權重系統 (weight)")
     print("=" * 60)
 
-    corrector = ChineseCorrector.from_terms(
+    corrector = engine.create_corrector(
         {
             "台北車站": {"aliases": ["北車"], "weight": 0.5},  # 高權重，重要地標
             "台北市": {"aliases": [], "weight": 0.1},  # 低權重
@@ -295,7 +298,7 @@ def example_8_mixed_format():
     print("範例 8: 混合格式配置")
     print("=" * 60)
 
-    corrector = ChineseCorrector.from_terms(
+    corrector = engine.create_corrector(
         {
             # 格式 1: 手動指定別名列表
             "台北車站": ["北車"],
@@ -354,7 +357,7 @@ def example_9_long_article():
     ]
     exclusions = ["什麼是", "道成的文字"]
 
-    corrector = ChineseCorrector.from_terms(term_list, exclusions=exclusions)
+    corrector = engine.create_corrector(term_list, exclusions=exclusions)
     article = (
         "什麼是上帝的道那你應該知道這本聖經就是上帝的道上帝的話就是上帝的道"
         "沒有錯我在說道太出與上帝同在道是聖林帶到人間的所以聖林借著莫氏就約的先知跟新約的使徒 "
