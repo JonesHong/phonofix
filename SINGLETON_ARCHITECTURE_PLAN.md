@@ -333,11 +333,13 @@ multi_language_corrector/
 
 ## 詳細實作計畫
 
-### Phase 1: 建立 Backend 層 (Layer 1)
+### Phase 1: 建立 Backend 層 (Layer 1) ✅ 已完成
 
 **目標**: 將 espeak-ng/pypinyin 初始化邏輯抽取為單例
 
-#### 1.1 建立 backend 抽象基類
+**提交**: `8a050b8` - feat: implement Phase 1 - Backend layer with singleton pattern
+
+#### 1.1 建立 backend 抽象基類 ✅
 
 ```python
 # backend/base.py
@@ -352,7 +354,7 @@ class PhoneticBackend(ABC):
     def get_cache_stats(self) -> dict: ...
 ```
 
-#### 1.2 實作 EnglishPhoneticBackend
+#### 1.2 實作 EnglishPhoneticBackend ✅
 
 ```python
 # backend/english_backend.py
@@ -364,7 +366,7 @@ class PhoneticBackend(ABC):
 - 實作單例模式
 ```
 
-#### 1.3 實作 ChinesePhoneticBackend
+#### 1.3 實作 ChinesePhoneticBackend ✅
 
 ```python
 # backend/chinese_backend.py
@@ -374,11 +376,13 @@ class PhoneticBackend(ABC):
 - 實作單例模式
 ```
 
-### Phase 2: 建立 Engine 層 (Layer 2)
+### Phase 2: 建立 Engine 層 (Layer 2) ✅ 已完成
 
 **目標**: 建立持有共享元件的 Engine 類別
 
-#### 2.1 建立 Engine 抽象基類
+**提交**: `0eae120` - feat: implement Phase 2 & 3 - Engine layer and Corrector refactoring
+
+#### 2.1 建立 Engine 抽象基類 ✅
 
 ```python
 # engine/base.py
@@ -387,23 +391,25 @@ class CorrectorEngine(ABC):
     def create_corrector(self, term_dict, **kwargs) -> "Corrector": ...
 ```
 
-#### 2.2 實作 EnglishEngine
+#### 2.2 實作 EnglishEngine ✅
 
 ```python
 # engine/english_engine.py
 - 持有: EnglishPhoneticSystem, EnglishTokenizer, EnglishFuzzyGenerator
 - 實作: create_corrector()
+- 注入 Backend 到 PhoneticSystem 以共享快取
 ```
 
-#### 2.3 實作 ChineseEngine
+#### 2.3 實作 ChineseEngine ✅
 
 ```python
 # engine/chinese_engine.py
 - 持有: ChinesePhoneticUtils, ChineseTokenizer, ChineseFuzzyGenerator
 - 實作: create_corrector()
+- 注入 Backend 到 PhoneticSystem 以共享快取
 ```
 
-#### 2.4 實作 UnifiedEngine
+#### 2.4 實作 UnifiedEngine ✅
 
 ```python
 # engine/unified_engine.py
@@ -411,30 +417,32 @@ class CorrectorEngine(ABC):
 - 實作: create_corrector() - 自動分類詞彙並建立子 Corrector
 ```
 
-### Phase 3: 重構 Corrector 層 (Layer 3)
+### Phase 3: 重構 Corrector 層 (Layer 3) ✅ 已完成
 
 **目標**: 將 Corrector 改為輕量實例
 
-#### 3.1 重構 EnglishCorrector
+**提交**: `0eae120` - feat: implement Phase 2 & 3 - Engine layer and Corrector refactoring
+
+#### 3.1 重構 EnglishCorrector ✅
 
 ```python
 # languages/english/corrector.py
-- 移除: warmup_ipa_cache() 呼叫
-- 移除: 直接持有 PhoneticSystem, Tokenizer
-- 改為: 透過 Engine 存取共享元件
+- 新增: _from_engine() 工廠方法
+- 新增: _compute_alias_phonetics() 共用方法
+- PhoneticSystem 接受可選 backend 參數
 - 保留: term_mapping, keywords, exclusions, correct() 邏輯
 ```
 
-#### 3.2 重構 ChineseCorrector
+#### 3.2 重構 ChineseCorrector ✅
 
 ```python
 # languages/chinese/corrector.py
-- 移除: 直接持有 utils, generator
-- 改為: 透過 Engine 存取共享元件
+- 新增: _from_engine() 工廠方法
+- PhoneticSystem 接受可選 backend 參數
 - 保留: search_index, correct() 邏輯
 ```
 
-#### 3.3 重構 UnifiedCorrector
+#### 3.3 重構 UnifiedCorrector 🔄 待更新
 
 ```python
 # correction/unified_corrector.py
@@ -442,7 +450,7 @@ class CorrectorEngine(ABC):
 - 改為: 透過 UnifiedEngine.create_corrector() 建立
 ```
 
-### Phase 4: 更新公開 API
+### Phase 4: 更新公開 API ⬜ 待完成
 
 #### 4.1 更新 __init__.py
 

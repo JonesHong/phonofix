@@ -5,10 +5,13 @@
 負責協調語言路由與特定語言的修正器，以處理混合語言的文本。
 """
 
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Optional, TYPE_CHECKING
 from multi_language_corrector.router.language_router import LanguageRouter
 from multi_language_corrector.languages.chinese.corrector import ChineseCorrector
 from multi_language_corrector.languages.english.corrector import EnglishCorrector
+
+if TYPE_CHECKING:
+    from multi_language_corrector.engine.unified_engine import UnifiedEngine
 
 
 class UnifiedCorrector:
@@ -21,6 +24,38 @@ class UnifiedCorrector:
     - 將片段分派給對應的語言修正器 (中文/英文)
     - 合併修正後的結果
     """
+    
+    # =========================================================================
+    # 工廠方法
+    # =========================================================================
+    
+    @classmethod
+    def _from_engine(
+        cls,
+        engine: "UnifiedEngine",
+        zh_corrector: ChineseCorrector,
+        en_corrector: EnglishCorrector,
+    ) -> "UnifiedCorrector":
+        """
+        由 UnifiedEngine 調用的內部工廠方法
+        
+        此方法使用 Engine 提供的子 Corrector，避免重複初始化。
+        
+        Args:
+            engine: UnifiedEngine 實例
+            zh_corrector: 已初始化的中文修正器
+            en_corrector: 已初始化的英文修正器
+            
+        Returns:
+            UnifiedCorrector: 輕量實例
+        """
+        instance = cls.__new__(cls)
+        instance._engine = engine
+        instance.router = engine.router
+        instance.zh_corrector = zh_corrector
+        instance.en_corrector = en_corrector
+        
+        return instance
 
     def __init__(self, term_dict: Union[List[str], Dict], exclusions=None):
         """
@@ -33,6 +68,7 @@ class UnifiedCorrector:
             term_dict: 專有名詞字典或列表
             exclusions: 排除詞列表 (全域排除詞，會傳給各語言修正器)
         """
+        self._engine = None  # 舊版 API 不使用 Engine
         self.router = LanguageRouter()
         
         # 將專有名詞分類為中文與英文
@@ -87,15 +123,15 @@ class UnifiedCorrector:
         corrected_segments = []
         
         for lang, segment in segments:
-            if lang == 'zh':
+            if lang == 'zh' and self.zh_corrector is not None:
                 # 中文修正: "我有一台" -> "我有一台" (無變更)
                 corrected_segments.append(self.zh_corrector.correct(segment))
-            elif lang == 'en':
+            elif lang == 'en' and self.en_corrector is not None:
                 # 英文修正: "1kg" -> "EKG" (假設 EKG 在詞庫中且符合規則)
                 # 傳入完整原文作為上下文，供 keyword/exclusion 檢查
                 corrected_segments.append(self.en_corrector.correct(segment, full_context=text))
             else:
-                # 未知語言 (理論上不會發生)
+                # 無對應修正器或未知語言，保持原樣
                 corrected_segments.append(segment)
         
         # 2. 結果合併
