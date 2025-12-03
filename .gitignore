@@ -110,4 +110,11 @@ Thumbs.db
 # data/
 # tmp/
 
+# uv
+.venv/
+uv.lock
+
+# Debug files
+debug_*.py
+
 __pycache__/**

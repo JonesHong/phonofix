@@ -1,55 +1,106 @@
-# Chinese Text Corrector (Multi-Language Support)
+# Phonetic Substitution Engine (多語言語音相似替換引擎)
 
-中文/多語言文本校正工具包 - 支援 ASR 後處理、地域慣用詞轉換、縮寫擴展等多種應用場景。
-特別針對 **中英混合 (Code-Switching)** 場景進行了優化，支援基於語音相似度的英文專有名詞修正。
+基於語音相似度的多語言專有名詞替換工具。支援 ASR/LLM 後處理、地域慣用詞轉換、縮寫擴展等多種應用場景。
+特別針對 **中英混合 (Code-Switching)** 場景進行了優化。
 
 ## 💡 核心理念
 
-**本工具專注於提供校正引擎，不維護任何預設字典。**
+**本工具專注於提供替換引擎，不維護任何預設字典。**
+
+> ⚠️ **注意**：這不是全文糾錯工具，而是專注於「專有名詞的語音相似替換」。
 
 使用者需自行提供專有名詞字典，本工具會：
-1. **自動生成模糊音變體**：
-   - **中文**：自動產生台式口音/模糊音變體（如「北車」→「台北車站」）。
-   - **英文**：基於 IPA (國際音標) 計算語音相似度，修正 ASR 聽錯的專有名詞（如 "1kg" → "EKG", "Ten so floor" → "TensorFlow"）。
-2. **智能文本校正**：自動識別語言片段，並將接近音的詞彙轉換為您指定的正確專有名詞。
+1. **自動生成語音變體**：
+   - **中文**：自動產生台式口音/模糊音變體（如「北車」→「台北車站」）
+   - **英文**：基於 IPA (國際音標) 計算語音相似度（如 "Ten so floor" → "TensorFlow"）
+2. **智能詞彙替換**：自動識別語言片段，將語音相似的詞彙替換為您指定的標準專有名詞
 
 **適用場景**：
-- ASR 語音識別後處理：修正語音識別錯誤 (含中英夾雜)
-- 專有名詞標準化：將口語/聽錯的術語還原
-- 地域詞彙轉換：中國慣用詞 ↔ 台灣慣用詞
+- **ASR 語音識別後處理**：修正語音轉文字產生的專有名詞錯誤（含中英夾雜）
+- **LLM 輸出後處理**：修正大型語言模型因專有名詞罕見而選錯的同音字/近音字
+- **專有名詞標準化**：將口語/誤寫的術語還原為正式名稱
+- **地域詞彙轉換**：中國慣用詞 ↔ 台灣慣用詞
 
 ## 📚 功能特色
 
-### 1. 多語言支援 (New!)
-- **Unified Corrector**: 統一入口，自動處理中英混合文本。
-- **英文語音修正**: 
-    - 使用 IPA (International Phonetic Alphabet) 進行模糊比對。
-    - 解決常見 ASR 錯誤 (如 "1kg" 誤認為 "EKG")。
-    - 支援 Acronyms (縮寫) 的語音還原。
+### 1. 多語言支援
+- **Unified Corrector**: 統一入口，自動處理中英混合文本
+- **英文語音替換**: 
+    - 使用 IPA (International Phonetic Alphabet) 進行語音相似度比對
+    - 支援 Acronyms (縮寫) 的語音還原
+- **中文語音替換**:
+    - 使用拼音進行模糊音比對
+    - 支援台灣國語特有的發音混淆模式
 
-### 2. 中文模糊音詞典生成
-- 自動產生台式口音/模糊音變體詞典
-- 支援捲舌音 (z/zh, c/ch, s/sh)
-- 支援 n/l 不分 (台灣國語)
-- 支援 r/l 混淆
-- 支援 f/h 混淆
-- 支援韻母模糊 (in/ing, en/eng, ue/ie 等)
+### 2. 自動語音變體生成
+- **中文**：自動產生台式口音/模糊音變體
+  - 捲舌音 (z/zh, c/ch, s/sh)
+  - n/l 不分 (台灣國語)
+  - r/l 混淆、f/h 混淆
+  - 韻母模糊 (in/ing, en/eng, ue/ie 等)
+- **英文**：自動產生 ASR/LLM 常見錯誤變體
+  - 音節分割變體 ("TensorFlow" → "Ten so floor")
+  - 縮寫展開變體 ("AWS" → "A W S")
 
-### 3. 智能文本校正
+### 3. 智能替換引擎
 - 滑動視窗匹配算法
 - 上下文關鍵字加權機制
 - 動態容錯率調整
 
 ## 📦 安裝
 
+### 使用 uv (推薦)
+
+```bash
+# 安裝 uv (如果尚未安裝)
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 安裝專案依賴
+uv sync
+
+# 安裝開發依賴
+uv sync --dev
+
+# 執行範例
+uv run python examples/chinese_examples.py
+
+# 執行測試
+uv run pytest
+```
+
+### 使用 pip
+
 ```bash
 # 安裝依賴
 pip install -r requirements.txt
 ```
 
+## 🧪 開發
+
+```bash
+# 執行測試
+uv run pytest
+
+# 執行測試並顯示覆蓋率
+uv run pytest --cov
+
+# 程式碼格式化
+uv run ruff format .
+
+# 程式碼檢查
+uv run ruff check .
+
+# 型別檢查
+uv run mypy chinese_text_corrector multi_language_corrector
+```
+
 ## 🚀 快速開始
 
-### 1. 混合語言修正 (Unified Corrector)
+### 1. 混合語言替換 (Unified Corrector)
 
 ```python
 from multi_language_corrector.correction.unified_corrector import UnifiedCorrector
@@ -58,19 +109,23 @@ from multi_language_corrector.correction.unified_corrector import UnifiedCorrect
 terms = [
     "台北車站",      # 中文詞
     "TensorFlow",   # 英文專有名詞
-    "EKG",          # 英文縮寫
     "Python"
 ]
 
-# 初始化校正器
+# 初始化替換器
 corrector = UnifiedCorrector(terms)
 
-# 測試修正
-text = "我在北車用Pyton寫code，這個1kg設備很貴"
-result = corrector.correct(text)
-
+# ASR 輸出後處理
+asr_text = "我在北車用Pyton寫Ten so floor的code"
+result = corrector.correct(asr_text)
 print(result)
-# 輸出: "我在台北車站用Python寫code，這個EKG設備很貴"
+# 輸出: "我在台北車站用Python寫TensorFlow的code"
+
+# LLM 輸出後處理 (LLM 可能因罕見詞而選錯同音字)
+llm_text = "我在北車用派森寫code"  # LLM 把 Python 音譯成「派森」
+result = corrector.correct(llm_text)
+print(result)
+# 輸出: "我在台北車站用Python寫code"
 ```
 
 ### 2. 中文專用 (Legacy Mode)
@@ -231,7 +286,39 @@ chinese_text_corrector/
 
 以下範例展示不同業務場景下，如何建立您自己的專有名詞字典：
 
-### 1. 地域慣用詞轉換
+### 1. ASR 語音識別後處理
+
+**問題**：語音識別常將專有名詞聽錯成發音相近的一般詞彙
+
+```python
+# 您的專有名詞字典
+terms = ["牛奶", "發揮", "然後", "TensorFlow", "Kubernetes"]
+
+corrector = UnifiedCorrector(terms)
+
+# ASR 輸出：專有名詞被聽錯
+asr_output = "我買了流奶，蘭後用Ten so floor訓練模型"
+result = corrector.correct(asr_output)
+# 結果: "我買了牛奶，然後用TensorFlow訓練模型"
+```
+
+### 2. LLM 輸出後處理
+
+**問題**：LLM 可能因專有名詞罕見而選擇發音相近的常用字
+
+```python
+# 您的專有名詞字典
+terms = ["耶穌", "恩典", "PyTorch", "NumPy"]
+
+corrector = UnifiedCorrector(terms)
+
+# LLM 輸出：罕見專有名詞被替換成同音常用字
+llm_output = "耶穌的恩點很大，我用排炬和南派做機器學習"
+result = corrector.correct(llm_output)
+# 結果: "耶穌的恩典很大，我用PyTorch和NumPy做機器學習"
+```
+
+### 3. 地域慣用詞轉換
 
 **您的字典**：維護地域對照表（例如：中國 ↔ 台灣慣用詞）
 
@@ -248,7 +335,7 @@ result = corrector.correct("我用土豆做了視頻")
 # 結果: "我用馬鈴薯做了影片"
 ```
 
-### 2. 縮寫擴展
+### 4. 縮寫擴展
 
 **您的字典**：維護常用縮寫與全稱對照表
 
@@ -264,27 +351,9 @@ result = corrector.correct("我在北車等你")
 # 結果: "我在台北車站等你"
 ```
 
-### 3. ASR 錯誤修正
+### 5. 專業術語標準化
 
-**您的字典**：維護容易被語音識別錯誤的詞彙（工具會自動生成模糊音，您也可手動補充）
-
-```python
-# 您的 ASR 常見錯誤字典
-asr_terms = {
-    "牛奶": {},  # 工具會自動生成 "流奶" 等 n/l 混淆變體
-    "發揮": {},  # 自動生成 "花揮" 等 f/h 混淆變體
-    "然後": {}   # 自動生成 "蘭後" 等 r/l 混淆變體
-}
-
-corrector = ChineseTextCorrector.from_terms(asr_terms)
-
-result = corrector.correct("我買了流奶,蘭後他花揮了才能")
-# 結果: "我買了牛奶,然後他發揮了才能"
-```
-
-### 4. 錯別字修正
-
-**您的字典**：維護業務領域的專業術語及常見錯字
+**您的字典**：維護業務領域的專業術語
 
 ```python
 # 您的醫療術語字典
@@ -296,22 +365,6 @@ corrector = ChineseTextCorrector.from_terms(medical_terms)
 
 result = corrector.correct("醫生開了二四批林給我")
 # 結果: "醫生開了阿斯匹靈給我"
-```
-
-### 5. 英文混用詞
-
-**您的字典**：維護常用英文詞彙及其常見錯字
-
-```python
-# 您的英文術語字典
-english_terms = {
-    "Python": {"aliases": ["Pyson"], "weight": 0.2}
-}
-
-corrector = ChineseTextCorrector.from_terms(english_terms)
-
-result = corrector.correct("我正在寫Pyson程式")
-# 結果: "我正在寫Python程式"
 ```
 
 ## 📖 完整範例
@@ -359,15 +412,14 @@ python auto_correct_examples.py
 - `ran` ⇄ `lan`, `yan` (然/蘭/嚴)
 - 更多請參考 `phonetic_config.py`
 
-### 校正算法流程
+### 替換算法流程
 
 1. **建立保護遮罩**: 標記豁免詞位置
 2. **滑動視窗掃描**: 遍歷所有可能的詞長
-3. **拼音相似度計算**:
-   - 特例音節匹配 (優先)
-   - 韻母模糊匹配
-   - Levenshtein 編輯距離
-4. **聲母嚴格檢查**: 短詞必須聲母匹配
+3. **語音相似度計算**:
+   - 中文：拼音比對（特例音節 → 韻母模糊 → 編輯距離）
+   - 英文：IPA 音標比對（Levenshtein 編輯距離）
+4. **聲母/首音嚴格檢查**: 短詞必須首音匹配
 5. **上下文加分**: 檢查關鍵字出現
 6. **權重計分**: 最終分數 = 錯誤率 - 權重 - 上下文獎勵
 7. **衝突解決**: 依分數排序,選擇最佳不重疊候選
