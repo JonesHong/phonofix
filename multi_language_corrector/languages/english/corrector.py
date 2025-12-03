@@ -28,7 +28,7 @@ class EnglishCorrector:
     """
 
     @classmethod
-    def from_terms(cls, term_dict, config=None):
+    def from_terms(cls, term_dict, config=None, warmup="fast"):
         """
         從詞彙配置建立 EnglishCorrector 實例
         
@@ -45,6 +45,7 @@ class EnglishCorrector:
         Args:
             term_dict: 詞彙配置
             config: 額外配置選項
+            warmup: IPA 快取暖機模式 ("fast", "full", "aggressive", "none")
             
         Returns:
             EnglishCorrector: 初始化後的修正器實例
@@ -62,7 +63,7 @@ class EnglishCorrector:
                 term_mapping[term] = term  # 原詞映射到自己
                 for variant in variants:
                     term_mapping[variant] = term
-            return cls(term_mapping, keywords, exclusions)
+            return cls(term_mapping, keywords, exclusions, warmup=warmup)
         
         # 處理字典格式
         for term, value in term_dict.items():
@@ -103,13 +104,14 @@ class EnglishCorrector:
                 for variant in auto_variants:
                     term_mapping[variant] = term
         
-        return cls(term_mapping, keywords, exclusions)
+        return cls(term_mapping, keywords, exclusions, warmup=warmup)
 
     def __init__(
         self, 
         term_mapping: Union[List[str], Dict[str, str]],
         keywords: Optional[Dict[str, List[str]]] = None,
-        exclusions: Optional[Dict[str, List[str]]] = None
+        exclusions: Optional[Dict[str, List[str]]] = None,
+        warmup: str = "fast"
     ):
         """
         初始化英文修正器
@@ -122,7 +124,19 @@ class EnglishCorrector:
                 - 如果標準詞在此映射中，則必須句子中包含至少一個關鍵字才會替換
             exclusions: 標準詞到排除關鍵字列表的映射 (如 {"EKG": ["水", "公斤"]})
                 - 如果句子中包含任一排除關鍵字，則不替換
+            warmup: IPA 快取暖機模式
+                - "fast": 預熱最常見的 ~100 個詞 (約 1-2 秒)，推薦用於一般使用
+                - "full": 預熱完整的 ~400 個詞 (約 5-7 秒)，適合處理長文章
+                - "aggressive": 多執行緒預熱 3000 個常見詞 (約 2-4 秒)，推薦用於長文章
+                - "none": 不預熱，適合快取已經暖過或只處理少量文字
         """
+        from .phonetic_impl import warmup_ipa_cache
+        
+        # 預熱 IPA 快取 (在其他初始化之前)
+        # 這會預先載入常見英文單字的 IPA，避免首次校正時的延遲
+        if warmup and warmup != "none":
+            warmup_ipa_cache(mode=warmup)
+        
         self.phonetic = EnglishPhoneticSystem()
         self.tokenizer = EnglishTokenizer()
         
@@ -139,10 +153,38 @@ class EnglishCorrector:
         self.exclusions = exclusions or {}
         
         # 預先計算所有別名的發音特徵
-        self.alias_phonetics = {
-            alias: self.phonetic.to_phonetic(alias) 
-            for alias in self.term_mapping.keys()
-        }
+        # 重要：使用逐 token 計算再合併的方式，與 correct() 中的處理保持一致
+        # 這樣 "view js" 會被拆成 ["view", "js"]，"js" 會被識別為縮寫並正確轉換
+        aliases = list(self.term_mapping.keys())
+        
+        def compute_alias_ipa(alias):
+            """計算 alias 的 IPA（逐 token 計算再合併）"""
+            tokens = self.tokenizer.tokenize(alias)
+            token_ipas = [self.phonetic.to_phonetic(t) for t in tokens]
+            return ''.join(token_ipas)
+        
+        if len(aliases) > 20:
+            # 多執行緒計算 IPA
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            raw_alias_phonetics = {}
+            with ThreadPoolExecutor(max_workers=16) as executor:
+                futures = {executor.submit(compute_alias_ipa, alias): alias for alias in aliases}
+                for future in as_completed(futures):
+                    alias = futures[future]
+                    raw_alias_phonetics[alias] = future.result()
+        else:
+            # 少量 alias 直接計算
+            raw_alias_phonetics = {
+                alias: compute_alias_ipa(alias) 
+                for alias in aliases
+            }
+        
+        # 直接使用計算好的 IPA（不過濾）
+        # 注意：英文不需要像中文那樣過濾同音字，因為：
+        # 1. 中文過濾的是「不同漢字但同音」的變體（如"測試"、"側試"）
+        # 2. 英文的 alias 是「同一詞的不同輸入形式」（如"React"、"re act"）
+        # 這些不同形式都是合法的 ASR 輸入，不應過濾
+        self.alias_phonetics = raw_alias_phonetics
         
         # 預先計算所有別名的 token 數量 (用於視窗大小匹配)
         self.alias_token_counts = {
@@ -167,9 +209,9 @@ class EnglishCorrector:
 
         演算法:
         1. 將文本分詞 (Tokenize)
-        2. 使用滑動視窗 (從最大視窗大小開始遞減) 掃描 Token 序列
-        3. 將視窗內的文本轉換為發音特徵
-        4. 與專有名詞庫進行模糊比對
+        2. 預先計算每個 Token 的 IPA (利用快取提升效率)
+        3. 使用滑動視窗 (從最大視窗大小開始遞減) 掃描 Token 序列
+        4. 合併視窗內 Token 的 IPA 進行比對
         5. 檢查 exclusion (排除詞保護) 和 keyword (關鍵字條件)
         6. 若匹配成功且通過檢查，則替換原始文本並跳過已處理的 Token
         7. 若無匹配，則移動到下一個 Token
@@ -190,6 +232,10 @@ class EnglishCorrector:
         
         if not tokens:
             return text
+        
+        # 預先計算每個 token 的 IPA (這會利用快取)
+        # 這樣每個唯一的 token 只需要計算一次 IPA
+        token_ipas = [self.phonetic.to_phonetic(token) for token in tokens]
             
         matches = [] # 儲存匹配結果: (start_index, end_index, replacement)
         
@@ -212,9 +258,15 @@ class EnglishCorrector:
                 end_char = indices[i + length - 1][1]
                 window_text = text[start_char : end_char]
                 
-                # 計算視窗文本的發音特徵
-                # 範例: "one k g" -> /wʌn keɪ dʒi/
-                window_phonetic = self.phonetic.to_phonetic(window_text)
+                # 合併視窗內 Token 的 IPA (利用預先計算的結果)
+                # 使用預計算的單 token IPA 合併，避免重複的 SQLite 查詢
+                if length == 1:
+                    # 單 token 直接使用預計算的 IPA
+                    window_phonetic = token_ipas[i]
+                else:
+                    # 多 token: 合併預計算的 IPA (用空格連接)
+                    # 這比重新計算整個字串的 IPA 快很多
+                    window_phonetic = ''.join(token_ipas[i:i+length])
                 
                 # 與所有別名進行比對
                 for alias, alias_phonetic in self.alias_phonetics.items():

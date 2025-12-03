@@ -20,12 +20,13 @@ class EnglishFuzzyGenerator:
     2. 字母發音錯誤 (API -> a p i)
     3. 數字/字母混淆 (EKG -> 1 kg, B2B -> b to b)
     4. 常見拼寫錯誤模式 (Python -> Pyton)
+    5. 完整詞彙直接匹配 (kubernetes -> cooper net ease)
     """
     
     def __init__(self, config=None):
         self.config = config or EnglishPhoneticConfig
     
-    def generate_variants(self, term: str, max_variants: int = 20) -> List[str]:
+    def generate_variants(self, term: str, max_variants: int = 30) -> List[str]:
         """
         為專有名詞生成可能的 ASR 錯誤變體
         
@@ -39,6 +40,9 @@ class EnglishFuzzyGenerator:
         variants: Set[str] = set()
         term_lower = term.lower()
         
+        # 0. 先檢查完整詞彙是否有預定義的 ASR 變體
+        variants.update(self._generate_full_word_variants(term))
+        
         # 1. 處理縮寫 (全大寫詞)
         if term.isupper() and len(term) <= 5:
             variants.update(self._generate_acronym_variants(term))
@@ -50,7 +54,7 @@ class EnglishFuzzyGenerator:
         # 3. 應用拼寫錯誤模式
         variants.update(self._apply_spelling_patterns(term))
         
-        # 4. 檢查已知的 ASR 分詞模式
+        # 4. 檢查已知的 ASR 分詞模式 (針對詞的部分)
         for key, splits in self.config.ASR_SPLIT_PATTERNS.items():
             if key in term_lower:
                 for split in splits:
@@ -66,6 +70,41 @@ class EnglishFuzzyGenerator:
         filtered = self._filter_similar_variants(term, list(variants))
         
         return filtered[:max_variants]
+    
+    def _generate_full_word_variants(self, term: str) -> Set[str]:
+        """
+        為完整詞彙生成預定義的 ASR 變體
+        
+        這是最高優先級的變體來源，直接使用 config 中定義的模式
+        """
+        variants = set()
+        term_lower = term.lower()
+        
+        # 直接查找完整詞彙的變體
+        if term_lower in self.config.ASR_SPLIT_PATTERNS:
+            variants.update(self.config.ASR_SPLIT_PATTERNS[term_lower])
+        
+        # 處理帶後綴的詞彙 (如 Vue.js, Node.js)
+        # 嘗試提取主詞並單獨生成變體
+        suffix_match = re.match(r'^([a-zA-Z]+)([\.\-_][a-zA-Z]+)$', term_lower)
+        if suffix_match:
+            main_word = suffix_match.group(1)  # 如 "vue"
+            suffix = suffix_match.group(2)      # 如 ".js"
+            
+            # 為主詞查找變體
+            if main_word in self.config.ASR_SPLIT_PATTERNS:
+                for variant in self.config.ASR_SPLIT_PATTERNS[main_word]:
+                    # 生成 "view JS", "view js" 等變體 (不帶點)
+                    suffix_clean = suffix.replace('.', ' ').replace('-', ' ').replace('_', ' ').strip()
+                    variants.add(f"{variant} {suffix_clean}")
+                    variants.add(f"{variant}{suffix_clean}")  # 也加無空格版本
+        
+        # 也檢查不帶特殊字符的版本 (如 Vue.js -> vuejs)
+        term_clean = re.sub(r'[^a-zA-Z0-9]', '', term_lower)
+        if term_clean in self.config.ASR_SPLIT_PATTERNS:
+            variants.update(self.config.ASR_SPLIT_PATTERNS[term_clean])
+        
+        return variants
     
     def _generate_acronym_variants(self, acronym: str) -> Set[str]:
         """

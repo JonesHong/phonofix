@@ -44,18 +44,89 @@ class EnglishPhoneticConfig:
         (r'tion', 'shun'),           # station -> stashun
         (r'y$', 'i'),                # happy -> happi
         (r'^ph', 'f'),               # phone -> fone
+        (r'er$', 'a'),               # docker -> docka
+        (r'er$', 'er'),              # 保留原形
+        (r'or$', 'er'),              # tensor -> tenser
+        (r'le$', 'el'),              # google -> googel
+        (r'que$', 'k'),              # technique -> technik
     ]
     
     # 常見 ASR 分詞模式
     # 格式: 原始詞根 -> [可能的 ASR 錯誤分詞]
+    # 擴展: 涵蓋更多常見技術詞彙的 ASR 錯誤
     ASR_SPLIT_PATTERNS = {
-        'tensor': ['ten so', 'ten sor', 'tense or'],
-        'flow': ['flo', 'floor'],
-        'script': ['scrip', 'scrypt'],
-        'python': ['pie thon', 'pi thon', 'pyton'],
-        'java': ['jav a', 'java'],
-        'react': ['re act', 'reac'],
-        'torch': ['tor ch', 'tourch'],
+        # 基礎模式
+        'tensor': ['ten so', 'ten sor', 'tense or', 'ten sir'],
+        'flow': ['flo', 'floor', 'flew'],
+        'script': ['scrip', 'scrypt', 'scrip t'],
+        'python': ['pie thon', 'pi thon', 'pyton', 'pie ton'],
+        'java': ['jav a', 'java', 'jawa'],
+        'react': ['re act', 'reac', 'ree act'],
+        'torch': ['tor ch', 'tourch', 'torque'],
+        
+        # Docker/Kubernetes 相關
+        'docker': ['dock er', 'doc ker', 'dauker', 'docket'],
+        'kube': ['cube', 'coop', 'koop', 'cue be'],
+        'kubernetes': ['cooper net ease', 'cooper net is', 'cube er net ease', 
+                       'kube er net ease', 'cooper nettys', 'cube net ease'],
+        'container': ['con tainer', 'contain er'],
+        
+        # 雲端平台
+        'azure': ['a sure', 'ash er', 'as your', 'asher', 'ashore'],
+        'aws': ['a w s', 'A W S'],
+        'gcp': ['g c p', 'G C P', 'gee see pee'],
+        
+        # 資料科學
+        'numpy': ['num pie', 'num py', 'numb pie', 'numb pi'],
+        'pandas': ['pan das', 'pan does', 'panda s', 'panda as'],
+        'scipy': ['sigh pie', 'sci pie', 'sy py'],
+        
+        # AI/ML
+        'openai': ['open a i', 'open ai', 'open eye'],
+        'chatgpt': ['chat g p t', 'chat gee pee tee', 'chad gpt', 'chat gbt'],
+        'gpt': ['g p t', 'gee pee tee', 'g p tea'],
+        
+        # 資料庫
+        'postgres': ['post gress', 'post gres', 'post grace'],
+        'postgresql': ['post gress q l', 'post gres q l', 'post gray sql'],
+        'mongo': ['mango', 'mon go'],
+        'mongodb': ['mango d b', 'mongo d b', 'mango db'],
+        'graphql': ['graph q l', 'graph ql', 'graf q l', 'graph cue el'],
+        'sql': ['sequel', 's q l', 'es q l'],
+        
+        # Web 框架
+        'django': ['jango', 'd jango', 'jan go', 'gene go'],
+        'fastapi': ['fast a p i', 'fast api', 'fast a pie'],
+        'flask': ['flas k', 'flask'],
+        'express': ['ex press', 'express'],
+        'angular': ['ang you lar', 'ang u lar', 'angle ar', 'angle lar'],
+        'vue': ['view', 'v u e', 'vee you', 'vew'],
+        
+        # 認證/協議
+        'oauth': ['o auth', 'oh auth', 'o off'],
+        'https': ['h t t p s', 'http s', 'h t t p es'],
+        'http': ['h t t p', 'h t tp'],
+        'api': ['a p i', 'a pie', 'ay p i'],
+        
+        # 資料格式
+        'json': ['jay son', 'jason', 'j son', 'jaysawn'],
+        'xml': ['x m l', 'ex em el'],
+        'yaml': ['yam l', 'yam el', 'y a m l'],
+        'csv': ['c s v', 'see s v'],
+        
+        # 硬體
+        'cpu': ['c p u', 'see pee you', 'see p u'],
+        'gpu': ['g p u', 'gee pee you', 'g p you'],
+        'ram': ['r a m', 'random'],
+        'ssd': ['s s d', 'es s d', 'es es dee'],
+        
+        # 其他常見技術詞
+        'typescript': ['type script', 'type scrip', 'type scrypt'],
+        'javascript': ['java script', 'java scrip', 'jav a script'],
+        'github': ['git hub', 'git up', 'get hub'],
+        'gitlab': ['git lab', 'git lap', 'get lab'],
+        'node': ['no d', 'nod', 'node'],
+        'npm': ['n p m', 'en pee em'],
     }
     
     # IPA 相似音映射 (用於發音比對)
