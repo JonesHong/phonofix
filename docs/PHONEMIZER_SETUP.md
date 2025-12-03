@@ -2,6 +2,42 @@
 
 本專案使用 `phonemizer` 搭配 `espeak-ng` 作為英文 G2P（Grapheme-to-Phoneme）引擎。
 
+## 快速安裝（推薦）
+
+我們提供了自動化腳本，可一鍵完成安裝與環境設定：
+
+### Windows
+
+```powershell
+# 方法一：使用 PowerShell 腳本（推薦）
+# 以管理員權限執行 PowerShell，然後執行：
+.\scripts\setup_espeak.ps1
+
+# 方法二：使用 Batch 腳本
+# 雙擊執行 scripts\setup_espeak_windows.bat
+```
+
+### macOS / Linux
+
+```bash
+# 給予執行權限
+chmod +x scripts/setup_espeak.sh
+
+# 執行腳本
+./scripts/setup_espeak.sh
+```
+
+腳本會自動：
+1. 偵測/安裝 espeak-ng
+2. 設定必要的環境變數
+3. 驗證 phonemizer 是否可正常運作
+
+---
+
+## 手動安裝步驟
+
+如果自動腳本無法使用，可按以下步驟手動安裝：
+
 ## 系統需求
 
 - Python >= 3.9
