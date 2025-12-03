@@ -1,5 +1,32 @@
 # 使用 phonemizer + espeak-ng 替代 eng-to-ipa 的完整計畫
 
+> **狀態**: ✅ 已完成開發與測試  
+> **分支**: `feature/phonemizer-migration`  
+> **Worktree**: `c:\work\chinese_corrector-phonemizer`  
+> **最後更新**: 2025-12-03
+
+## 執行摘要
+
+| 項目 | 狀態 |
+|------|------|
+| Git Worktree 建立 | ✅ 完成 |
+| pyproject.toml 更新 | ✅ 完成 |
+| phonetic_impl.py 重寫 | ✅ 完成 |
+| fuzzy_generator.py 更新 | ✅ 完成 |
+| 安裝文件 (PHONEMIZER_SETUP.md) | ✅ 完成 |
+| 效能基準測試 | ✅ 完成 |
+| 單元測試 (17/17 通過) | ✅ 完成 |
+| 合併回 master | ✅ 完成 |
+
+### 效能測試結果
+
+| 方案 | 冷啟動 (每字) | 快取命中 (每字) | OOV 處理 |
+|------|--------------|----------------|---------|
+| phonemizer + espeak | 196ms | **0.0001ms** | ✅ 完美 |
+| eng-to-ipa | 9.6ms | - | ❌ 回傳 `*` |
+
+---
+
 ## 目標
 
 - 將目前專案中依賴的 `eng-to-ipa` 替換為 **`phonemizer` 搭配 `espeak-ng`**，作為英文文字 → 音標（phoneme/IPA）映射的主要引擎。
