@@ -1,16 +1,17 @@
 """
-語音工具模組
+中文語音工具模組
 
 提供底層的拼音處理、模糊音判斷與字串操作工具函數。
 """
 
 import pypinyin
 import re
-from .config import PhoneticConfig
+from .config import ChinesePhoneticConfig
 
-class PhoneticUtils:
+
+class ChinesePhoneticUtils:
     """
-    語音工具類別
+    中文語音工具類別
 
     功能:
     - 封裝 pypinyin 的調用
@@ -20,7 +21,7 @@ class PhoneticUtils:
     """
 
     def __init__(self, config=None):
-        self.config = config or PhoneticConfig
+        self.config = config or ChinesePhoneticConfig
         self.group_to_initials = self.config.build_group_to_initials_map()
 
     @staticmethod

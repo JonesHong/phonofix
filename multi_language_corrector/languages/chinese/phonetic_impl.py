@@ -2,11 +2,12 @@
 中文發音系統實作模組
 
 實作基於 Pinyin (拼音) 的中文發音轉換與相似度比對。
-封裝了底層的 PhoneticUtils 以符合 PhoneticSystem 介面規範。
+封裝了底層的 ChinesePhoneticUtils 以符合 PhoneticSystem 介面規範。
 """
 
 from multi_language_corrector.core.phonetic_interface import PhoneticSystem
-from .utils import PhoneticUtils
+from .utils import ChinesePhoneticUtils
+
 
 class ChinesePhoneticSystem(PhoneticSystem):
     """
@@ -22,7 +23,7 @@ class ChinesePhoneticSystem(PhoneticSystem):
         """
         初始化中文發音系統
         """
-        self.utils = PhoneticUtils()
+        self.utils = ChinesePhoneticUtils()
 
     def to_phonetic(self, text: str) -> str:
         """
@@ -40,7 +41,7 @@ class ChinesePhoneticSystem(PhoneticSystem):
         """
         判斷兩個拼音字串是否模糊相似
 
-        委派給 PhoneticUtils.are_fuzzy_similar 進行處理。
+        委派給 ChinesePhoneticUtils.are_fuzzy_similar 進行處理。
         注意: 這裡假設輸入的是單個音節或短語的拼音字串。
 
         Args:

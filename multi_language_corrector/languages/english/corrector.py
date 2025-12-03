@@ -10,6 +10,9 @@ from multi_language_corrector.core.phonetic_interface import PhoneticSystem
 from multi_language_corrector.core.tokenizer_interface import Tokenizer
 from .phonetic_impl import EnglishPhoneticSystem
 from .tokenizer import EnglishTokenizer
+from .fuzzy_generator import EnglishFuzzyGenerator
+from .config import EnglishPhoneticConfig
+
 
 class EnglishCorrector:
     """
@@ -19,9 +22,88 @@ class EnglishCorrector:
     - 針對英文文本進行專有名詞修正
     - 使用滑動視窗掃描文本
     - 結合 IPA 發音相似度進行模糊比對
+    - 支援自動生成 ASR 錯誤變體
     - 支援 keywords 條件過濾 (需要上下文關鍵字才替換)
     - 支援 exclusions 保護 (排除詞不被替換)
     """
+
+    @classmethod
+    def from_terms(cls, term_dict, config=None):
+        """
+        從詞彙配置建立 EnglishCorrector 實例
+        
+        支援格式:
+        1. List[str]: 純詞彙列表，自動生成別名
+           ["Python", "TensorFlow"]
+           
+        2. Dict[str, List[str]]: 詞彙 + 手動別名
+           {"Python": ["Pyton", "Pyson"]}
+           
+        3. Dict[str, dict]: 完整配置
+           {"EKG": {"aliases": ["1kg"], "keywords": ["設備"], "exclusions": ["水"]}}
+        
+        Args:
+            term_dict: 詞彙配置
+            config: 額外配置選項
+            
+        Returns:
+            EnglishCorrector: 初始化後的修正器實例
+        """
+        generator = EnglishFuzzyGenerator()
+        term_mapping = {}
+        keywords = {}
+        exclusions = {}
+        
+        # 處理列表格式
+        if isinstance(term_dict, list):
+            for term in term_dict:
+                # 自動生成變體
+                variants = generator.generate_variants(term)
+                term_mapping[term] = term  # 原詞映射到自己
+                for variant in variants:
+                    term_mapping[variant] = term
+            return cls(term_mapping, keywords, exclusions)
+        
+        # 處理字典格式
+        for term, value in term_dict.items():
+            term_mapping[term] = term  # 原詞映射到自己
+            
+            if isinstance(value, list):
+                # 格式 2: {"Python": ["Pyton", "Pyson"]}
+                # 同時添加手動別名和自動生成的變體
+                for alias in value:
+                    term_mapping[alias] = term
+                # 自動生成額外變體
+                auto_variants = generator.generate_variants(term)
+                for variant in auto_variants:
+                    if variant not in term_mapping:
+                        term_mapping[variant] = term
+                        
+            elif isinstance(value, dict):
+                # 格式 3: 完整配置
+                aliases = value.get("aliases", [])
+                for alias in aliases:
+                    term_mapping[alias] = term
+                    
+                # 自動生成額外變體 (除非明確禁用)
+                if value.get("auto_fuzzy", True):
+                    auto_variants = generator.generate_variants(term)
+                    for variant in auto_variants:
+                        if variant not in term_mapping:
+                            term_mapping[variant] = term
+                
+                if value.get("keywords"):
+                    keywords[term] = value["keywords"]
+                if value.get("exclusions"):
+                    exclusions[term] = value["exclusions"]
+                    
+            else:
+                # 空值或其他: 只自動生成變體
+                auto_variants = generator.generate_variants(term)
+                for variant in auto_variants:
+                    term_mapping[variant] = term
+        
+        return cls(term_mapping, keywords, exclusions)
 
     def __init__(
         self, 

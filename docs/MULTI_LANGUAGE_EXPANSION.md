@@ -36,11 +36,14 @@ chinese_text_corrector/  →  multi_language_corrector/
 │   ├── chinese/
 │   │   ├── tokenizer.py             # 字元級滑窗
 │   │   ├── phonetic_impl.py         # 中文拼音實現
-│   │   └── config.py                # 現有 PhoneticConfig
+│   │   ├── config.py                # ChinesePhoneticConfig
+│   │   ├── utils.py                 # ChinesePhoneticUtils
+│   │   └── fuzzy_generator.py       # ChineseFuzzyGenerator
 │   ├── english/
 │   │   ├── tokenizer.py             # 單字級 token 流（依空白/標點）
 │   │   ├── phonetic_impl.py         # 英文音素實現（IPA + Homophone 辨識）
-│   │   └── lexicon.py               # 詞頻/語料提供者
+│   │   ├── config.py                # EnglishPhoneticConfig
+│   │   └── fuzzy_generator.py       # EnglishFuzzyGenerator
 │   ├── japanese/
 │   │   └── phonetic_impl.py         # 日文假名/羅馬音實現
 │   └── korean/
@@ -86,11 +89,11 @@ class PhoneticSystem(ABC):
 ```python
 # languages/chinese/phonetic_impl.py
 from core.phonetic_interface import PhoneticSystem
-from core.phonetic_utils import PhoneticUtils
+from .utils import ChinesePhoneticUtils
 
 class ChinesePhoneticSystem(PhoneticSystem):
     def __init__(self):
-        self.utils = PhoneticUtils()
+        self.utils = ChinesePhoneticUtils()
 
     def to_phonetic(self, text: str) -> str:
         return self.utils.get_pinyin_string(text)
@@ -170,9 +173,10 @@ class JapanesePhoneticSystem(PhoneticSystem):
 
 | 模組 | 修改幅度 | 說明 |
 |------|---------|------|
-| `ChineseTextCorrector` | **中度** | 重命名為 `UnifiedCorrector`，接受 `PhoneticSystem` 參數 |
-| `FuzzyDictionaryGenerator` | **小** | 改為呼叫 `PhoneticSystem.to_phonetic()` |
-| `PhoneticUtils` | **中度** | 拆分為抽象介面 + 中文實現 |
+| `ChineseCorrector` | **中度** | 語言特定實現 |
+| `EnglishCorrector` | **新增** | 英文專有名詞修正 |
+| `ChineseFuzzyGenerator` | **小** | 改為呼叫 `PhoneticSystem.to_phonetic()` |
+| `ChinesePhoneticUtils` | **中度** | 拆分為抽象介面 + 中文實現 |
 | 滑動視窗 (matcher.py) | **中度** | 需改寫為依賴 `Tokenizer` 介面（支援字元/單字切分） |
 | 上下文加權 | **小** | 邏輯通用，但需適配 Token 索引 |
 
@@ -183,8 +187,8 @@ class JapanesePhoneticSystem(PhoneticSystem):
 ### Phase 1: 重構現有架構（1-2 週）
 1. 定義 `PhoneticSystem` 抽象介面
 2. 將現有中文邏輯包裝為 `ChinesePhoneticSystem`
-3. 重構 `ChineseTextCorrector` 為 `UnifiedCorrector`
-4. 確保向後兼容（保留 `ChineseTextCorrector` 作為別名）
+3. 重構為 `UnifiedCorrector` 統一入口
+4. 各語言有獨立的 Corrector 實現
 
 ### Phase 2: 添加新語言支援（每種語言 3-5 天）
 1. 研究該語言的模糊音規則（需要語言專家協助）

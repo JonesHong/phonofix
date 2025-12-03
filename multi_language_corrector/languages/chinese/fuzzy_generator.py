@@ -1,5 +1,5 @@
 """
-模糊字典生成器模組
+中文模糊變體生成器
 
 負責為專有名詞自動生成可能的 ASR 錯誤變體 (同音字/近音字)。
 """
@@ -7,12 +7,13 @@
 import itertools
 from Pinyin2Hanzi import DefaultDagParams, dag
 from hanziconv import HanziConv
-from .config import PhoneticConfig
-from .utils import PhoneticUtils
+from .config import ChinesePhoneticConfig
+from .utils import ChinesePhoneticUtils
 
-class FuzzyDictionaryGenerator:
+
+class ChineseFuzzyGenerator:
     """
-    模糊字典生成器
+    中文模糊變體生成器
 
     功能:
     - 根據輸入的專有名詞，生成其可能的發音變體
@@ -22,8 +23,8 @@ class FuzzyDictionaryGenerator:
     """
 
     def __init__(self, config=None):
-        self.config = config or PhoneticConfig
-        self.utils = PhoneticUtils(config=self.config)
+        self.config = config or ChinesePhoneticConfig
+        self.utils = ChinesePhoneticUtils(config=self.config)
         self.dag_params = DefaultDagParams()
 
     def _pinyin_to_chars(self, pinyin_str, max_chars=2):
@@ -172,13 +173,13 @@ class FuzzyDictionaryGenerator:
         # 原詞放在第一位
         return [term] + sorted_aliases
 
-    def generate_fuzzy_variants(self, term):
+    def generate_variants(self, term):
         """
         為輸入詞彙生成模糊變體列表
 
         支援兩種輸入模式:
         1. 單一詞彙 (str): 返回該詞彙的變體列表 (List[str])
-        2. 詞彙列表 (List[str]): 返回詞典 (Dict[str, List[str]])，相容舊版 generate_fuzzy_dictionary
+        2. 詞彙列表 (List[str]): 返回詞典 (Dict[str, List[str]])
 
         Args:
             term: 輸入詞彙 (str) 或 詞彙列表 (List[str])
@@ -186,11 +187,11 @@ class FuzzyDictionaryGenerator:
         Returns:
             List[str] or Dict[str, List[str]]: 視輸入型別而定
         """
-        # 模式 2: 處理詞彙列表 (相容舊版 generate_fuzzy_dictionary)
+        # 模式 2: 處理詞彙列表
         if isinstance(term, list):
             result = {}
             for t in term:
-                result[t] = self.generate_fuzzy_variants(t)
+                result[t] = self.generate_variants(t)
             return result
 
         # 模式 1: 處理單一詞彙

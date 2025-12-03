@@ -140,14 +140,14 @@ result = corrector.correct("我去買勇鬥當宵夜")
 如果需要完全控制別名，可以手動建立校正器：
 
 ```python
-from chinese_text_corrector import ChineseTextCorrector, FuzzyDictionaryGenerator
+from multi_language_corrector.languages.chinese import ChineseCorrector, ChineseFuzzyGenerator
 
 # 1. 生成模糊音詞典
-generator = FuzzyDictionaryGenerator()
-fuzzy_dict = generator.generate_fuzzy_dictionary(["台北車站", "阿斯匹靈"])
+generator = ChineseFuzzyGenerator()
+fuzzy_dict = generator.generate_variants(["台北車站", "阿斯匹靈"])
 
 # 2. 建立校正器
-corrector = ChineseTextCorrector({
+corrector = ChineseCorrector.from_terms({
     "台北車站": ["北車", "臺北車站"],
     "阿斯匹靈": ["阿斯匹林", "二四批林"]
 })
@@ -162,8 +162,10 @@ result = corrector.correct("我在北車等你,醫生開了二四批林給我")
 #### 上下文關鍵字校正
 
 ```python
+from multi_language_corrector.languages.chinese import ChineseCorrector
+
 # 使用上下文關鍵字提高準確度
-corrector = ChineseTextCorrector({
+corrector = ChineseCorrector.from_terms({
     "永和豆漿": {
         "aliases": ["永豆"],
         "keywords": ["吃", "喝", "買", "宵夜", "早餐"]

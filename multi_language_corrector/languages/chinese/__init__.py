@@ -5,19 +5,19 @@
 
 主要類別:
 - ChineseCorrector: 中文文本修正器
-- FuzzyDictionaryGenerator: 模糊音詞典生成器
-- PhoneticConfig: 拼音配置類別
-- PhoneticUtils: 拼音工具函數類別
+- ChineseFuzzyGenerator: 模糊音變體生成器
+- ChinesePhoneticConfig: 拼音配置類別
+- ChinesePhoneticUtils: 拼音工具函數類別
 """
 
 from .corrector import ChineseCorrector
-from .dictionary_generator import FuzzyDictionaryGenerator
-from .config import PhoneticConfig
-from .utils import PhoneticUtils
+from .fuzzy_generator import ChineseFuzzyGenerator
+from .config import ChinesePhoneticConfig
+from .utils import ChinesePhoneticUtils
 
 __all__ = [
     "ChineseCorrector",
-    "FuzzyDictionaryGenerator",
-    "PhoneticConfig",
-    "PhoneticUtils",
+    "ChineseFuzzyGenerator",
+    "ChinesePhoneticConfig",
+    "ChinesePhoneticUtils",
 ]

@@ -258,15 +258,15 @@ def example_7_homophone_filtering():
     print("範例 7: 同音字過濾原理")
     print("=" * 60)
 
-    from multi_language_corrector.languages.chinese.dictionary_generator import (
-        FuzzyDictionaryGenerator,
+    from multi_language_corrector.languages.chinese.fuzzy_generator import (
+        ChineseFuzzyGenerator,
     )
 
-    generator = FuzzyDictionaryGenerator()
+    generator = ChineseFuzzyGenerator()
 
     # 生成變體
     term = "台北車站"
-    all_variants = generator.generate_fuzzy_variants(term)
+    all_variants = generator.generate_variants(term)
 
     # filter_homophones 接受一個列表，過濾同音詞
     filter_result = generator.filter_homophones([term] + all_variants)

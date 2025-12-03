@@ -8,9 +8,10 @@
 import pypinyin
 import Levenshtein
 import re
-from .config import PhoneticConfig
-from .utils import PhoneticUtils
-from .dictionary_generator import FuzzyDictionaryGenerator
+from .config import ChinesePhoneticConfig
+from .utils import ChinesePhoneticUtils
+from .fuzzy_generator import ChineseFuzzyGenerator
+
 
 class ChineseCorrector:
     """
@@ -36,8 +37,8 @@ class ChineseCorrector:
 
     @classmethod
     def from_terms(cls, term_dict, exclusions=None, config=None):
-        utils = PhoneticUtils(config=config)
-        generator = FuzzyDictionaryGenerator(config=config)
+        utils = ChinesePhoneticUtils(config=config)
+        generator = ChineseFuzzyGenerator(config=config)
 
         if isinstance(term_dict, list):
             term_dict = {term: {} for term in term_dict}
@@ -67,8 +68,8 @@ class ChineseCorrector:
             return None
 
         if not value["aliases"]:
-            fuzzy_result = generator.generate_fuzzy_variants(term)
-            # Note: generate_fuzzy_variants returns a list of variants including the term itself.
+            fuzzy_result = generator.generate_variants(term)
+            # Note: generate_variants returns a list of variants including the term itself.
             # The original code used generate_fuzzy_dictionary which returned a dict.
             # We need to adapt here.
             
@@ -95,11 +96,11 @@ class ChineseCorrector:
         Args:
             term_mapping: 專有名詞映射表
             exclusions: 排除詞列表 (這些詞不會被修正)
-            config: PhoneticConfig 實例
+            config: ChinesePhoneticConfig 實例
         """
         self.use_canonical = True  # V2 固定為 True，一律修正為標準詞
-        self.config = config or PhoneticConfig
-        self.utils = PhoneticUtils(config=self.config)
+        self.config = config or ChinesePhoneticConfig
+        self.utils = ChinesePhoneticUtils(config=self.config)
         self.exclusions = set(exclusions) if exclusions else set()
         self.search_index = self._build_search_index(term_mapping)
 

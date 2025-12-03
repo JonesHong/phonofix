@@ -10,6 +10,7 @@ from multi_language_corrector.router.language_router import LanguageRouter
 from multi_language_corrector.languages.chinese.corrector import ChineseCorrector
 from multi_language_corrector.languages.english.corrector import EnglishCorrector
 
+
 class UnifiedCorrector:
     """
     統一修正器 (Unified Corrector)
@@ -30,13 +31,13 @@ class UnifiedCorrector:
 
         Args:
             term_dict: 專有名詞字典或列表
-            exclusions: 排除詞列表 (主要用於中文修正器)
+            exclusions: 排除詞列表 (全域排除詞，會傳給各語言修正器)
         """
         self.router = LanguageRouter()
         
         # 將專有名詞分類為中文與英文
-        self.zh_terms = {}
-        self.en_terms = {}  # 改為 dict，保存標準詞與別名的對應
+        zh_terms = {}
+        en_terms = {}
         
         # 如果輸入是列表，則標準化為字典格式
         # 範例: ["IBM", "台積電"] -> {"IBM": {}, "台積電": {}}
@@ -48,23 +49,16 @@ class UnifiedCorrector:
             # 策略:
             # - 純 ASCII 字串 -> 英文修正器 (例如 "IBM", "TensorFlow")
             # - 包含非 ASCII 字符 (如中文) -> 中文修正器 (例如 "台積電", "C語言")
-            # 注意: 混合語言詞彙 (如 "C語言") 目前歸類為中文處理，因為中文修正器有處理混合詞的邏輯
-            
+            # 注意: 混合語言詞彙 (如 "C語言") 目前歸類為中文處理
             if all(ord(c) < 128 for c in term):
-                self.en_terms[term] = value
+                en_terms[term] = value
             else:
-                self.zh_terms[term] = value
+                zh_terms[term] = value
                 
         # 初始化特定語言的修正器
-        # 中文修正器使用 from_terms 工廠方法
-        self.zh_corrector = ChineseCorrector.from_terms(self.zh_terms, exclusions=exclusions)
-        # 英文修正器需要展開別名，並傳入 keywords 和 exclusions
-        en_term_config = self._build_english_term_config()
-        self.en_corrector = EnglishCorrector(
-            term_mapping=en_term_config["term_mapping"],
-            keywords=en_term_config["keywords"],
-            exclusions=en_term_config["exclusions"]
-        )
+        # 兩者都使用統一的 from_terms() 工廠方法
+        self.zh_corrector = ChineseCorrector.from_terms(zh_terms, exclusions=exclusions)
+        self.en_corrector = EnglishCorrector.from_terms(en_terms)
 
     def correct(self, text: str) -> str:
         """
@@ -99,73 +93,10 @@ class UnifiedCorrector:
             elif lang == 'en':
                 # 英文修正: "1kg" -> "EKG" (假設 EKG 在詞庫中且符合規則)
                 # 傳入完整原文作為上下文，供 keyword/exclusion 檢查
-                # "computer" -> "computer"
                 corrected_segments.append(self.en_corrector.correct(segment, full_context=text))
             else:
-                # 未知語言 (理論上不會發生，因為 router 涵蓋了所有情況)
+                # 未知語言 (理論上不會發生)
                 corrected_segments.append(segment)
         
         # 2. 結果合併
-        # 合併結果: "我有一台EKG的computer"
         return "".join(corrected_segments)
-
-    def _build_english_term_mapping(self) -> Dict[str, str]:
-        """
-        建立英文詞彙的 別名 -> 標準詞 映射表
-
-        將 {"Python": ["Pyton", "Pyson"]} 展開為:
-        {"Python": "Python", "Pyton": "Python", "Pyson": "Python"}
-
-        Returns:
-            Dict[str, str]: 別名到標準詞的映射
-        """
-        return self._build_english_term_config()["term_mapping"]
-    
-    def _build_english_term_config(self) -> Dict:
-        """
-        建立英文詞彙的完整配置
-
-        Returns:
-            Dict: 包含 term_mapping, keywords 和 exclusions
-                - term_mapping: {別名: 標準詞}
-                - keywords: {標準詞: [關鍵字列表]}
-                - exclusions: {標準詞: [排除關鍵字列表]}
-        """
-        mapping = {}
-        keywords = {}
-        exclusions = {}
-        
-        for canonical, value in self.en_terms.items():
-            # 標準詞本身也要加入映射
-            mapping[canonical] = canonical
-            
-            # 處理別名、關鍵字和排除關鍵字
-            if isinstance(value, list):
-                aliases = value
-                kw_list = []
-                excl_list = []
-            elif isinstance(value, dict):
-                aliases = value.get("aliases", [])
-                kw_list = value.get("keywords", [])
-                excl_list = value.get("exclusions", [])
-            else:
-                aliases = []
-                kw_list = []
-                excl_list = []
-                
-            for alias in aliases:
-                mapping[alias] = canonical
-            
-            # 只有當有 keywords 時才加入
-            if kw_list:
-                keywords[canonical] = kw_list
-            
-            # 只有當有 exclusions 時才加入
-            if excl_list:
-                exclusions[canonical] = excl_list
-                
-        return {
-            "term_mapping": mapping,
-            "keywords": keywords,
-            "exclusions": exclusions
-        }

@@ -2,7 +2,8 @@
 中文拼音模糊音配置模組
 """
 
-class PhoneticConfig:
+
+class ChinesePhoneticConfig:
     """拼音配置類別 - 集中管理所有拼音模糊音規則"""
 
     # 聲母模糊音映射表 (Fuzzy Initials Map)
