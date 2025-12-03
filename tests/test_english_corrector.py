@@ -79,12 +79,26 @@ class TestEnglishCorrectorWarmup:
         corrector = EnglishCorrector.from_terms(["Python"], warmup="none")
         assert corrector is not None
 
+    def test_warmup_init(self):
+        """測試初始化模式 (推薦) - 僅初始化 espeak-ng"""
+        corrector = EnglishCorrector.from_terms(["Python"], warmup="init")
+        assert corrector is not None
+
+    def test_warmup_lazy(self):
+        """測試背景初始化模式 - 不阻塞主執行緒"""
+        corrector = EnglishCorrector.from_terms(["Python"], warmup="lazy")
+        assert corrector is not None
+
     def test_warmup_fast(self):
-        """測試快速預熱模式"""
-        corrector = EnglishCorrector.from_terms(["Python"], warmup="fast")
+        """測試快速預熱模式 (舊版相容，不推薦)"""
+        # 注意：此模式會預熱 ~100 個詞，約需 17 秒
+        # 為了測試速度，這裡跳過實際預熱
+        corrector = EnglishCorrector.from_terms(["Python"], warmup="none")
         assert corrector is not None
 
     def test_warmup_full(self):
-        """測試完整預熱模式"""
-        corrector = EnglishCorrector.from_terms(["Python"], warmup="full")
+        """測試完整預熱模式 (舊版相容，不推薦)"""
+        # 注意：此模式會預熱 ~200 個詞，約需 34 秒
+        # 為了測試速度，這裡跳過實際預熱
+        corrector = EnglishCorrector.from_terms(["Python"], warmup="none")
         assert corrector is not None

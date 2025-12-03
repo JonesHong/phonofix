@@ -28,7 +28,7 @@ class EnglishCorrector:
     """
 
     @classmethod
-    def from_terms(cls, term_dict, config=None, warmup="fast"):
+    def from_terms(cls, term_dict, config=None, warmup="init"):
         """
         從詞彙配置建立 EnglishCorrector 實例
         
@@ -45,7 +45,7 @@ class EnglishCorrector:
         Args:
             term_dict: 詞彙配置
             config: 額外配置選項
-            warmup: IPA 快取暖機模式 ("fast", "full", "aggressive", "none")
+            warmup: IPA 快取暖機模式 ("init", "lazy", "none", "fast", "full")
             
         Returns:
             EnglishCorrector: 初始化後的修正器實例
@@ -111,7 +111,7 @@ class EnglishCorrector:
         term_mapping: Union[List[str], Dict[str, str]],
         keywords: Optional[Dict[str, List[str]]] = None,
         exclusions: Optional[Dict[str, List[str]]] = None,
-        warmup: str = "fast"
+        warmup: str = "init"
     ):
         """
         初始化英文修正器
@@ -125,10 +125,11 @@ class EnglishCorrector:
             exclusions: 標準詞到排除關鍵字列表的映射 (如 {"EKG": ["水", "公斤"]})
                 - 如果句子中包含任一排除關鍵字，則不替換
             warmup: IPA 快取暖機模式
-                - "fast": 預熱最常見的 ~100 個詞 (約 1-2 秒)，推薦用於一般使用
-                - "full": 預熱完整的 ~400 個詞 (約 5-7 秒)，適合處理長文章
-                - "aggressive": 多執行緒預熱 3000 個常見詞 (約 2-4 秒)，推薦用於長文章
-                - "none": 不預熱，適合快取已經暖過或只處理少量文字
+                - "init": [推薦] 僅初始化 espeak-ng (~2秒)，不預載詞彙
+                - "lazy": 在背景執行緒初始化，不阻塞主執行緒
+                - "none": 不暖身，首次使用時才初始化
+                - "fast": 預熱 ~100 個詞 (約 17 秒，不推薦)
+                - "full": 預熱 ~200 個詞 (約 34 秒，不推薦)
         """
         from .phonetic_impl import warmup_ipa_cache
         

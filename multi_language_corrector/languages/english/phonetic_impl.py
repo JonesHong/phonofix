@@ -7,7 +7,17 @@
 效能優化:
 - 使用 functools.lru_cache 快取 IPA 轉換結果
 - 避免重複的 phonemizer 調用
-- warmup_ipa_cache() 預熱常見詞彙
+- warmup_ipa_cache() 初始化 espeak-ng 引擎（推薦使用 mode="init"）
+
+效能特性 (phonemizer vs eng-to-ipa):
+- 首次載入 espeak-ng: ~2 秒 (一次性成本)
+- 冷查詢 (無快取): ~170 ms/字 (較慢，但能處理 OOV)
+- 快取命中: ~0.001 ms/字 (極快)
+
+暖身策略建議:
+- mode="init": 僅初始化 espeak-ng (~2秒)，推薦用於應用啟動時
+- mode="none": 不暖身，首次使用時才初始化
+- mode="lazy": 在背景執行緒初始化，不阻塞主執行緒
 
 環境需求:
 - 需安裝 espeak-ng 系統執行檔
@@ -16,6 +26,7 @@
 
 import os
 import re
+import threading
 import warnings
 from functools import lru_cache
 from typing import List, Optional
@@ -23,6 +34,14 @@ from typing import List, Optional
 import Levenshtein
 
 from multi_language_corrector.core.phonetic_interface import PhoneticSystem
+
+
+# =============================================================================
+# 全域狀態
+# =============================================================================
+
+_espeak_initialized = False
+_init_lock = threading.Lock()
 
 
 # =============================================================================
@@ -189,24 +208,78 @@ _WARMUP_WORDS_FULL = _WARMUP_WORDS_FAST + [
 ]
 
 
-def warmup_ipa_cache(additional_words: list = None, verbose: bool = False, mode: str = "fast"):
+def warmup_ipa_cache(additional_words: list = None, verbose: bool = False, mode: str = "init"):
     """
-    預熱 IPA 快取
+    預熱 IPA 快取 / 初始化 espeak-ng
+    
+    由於 phonemizer + espeak-ng 的特性：
+    - 首次載入 espeak-ng 需要 ~2 秒
+    - 之後每次冷查詢約 170ms/字
+    - 快取命中後只要 ~0.001ms/字
+    
+    建議策略：使用 mode="init" 在應用啟動時初始化 espeak-ng，
+    而非預載大量詞彙（因為 170ms/字 * 100字 = 17秒，太慢）。
     
     Args:
-        additional_words: 額外要預熱的單字列表
+        additional_words: 額外要預熱的單字列表 (僅在 fast/full 模式有效)
         verbose: 是否顯示進度資訊
         mode: 暖機模式
-            - "fast": 只預熱最常見的 ~100 個詞
-            - "full": 預熱完整的 ~200 個詞
-            - "none": 不預熱
+            - "init": [推薦] 僅初始化 espeak-ng (~2秒)，不預載詞彙
+            - "lazy": 在背景執行緒初始化，立即返回不阻塞
+            - "none": 不做任何事，首次使用時才初始化
+            - "fast": 預熱 ~100 個常見詞 (約 17 秒，不推薦)
+            - "full": 預熱 ~200 個詞 (約 34 秒，不推薦)
     
     Returns:
-        int: 預熱的單字數量
+        int: 預熱的單字數量 (init/lazy 模式返回 1，none 返回 0)
     """
+    global _espeak_initialized
+    
     if mode == "none":
         return 0
     
+    # 新增: init 模式 - 只初始化 espeak-ng，不預載詞彙
+    if mode == "init":
+        if _espeak_initialized:
+            if verbose:
+                print("espeak-ng 已初始化，跳過")
+            return 1
+        
+        if verbose:
+            print("正在初始化 espeak-ng...")
+        
+        try:
+            # 只呼叫一次來觸發 espeak-ng 載入
+            cached_ipa_convert("hello")
+            with _init_lock:
+                _espeak_initialized = True
+            if verbose:
+                print("espeak-ng 初始化完成")
+            return 1
+        except Exception as e:
+            if verbose:
+                print(f"espeak-ng 初始化失敗: {e}")
+            return 0
+    
+    # 新增: lazy 模式 - 在背景執行緒初始化
+    if mode == "lazy":
+        def _background_init():
+            global _espeak_initialized
+            try:
+                cached_ipa_convert("hello")
+                with _init_lock:
+                    _espeak_initialized = True
+            except Exception:
+                pass
+        
+        if not _espeak_initialized:
+            thread = threading.Thread(target=_background_init, daemon=True)
+            thread.start()
+            if verbose:
+                print("espeak-ng 正在背景初始化...")
+        return 1
+    
+    # 以下是舊的 fast/full 模式 (不推薦，但保留相容性)
     if not is_phonemizer_available():
         if verbose:
             print("警告: phonemizer 不可用，跳過預熱")
