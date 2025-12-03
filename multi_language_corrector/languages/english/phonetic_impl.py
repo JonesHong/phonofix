@@ -168,77 +168,30 @@ def get_english_cache_stats():
     return cached_ipa_convert.cache_info()
 
 
-# =============================================================================
-# 預熱常用詞彙
-# =============================================================================
-
-# 最常見的英文單字 (精簡版 - 用於快速暖機)
-_WARMUP_WORDS_FAST = [
-    # 冠詞/代詞/連接詞 (最高頻)
-    "the", "a", "an", "and", "or", "but", "if", "is", "are", "was", "were",
-    "be", "been", "have", "has", "had", "do", "does", "did", "will", "would",
-    "can", "could", "should", "may", "might", "must",
-    "i", "you", "he", "she", "it", "we", "they", "this", "that", "these", "those",
-    "my", "your", "his", "her", "its", "our", "their",
-    "who", "what", "where", "when", "why", "how",
-    # 介詞
-    "in", "on", "at", "to", "for", "of", "with", "by", "from", "about",
-    # 常見動詞
-    "use", "make", "get", "go", "know", "think", "see", "want", "need",
-    "take", "come", "give", "find", "work", "call", "try",
-    # 常見名詞
-    "time", "way", "day", "thing", "man", "world", "life", "hand", "part",
-    "place", "case", "point", "system", "number", "problem",
-    # 常見形容詞/副詞
-    "new", "good", "first", "last", "long", "great", "little", "own", "other",
-    "only", "also", "just", "now", "very", "even", "still", "well",
-]
-
-# 完整的常見單字列表 (用於深度暖機)
-_WARMUP_WORDS_FULL = _WARMUP_WORDS_FAST + [
-    # 技術相關
-    "code", "data", "file", "function", "class", "method", "variable", "type",
-    "string", "number", "array", "object", "list", "value", "key", "name",
-    "error", "bug", "test", "testing", "debug", "debugging", "log", "logging",
-    "server", "client", "request", "response", "api", "web", "app", "application",
-    "database", "table", "query", "index", "user", "admin", "config", "setting",
-    # 數字相關
-    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
-    "first", "second", "third", "zero", "hundred", "thousand", "million",
-]
-
-
-def warmup_ipa_cache(additional_words: list = None, verbose: bool = False, mode: str = "init"):
+def warmup_ipa_cache(verbose: bool = False, mode: str = "init"):
     """
-    預熱 IPA 快取 / 初始化 espeak-ng
+    初始化 espeak-ng
     
     由於 phonemizer + espeak-ng 的特性：
     - 首次載入 espeak-ng 需要 ~2 秒
     - 之後每次冷查詢約 170ms/字
     - 快取命中後只要 ~0.001ms/字
     
-    建議策略：使用 mode="init" 在應用啟動時初始化 espeak-ng，
-    而非預載大量詞彙（因為 170ms/字 * 100字 = 17秒，太慢）。
-    
     Args:
-        additional_words: 額外要預熱的單字列表 (僅在 fast/full 模式有效)
         verbose: 是否顯示進度資訊
         mode: 暖機模式
-            - "init": [推薦] 僅初始化 espeak-ng (~2秒)，不預載詞彙
+            - "init": [推薦] 僅初始化 espeak-ng (~2秒)
             - "lazy": 在背景執行緒初始化，立即返回不阻塞
             - "none": 不做任何事，首次使用時才初始化
-            - "fast": 預熱 ~100 個常見詞 (約 17 秒，不推薦)
-            - "full": 預熱 ~200 個詞 (約 34 秒，不推薦)
     
     Returns:
-        int: 預熱的單字數量 (init/lazy 模式返回 1，none 返回 0)
+        int: 1 表示成功或已初始化，0 表示跳過或失敗
     """
     global _espeak_initialized
     
     if mode == "none":
         return 0
     
-    # 新增: init 模式 - 只初始化 espeak-ng，不預載詞彙
     if mode == "init":
         if _espeak_initialized:
             if verbose:
@@ -261,7 +214,6 @@ def warmup_ipa_cache(additional_words: list = None, verbose: bool = False, mode:
                 print(f"espeak-ng 初始化失敗: {e}")
             return 0
     
-    # 新增: lazy 模式 - 在背景執行緒初始化
     if mode == "lazy":
         def _background_init():
             global _espeak_initialized
@@ -279,37 +231,10 @@ def warmup_ipa_cache(additional_words: list = None, verbose: bool = False, mode:
                 print("espeak-ng 正在背景初始化...")
         return 1
     
-    # 以下是舊的 fast/full 模式 (不推薦，但保留相容性)
-    if not is_phonemizer_available():
-        if verbose:
-            print("警告: phonemizer 不可用，跳過預熱")
-        return 0
-    
-    if mode == "fast":
-        words_to_cache = list(_WARMUP_WORDS_FAST)
-    else:  # full
-        words_to_cache = list(_WARMUP_WORDS_FULL)
-    
-    if additional_words:
-        words_to_cache.extend(additional_words)
-    
-    # 去重
-    words_to_cache = list(set(words_to_cache))
-    
+    # 未知模式
     if verbose:
-        print(f"預熱 IPA 快取: {len(words_to_cache)} 個單字...")
-    
-    for word in words_to_cache:
-        try:
-            cached_ipa_convert(word)
-        except Exception:
-            pass  # 忽略個別單字的錯誤
-    
-    if verbose:
-        stats = get_english_cache_stats()
-        print(f"預熱完成: {stats.currsize} 個單字已快取")
-    
-    return len(words_to_cache)
+        print(f"警告: 未知的暖機模式 '{mode}'，使用 'init' 模式")
+    return warmup_ipa_cache(verbose=verbose, mode="init")
 
 
 # =============================================================================

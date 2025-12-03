@@ -45,7 +45,7 @@ class EnglishCorrector:
         Args:
             term_dict: 詞彙配置
             config: 額外配置選項
-            warmup: IPA 快取暖機模式 ("init", "lazy", "none", "fast", "full")
+            warmup: IPA 快取暖機模式 ("init", "lazy", "none")
             
         Returns:
             EnglishCorrector: 初始化後的修正器實例
@@ -125,11 +125,9 @@ class EnglishCorrector:
             exclusions: 標準詞到排除關鍵字列表的映射 (如 {"EKG": ["水", "公斤"]})
                 - 如果句子中包含任一排除關鍵字，則不替換
             warmup: IPA 快取暖機模式
-                - "init": [推薦] 僅初始化 espeak-ng (~2秒)，不預載詞彙
+                - "init": [推薦] 僅初始化 espeak-ng (~2秒)
                 - "lazy": 在背景執行緒初始化，不阻塞主執行緒
                 - "none": 不暖身，首次使用時才初始化
-                - "fast": 預熱 ~100 個詞 (約 17 秒，不推薦)
-                - "full": 預熱 ~200 個詞 (約 34 秒，不推薦)
         """
         from .phonetic_impl import warmup_ipa_cache
         
