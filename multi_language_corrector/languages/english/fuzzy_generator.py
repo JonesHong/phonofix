@@ -1,10 +1,10 @@
-"""
+﻿"""
 英文模糊變體生成器
 
 從專有名詞的 IPA 音標反推可能的 ASR 錯誤拼寫變體。
 """
 
-import eng_to_ipa as ipa
+# eng_to_ipa 已移除，改用 phonemizer (見 phonetic_impl.py)
 import re
 from itertools import product
 from typing import List, Set
