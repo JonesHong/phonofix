@@ -2,16 +2,19 @@
 英文修正器模組
 
 實作基於滑動視窗 (Sliding Window) 與語音相似度的英文專有名詞修正。
+
+使用方式:
+    from multi_language_corrector import EnglishEngine
+    
+    engine = EnglishEngine()
+    corrector = engine.create_corrector({'Python': ['Pyton', 'Pyson']})
+    result = corrector.correct('I use Pyton for ML')
 """
 
 import re
 from typing import List, Dict, Union, Optional, Set, TYPE_CHECKING
-from multi_language_corrector.core.phonetic_interface import PhoneticSystem
-from multi_language_corrector.core.tokenizer_interface import Tokenizer
 from .phonetic_impl import EnglishPhoneticSystem
 from .tokenizer import EnglishTokenizer
-from .fuzzy_generator import EnglishFuzzyGenerator
-from .config import EnglishPhoneticConfig
 
 if TYPE_CHECKING:
     from multi_language_corrector.engine.english_engine import EnglishEngine
@@ -30,8 +33,7 @@ class EnglishCorrector:
     - 支援 exclusions 保護 (排除詞不被替換)
     
     建立方式:
-    1. [推薦] 使用 EnglishEngine.create_corrector() (快速，共享 Backend)
-    2. [舊版] 使用 EnglishCorrector.from_terms() (會重新初始化 espeak-ng)
+        使用 EnglishEngine.create_corrector() 建立實例
     """
 
     @classmethod
@@ -69,134 +71,6 @@ class EnglishCorrector:
         instance._compute_alias_phonetics()
         
         return instance
-
-    @classmethod
-    def from_terms(cls, term_dict, config=None, warmup="init"):
-        """
-        從詞彙配置建立 EnglishCorrector 實例
-        
-        支援格式:
-        1. List[str]: 純詞彙列表，自動生成別名
-           ["Python", "TensorFlow"]
-           
-        2. Dict[str, List[str]]: 詞彙 + 手動別名
-           {"Python": ["Pyton", "Pyson"]}
-           
-        3. Dict[str, dict]: 完整配置
-           {"EKG": {"aliases": ["1kg"], "keywords": ["設備"], "exclusions": ["水"]}}
-        
-        Args:
-            term_dict: 詞彙配置
-            config: 額外配置選項
-            warmup: IPA 快取暖機模式 ("init", "lazy", "none")
-            
-        Returns:
-            EnglishCorrector: 初始化後的修正器實例
-        """
-        generator = EnglishFuzzyGenerator()
-        term_mapping = {}
-        keywords = {}
-        exclusions = {}
-        
-        # 處理列表格式
-        if isinstance(term_dict, list):
-            for term in term_dict:
-                # 自動生成變體
-                variants = generator.generate_variants(term)
-                term_mapping[term] = term  # 原詞映射到自己
-                for variant in variants:
-                    term_mapping[variant] = term
-            return cls(term_mapping, keywords, exclusions, warmup=warmup)
-        
-        # 處理字典格式
-        for term, value in term_dict.items():
-            term_mapping[term] = term  # 原詞映射到自己
-            
-            if isinstance(value, list):
-                # 格式 2: {"Python": ["Pyton", "Pyson"]}
-                # 同時添加手動別名和自動生成的變體
-                for alias in value:
-                    term_mapping[alias] = term
-                # 自動生成額外變體
-                auto_variants = generator.generate_variants(term)
-                for variant in auto_variants:
-                    if variant not in term_mapping:
-                        term_mapping[variant] = term
-                        
-            elif isinstance(value, dict):
-                # 格式 3: 完整配置
-                aliases = value.get("aliases", [])
-                for alias in aliases:
-                    term_mapping[alias] = term
-                    
-                # 自動生成額外變體 (除非明確禁用)
-                if value.get("auto_fuzzy", True):
-                    auto_variants = generator.generate_variants(term)
-                    for variant in auto_variants:
-                        if variant not in term_mapping:
-                            term_mapping[variant] = term
-                
-                if value.get("keywords"):
-                    keywords[term] = value["keywords"]
-                if value.get("exclusions"):
-                    exclusions[term] = value["exclusions"]
-                    
-            else:
-                # 空值或其他: 只自動生成變體
-                auto_variants = generator.generate_variants(term)
-                for variant in auto_variants:
-                    term_mapping[variant] = term
-        
-        return cls(term_mapping, keywords, exclusions, warmup=warmup)
-
-    def __init__(
-        self, 
-        term_mapping: Union[List[str], Dict[str, str]],
-        keywords: Optional[Dict[str, List[str]]] = None,
-        exclusions: Optional[Dict[str, List[str]]] = None,
-        warmup: str = "init"
-    ):
-        """
-        初始化英文修正器
-
-        Args:
-            term_mapping: 兩種格式之一:
-                - List[str]: 專有名詞列表 (如 ["Python", "TensorFlow"])
-                - Dict[str, str]: 別名到標準詞的映射 (如 {"Pyton": "Python", "Python": "Python"})
-            keywords: 標準詞到關鍵字列表的映射 (如 {"EKG": ["設備", "心電圖"]})
-                - 如果標準詞在此映射中，則必須句子中包含至少一個關鍵字才會替換
-            exclusions: 標準詞到排除關鍵字列表的映射 (如 {"EKG": ["水", "公斤"]})
-                - 如果句子中包含任一排除關鍵字，則不替換
-            warmup: IPA 快取暖機模式
-                - "init": [推薦] 僅初始化 espeak-ng (~2秒)
-                - "lazy": 在背景執行緒初始化，不阻塞主執行緒
-                - "none": 不暖身，首次使用時才初始化
-        """
-        from .phonetic_impl import warmup_ipa_cache
-        
-        # 預熱 IPA 快取 (在其他初始化之前)
-        # 這會預先載入常見英文單字的 IPA，避免首次校正時的延遲
-        if warmup and warmup != "none":
-            warmup_ipa_cache(mode=warmup)
-        
-        self._engine = None  # 舊版 API 不使用 Engine
-        self.phonetic = EnglishPhoneticSystem()
-        self.tokenizer = EnglishTokenizer()
-        
-        # 統一處理為 {別名: 標準詞} 格式
-        if isinstance(term_mapping, list):
-            self.term_mapping = {term: term for term in term_mapping}
-        else:
-            self.term_mapping = term_mapping
-        
-        # 關鍵字映射: {標準詞: [關鍵字列表]}
-        self.keywords = keywords or {}
-        
-        # 排除關鍵字映射: {標準詞: [排除關鍵字列表]}
-        self.exclusions = exclusions or {}
-        
-        # 預先計算所有別名的發音特徵
-        self._compute_alias_phonetics()
     
     def _compute_alias_phonetics(self) -> None:
         """

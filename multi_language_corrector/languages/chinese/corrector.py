@@ -4,9 +4,12 @@
 實作針對中文語音識別 (ASR) 錯誤的修正邏輯。
 核心演算法基於拼音相似度 (Pinyin Similarity) 與編輯距離 (Levenshtein Distance)。
 
-效能優化:
-- 使用 functools.lru_cache 快取拼音計算結果
-- 避免對相同字串重複呼叫 pypinyin (這是主要的效能瓶頸)
+使用方式:
+    from multi_language_corrector import ChineseEngine
+    
+    engine = ChineseEngine()
+    corrector = engine.create_corrector({'台北車站': ['北車', '台北站']})
+    result = corrector.correct('我在北車等你')
 """
 
 import pypinyin
@@ -16,7 +19,6 @@ from functools import lru_cache
 from typing import Generator, Optional, Callable, Dict, List, Any, TYPE_CHECKING, Union
 from .config import ChinesePhoneticConfig
 from .utils import ChinesePhoneticUtils
-from .fuzzy_generator import ChineseFuzzyGenerator
 
 if TYPE_CHECKING:
     from multi_language_corrector.engine.chinese_engine import ChineseEngine
@@ -49,11 +51,10 @@ class ChineseCorrector:
     - 針對輸入文本進行滑動視窗掃描
     - 結合拼音模糊比對與上下文關鍵字驗證
     - 修正 ASR 產生的同音異字或近音字錯誤
-    """
     
-    # =========================================================================
-    # 工廠方法
-    # =========================================================================
+    建立方式:
+        使用 ChineseEngine.create_corrector() 建立實例
+    """
     
     @classmethod
     def _from_engine(
@@ -79,7 +80,7 @@ class ChineseCorrector:
         instance._engine = engine
         instance.config = engine.config
         instance.utils = engine.utils
-        instance.use_canonical = True  # V2 固定為 True
+        instance.use_canonical = True
         instance.exclusions = exclusions or set()
         instance.search_index = instance._build_search_index(term_mapping)
         
@@ -95,76 +96,6 @@ class ChineseCorrector:
                 filtered.append(alias)
                 seen_pinyins.add(pinyin_str)
         return filtered
-
-    @classmethod
-    def from_terms(cls, term_dict, exclusions=None, config=None):
-        utils = ChinesePhoneticUtils(config=config)
-        generator = ChineseFuzzyGenerator(config=config)
-
-        if isinstance(term_dict, list):
-            term_dict = {term: {} for term in term_dict}
-
-        normalized_dict = {}
-        for term, value in term_dict.items():
-            normalized_value = cls._normalize_term_value(
-                term, value, generator, utils
-            )
-            if normalized_value:
-                normalized_dict[term] = normalized_value
-
-        return cls(
-            term_mapping=normalized_dict,
-            exclusions=exclusions,
-            config=config
-        )
-
-    @classmethod
-    def _normalize_term_value(cls, term, value, generator, utils):
-        if isinstance(value, list):
-            value = {"aliases": value}
-        elif isinstance(value, dict):
-            if "aliases" not in value:
-                value["aliases"] = []
-        else:
-            return None
-
-        if not value["aliases"]:
-            fuzzy_result = generator.generate_variants(term)
-            # Note: generate_variants returns a list of variants including the term itself.
-            # The original code used generate_fuzzy_dictionary which returned a dict.
-            # We need to adapt here.
-            
-            # If fuzzy_result is a list:
-            auto_aliases = [alias for alias in fuzzy_result if alias != term]
-            auto_aliases = cls._filter_aliases_by_pinyin(auto_aliases, utils)
-            value["aliases"] = auto_aliases
-        else:
-            value["aliases"] = cls._filter_aliases_by_pinyin(
-                value["aliases"], utils
-            )
-
-        return {
-            "aliases": value["aliases"],
-            "keywords": value.get("keywords", []),
-            "exclusions": value.get("exclusions", []),
-            "weight": value.get("weight", 0.0)
-        }
-
-    def __init__(self, term_mapping, exclusions=None, config=None):
-        """
-        初始化修正器
-
-        Args:
-            term_mapping: 專有名詞映射表
-            exclusions: 排除詞列表 (這些詞不會被修正)
-            config: ChinesePhoneticConfig 實例
-        """
-        self._engine = None  # 舊版 API 不使用 Engine
-        self.use_canonical = True  # V2 固定為 True，一律修正為標準詞
-        self.config = config or ChinesePhoneticConfig
-        self.utils = ChinesePhoneticUtils(config=self.config)
-        self.exclusions = set(exclusions) if exclusions else set()
-        self.search_index = self._build_search_index(term_mapping)
 
     def _build_search_index(self, term_mapping):
         """

@@ -76,9 +76,6 @@ multi_language_corrector/
 └── correction/
     └── unified_corrector.py   # UnifiedCorrector (統一入口)
 
-# Legacy (向後兼容)
-chinese_text_corrector/
-└── corrector.py               # ChineseTextCorrector (alias)
 ```
 
 ### Key Components
