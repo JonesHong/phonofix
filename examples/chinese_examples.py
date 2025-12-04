@@ -312,10 +312,16 @@ def example_8_mixed_format():
             },
             # 格式 4: 只指定 keywords，自動生成別名
             "發揮": {"keywords": ["充分", "才能"], "weight": 0.2},
+            "Python": {
+                "aliases": ["Pyton", "Pyson", "派森"],
+                "keywords": ["程式", "代碼", "coding", "code"],
+            },
+            "C語言": {"aliases": ["C語法", "西語言"], "keywords": ["程式", "指標", "記憶體"]},
+            "App": ["APP", "欸屁屁", "A屁屁"],
         }
     )
 
-    text = "我在北車買了流奶和永豆,他充分花揮了才能"
+    text = "我在北車買了流奶和永豆,他充分花揮了才能。我正在寫Pyson程式。你有玩過西語言的遊戲欸屁屁嗎？西語言真的很難學。C語法跟派森的程式差別好多。"
     result = corrector.correct(text)
 
     print(f"原句: {text}")
