@@ -1,12 +1,12 @@
 [project]
 name = "phonofix"
 version = "0.1.0"
-description = "多語言語音相似替換引擎 - 基於語音相似度的專有名詞替換工具，支援 ASR/LLM 後處理"
+description = "Multilingual phonetic-similarity replacement engine — a proper-noun substitution tool based on phonetic similarity, supporting ASR/LLM post-processing."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.9"
 authors = [
-    { name = "Your Name", email = "your.email@example.com" }
+    { name = "JonesHong", email = "latte831104@gmail.com" }
 ]
 keywords = [
     "asr",
@@ -72,19 +72,16 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/phonofix"
-Repository = "https://github.com/yourusername/phonofix"
-Documentation = "https://github.com/yourusername/phonofix#readme"
+Homepage = "https://github.com/JonesHong/phonofix"
+Repository = "https://github.com/JonesHong/phonofix"
+Documentation = "https://github.com/JonesHong/phonofix#readme"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = [
-    "chinese_text_corrector",
-    "multi_language_corrector",
-]
+packages = ["src/phonofix"]
 
 [dependency-groups]
 dev = [
@@ -114,7 +111,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["chinese_text_corrector", "multi_language_corrector"]
+known-first-party = ["phonofix"]
 
 [tool.mypy]
 python_version = "3.9"
@@ -129,7 +126,7 @@ python_files = ["test_*.py", "*_test.py"]
 addopts = "-v --tb=short"
 
 [tool.coverage.run]
-source = ["chinese_text_corrector", "multi_language_corrector"]
+source = ["src/phonofix"]
 branch = true
 
 [tool.coverage.report]

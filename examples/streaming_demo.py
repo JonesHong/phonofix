@@ -10,7 +10,10 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from multi_language_corrector.languages.chinese.corrector import ChineseCorrector
+from phonofix import ChineseEngine
+
+# 全域 Engine (單例模式)
+engine = ChineseEngine()
 
 
 def demo_streaming_correction():
@@ -50,7 +53,7 @@ def demo_streaming_correction():
     print()
     
     # 建立修正器
-    corrector = ChineseCorrector.from_terms(term_list, exclusions=exclusions)
+    corrector = engine.create_corrector(term_list, exclusions=exclusions)
     
     print("📍 開始串流修正...")
     print("-" * 60)
@@ -102,7 +105,7 @@ def demo_callback_style():
         "他充分花揮了才能",
     ]
     
-    corrector = ChineseCorrector.from_terms(term_list)
+    corrector = engine.create_corrector(term_list)
     
     for text in test_cases:
         print(f"原文: {text}")
@@ -139,7 +142,7 @@ def demo_progress_bar():
     print(f"處理: {text}")
     print()
     
-    corrector = ChineseCorrector.from_terms(term_list)
+    corrector = engine.create_corrector(term_list)
     
     total_len = len(text)
     

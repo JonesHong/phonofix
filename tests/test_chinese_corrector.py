@@ -2,7 +2,7 @@
 中文替換器測試
 """
 import pytest
-from multi_language_corrector import ChineseEngine
+from phonofix import ChineseEngine
 
 
 class TestChineseCorrector:
@@ -60,11 +60,11 @@ class TestChineseCorrector:
         result = corrector.correct("我去買永豆")
         assert "永和豆漿" in result
 
-    def test_exclusions(self):
-        """測試豁免清單"""
+    def test_protected_terms(self):
+        """測試保護詞彙清單"""
         corrector = self.engine.create_corrector(
             ["台北車站"],
-            exclusions=["北側"]
+            protected_terms=["北側"]
         )
         
         result = corrector.correct("我在北側等你")

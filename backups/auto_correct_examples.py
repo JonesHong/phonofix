@@ -4,7 +4,7 @@ auto_correct 功能範例
 """
 
 # from chinese_text_corrector import ChineseCorrector
-from multi_language_corrector.languages.chinese.corrector import ChineseCorrector
+from phonofix.languages.chinese.corrector import ChineseCorrector
 
 
 

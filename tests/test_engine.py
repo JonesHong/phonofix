@@ -13,7 +13,7 @@ class TestEnglishEngine:
 
     def test_engine_initialization(self):
         """測試引擎初始化"""
-        from multi_language_corrector.engine import EnglishEngine
+        from phonofix.engine import EnglishEngine
         
         engine = EnglishEngine()
         assert engine.is_initialized()
@@ -23,7 +23,7 @@ class TestEnglishEngine:
     
     def test_create_corrector(self):
         """測試建立修正器"""
-        from multi_language_corrector.engine import EnglishEngine
+        from phonofix.engine import EnglishEngine
         
         engine = EnglishEngine()
         corrector = engine.create_corrector({'Python': ['Pyton', 'Pyson']})
@@ -34,7 +34,7 @@ class TestEnglishEngine:
     
     def test_cache_sharing(self):
         """測試快取共享"""
-        from multi_language_corrector.engine import EnglishEngine
+        from phonofix.engine import EnglishEngine
         
         engine = EnglishEngine()
         
@@ -51,7 +51,7 @@ class TestEnglishEngine:
     
     def test_correction_functionality(self):
         """測試修正功能"""
-        from multi_language_corrector.engine import EnglishEngine
+        from phonofix.engine import EnglishEngine
         
         engine = EnglishEngine()
         corrector = engine.create_corrector({'Python': ['Pyton', 'Pyson']})
@@ -65,7 +65,7 @@ class TestChineseEngine:
 
     def test_engine_initialization(self):
         """測試引擎初始化"""
-        from multi_language_corrector.engine import ChineseEngine
+        from phonofix.engine import ChineseEngine
         
         engine = ChineseEngine()
         assert engine.is_initialized()
@@ -75,7 +75,7 @@ class TestChineseEngine:
     
     def test_create_corrector(self):
         """測試建立修正器"""
-        from multi_language_corrector.engine import ChineseEngine
+        from phonofix.engine import ChineseEngine
         
         engine = ChineseEngine()
         corrector = engine.create_corrector({'台北車站': ['北車', '台北站']})
@@ -85,7 +85,7 @@ class TestChineseEngine:
     
     def test_correction_functionality(self):
         """測試修正功能"""
-        from multi_language_corrector.engine import ChineseEngine
+        from phonofix.engine import ChineseEngine
         
         engine = ChineseEngine()
         corrector = engine.create_corrector({'台北車站': ['北車', '台北站']})
@@ -99,7 +99,7 @@ class TestUnifiedEngine:
 
     def test_engine_initialization(self):
         """測試引擎初始化"""
-        from multi_language_corrector.engine import UnifiedEngine
+        from phonofix.engine import UnifiedEngine
         
         engine = UnifiedEngine()
         assert engine.is_initialized()
@@ -108,7 +108,7 @@ class TestUnifiedEngine:
     
     def test_create_corrector_mixed_terms(self):
         """測試建立混合語言修正器"""
-        from multi_language_corrector.engine import UnifiedEngine
+        from phonofix.engine import UnifiedEngine
         
         engine = UnifiedEngine()
         corrector = engine.create_corrector({
@@ -122,7 +122,7 @@ class TestUnifiedEngine:
     
     def test_create_corrector_chinese_only(self):
         """測試建立純中文修正器"""
-        from multi_language_corrector.engine import UnifiedEngine
+        from phonofix.engine import UnifiedEngine
         
         engine = UnifiedEngine()
         corrector = engine.create_corrector({'台北車站': ['北車']})
@@ -132,7 +132,7 @@ class TestUnifiedEngine:
     
     def test_create_corrector_english_only(self):
         """測試建立純英文修正器"""
-        from multi_language_corrector.engine import UnifiedEngine
+        from phonofix.engine import UnifiedEngine
         
         engine = UnifiedEngine()
         corrector = engine.create_corrector({'Python': ['Pyton']})
@@ -142,7 +142,7 @@ class TestUnifiedEngine:
     
     def test_mixed_correction(self):
         """測試混合語言修正"""
-        from multi_language_corrector.engine import UnifiedEngine
+        from phonofix.engine import UnifiedEngine
         
         engine = UnifiedEngine()
         corrector = engine.create_corrector({
@@ -160,7 +160,7 @@ class TestBackendSingleton:
 
     def test_english_backend_singleton(self):
         """測試英文 Backend 單例"""
-        from multi_language_corrector.backend import get_english_backend
+        from phonofix.backend import get_english_backend
         
         backend1 = get_english_backend()
         backend2 = get_english_backend()
@@ -169,7 +169,7 @@ class TestBackendSingleton:
     
     def test_chinese_backend_singleton(self):
         """測試中文 Backend 單例"""
-        from multi_language_corrector.backend import get_chinese_backend
+        from phonofix.backend import get_chinese_backend
         
         backend1 = get_chinese_backend()
         backend2 = get_chinese_backend()
@@ -178,7 +178,7 @@ class TestBackendSingleton:
     
     def test_backend_cache_persistence(self):
         """測試 Backend 快取持久性"""
-        from multi_language_corrector.backend import get_english_backend
+        from phonofix.backend import get_english_backend
         
         backend = get_english_backend()
         backend.initialize()

@@ -61,7 +61,7 @@ from .dictionary import FuzzyDictionaryGenerator
 from .core import PhoneticConfig, PhoneticUtils
 
 __version__ = "1.0.0"
-__author__ = "Your Name"
+__author__ = "JonesHong"
 __all__ = [
     "ChineseTextCorrector",
     "FuzzyDictionaryGenerator",

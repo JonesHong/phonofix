@@ -8,7 +8,7 @@ This file demonstrates all core features of EnglishEngine:
 4. Acronym Expansion - Handling letter-by-letter pronunciation
 5. Context Keywords - Context-aware replacement
 6. Weight System - Controlling replacement priority
-7. Exclusions - Preventing unwanted replacements
+7. exclude_when - Preventing unwanted replacements
 8. Framework Names - Common tech terms correction
 """
 
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from multi_language_corrector import EnglishEngine
+from phonofix import EnglishEngine
 
 # Global Engine (singleton pattern, avoids repeated initialization)
 engine = EnglishEngine()
@@ -223,16 +223,16 @@ def example_5_context_keywords():
 
 
 # =============================================================================
-# Example 6: Exclusions
+# Example 6: exclude_when
 # =============================================================================
-def example_6_exclusions():
+def example_6_exclude_when():
     """
-    Use exclusions to prevent specific replacements:
-    - exclusions are "veto conditions": match any = no replacement
-    - exclusions take priority over keywords
+    Use exclude_when to prevent specific replacements:
+    - exclude_when are "veto conditions": match any = no replacement
+    - exclude_when takes priority over keywords
     """
     print("=" * 60)
-    print("Example 6: Exclusions")
+    print("Example 6: exclude_when")
     print("=" * 60)
 
     corrector = engine.create_corrector(
@@ -240,16 +240,16 @@ def example_6_exclusions():
             "EKG": {
                 "aliases": ["1 kg", "1kg"],
                 "keywords": ["medical", "device", "heart", "monitor"],
-                "exclusions": ["weight", "heavy", "kilogram", "kg of"],
+                "exclude_when": ["weight", "heavy", "kilogram", "kg of"],
             }
         }
     )
 
     test_cases = [
         ("The medical 1 kg device", "Keywords(medical) → EKG"),
-        ("This 1 kg weight", "Exclusion(weight) → no change"),
-        ("Bought 1 kg of sugar", "Exclusion(kg of) → no change"),
-        ("The 1 kg device is heavy", "Keywords(device) + Exclusion(heavy) → no change"),
+        ("This 1 kg weight", "exclude_when(weight) → no change"),
+        ("Bought 1 kg of sugar", "exclude_when(kg of) → no change"),
+        ("The 1 kg device is heavy", "Keywords(device) + exclude_when(heavy) → no change"),
     ]
 
     for text, explanation in test_cases:
@@ -361,7 +361,7 @@ def example_9_full_test():
             "EKG": {
                 "aliases": ["1 kg", "1kg"],
                 "keywords": ["medical", "device", "heart"],
-                "exclusions": ["weight", "heavy", "kilogram"],
+                "exclude_when": ["weight", "heavy", "kilogram"],
             },
         }
     )
@@ -377,7 +377,7 @@ def example_9_full_test():
         
         # Context-dependent (EKG)
         ("The medical 1 kg device", "The medical EKG device"),
-        ("This 1 kg weight", "This 1 kg weight"),  # exclusion
+        ("This 1 kg weight", "This 1 kg weight"),  # exclude_when
         ("Bought 1kg of sugar", "Bought 1kg of sugar"),  # no keywords
     ]
 
@@ -414,7 +414,7 @@ if __name__ == "__main__":
         ("Split Words", example_3_split_words),
         ("Acronyms", example_4_acronyms),
         ("Context Keywords", example_5_context_keywords),
-        ("Exclusions", example_6_exclusions),
+        ("exclude_when", example_6_exclude_when),
         ("Weight System", example_7_weight_system),
         ("Frameworks", example_8_frameworks),
         ("Full Test", example_9_full_test),

@@ -2,7 +2,7 @@
 混合語言替換器測試
 """
 import pytest
-from multi_language_corrector import UnifiedEngine
+from phonofix import UnifiedEngine
 
 
 class TestUnifiedCorrector:

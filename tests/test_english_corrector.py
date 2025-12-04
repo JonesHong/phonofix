@@ -2,7 +2,7 @@
 英文替換器測試
 """
 import pytest
-from multi_language_corrector import EnglishEngine
+from phonofix import EnglishEngine
 
 
 class TestEnglishCorrector:

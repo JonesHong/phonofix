@@ -8,7 +8,7 @@ Chinese Text Corrector - 完整使用範例
 """
 
 import json
-from multi_language_corrector.languages.chinese.corrector import (
+from phonofix.languages.chinese.corrector import (
     ChineseCorrector,
     FuzzyDictionaryGenerator,
 )

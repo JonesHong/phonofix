@@ -64,7 +64,7 @@ def main():
     # 測試 phonemizer
     print("\n--- phonemizer + espeak-ng ---")
     try:
-        from multi_language_corrector.languages.english.phonetic_impl import (
+        from phonofix.languages.english.phonetic_impl import (
             cached_ipa_convert,
             clear_english_cache,
             is_phonemizer_available,

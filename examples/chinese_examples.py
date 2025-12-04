@@ -8,7 +8,7 @@
 4. 台灣口音支援 - n/l, r/l, f/h 混淆
 5. 上下文關鍵字 - 根據前後文判斷替換
 6. 權重系統 - 控制替換優先級
-7. 豁免排除 - exclusions 關鍵字阻止替換
+7. 豁免排除 - exclude_when 上下文排除條件
 8. 長文章校正 - 完整段落測試
 """
 
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from multi_language_corrector import ChineseEngine
+from phonofix import ChineseEngine
 
 # 全域 Engine (單例模式，避免重複初始化)
 engine = ChineseEngine(verbose=True )
@@ -181,18 +181,18 @@ def example_4_context_keywords():
 
 
 # =============================================================================
-# 範例 5: 豁免排除 (exclusions)
+# 範例 5: 上下文排除 (exclude_when)
 # =============================================================================
-def example_5_exclusions():
+def example_5_exclude_when():
     """
-    使用 exclusions 阻止特定情況的替換：
-    - exclusions 是「否決條件」：只要匹配任一排除關鍵字就不替換
-    - exclusions 優先於 keywords
+    使用 exclude_when 根據上下文阻止特定情況的替換：
+    - exclude_when 是「否決條件」：只要匹配任一排除條件就不替換
+    - exclude_when 優先於 keywords
 
-    注意：exclusions 是關鍵字匹配，不需要完整詞彙
+    注意：exclude_when 是關鍵字匹配，不需要完整詞彙
     """
     print("=" * 60)
-    print("範例 5: 豁免排除 (exclusions)")
+    print("範例 5: 上下文排除 (exclude_when)")
     print("=" * 60)
 
     corrector = engine.create_corrector(
@@ -200,15 +200,15 @@ def example_5_exclusions():
             "心電圖設備": {
                 "aliases": ["心電圖社北", "心電圖社備"],  # 語音辨識可能的錯誤
                 "keywords": ["醫院", "檢查", "醫療"],  # 醫療相關
-                "exclusions": ["公司", "銷售", "新創"],  # 商業相關
+                "exclude_when": ["公司", "銷售", "新創"],  # 商業相關 -> 不修正
             }
         }
     )
 
     test_cases = [
-        ("醫院有心電圖社備", "有 keywords(醫院)，無 exclusions → 替換"),
-        ("心電圖社備公司成立", "有 exclusions(公司) → 不替換"),
-        ("心電圖社北銷售部門", "有 exclusions(銷售) → 不替換"),
+        ("醫院有心電圖社備", "有 keywords(醫院)，無 exclude_when → 替換"),
+        ("心電圖社備公司成立", "有 exclude_when(公司) → 不替換"),
+        ("心電圖社北銷售部門", "有 exclude_when(銷售) → 不替換"),
     ]
 
     for text, explanation in test_cases:
@@ -261,7 +261,7 @@ def example_7_homophone_filtering():
     print("範例 7: 同音字過濾原理")
     print("=" * 60)
 
-    from multi_language_corrector.languages.chinese.fuzzy_generator import (
+    from phonofix.languages.chinese.fuzzy_generator import (
         ChineseFuzzyGenerator,
     )
 
@@ -292,7 +292,7 @@ def example_8_mixed_format():
     - 純列表: 自動生成別名
     - 空字典: 自動生成別名
     - 別名列表: 手動指定別名
-    - 完整配置: 別名 + keywords + exclusions + weight
+    - 完整配置: 別名 + keywords + exclude_when + weight
     """
     print("=" * 60)
     print("範例 8: 混合格式配置")
@@ -355,9 +355,9 @@ def example_9_long_article():
         "放縱",
         "父獨生子",
     ]
-    exclusions = ["什麼是", "道成的文字"]
+    protected_terms = ["什麼是", "道成的文字"]
 
-    corrector = engine.create_corrector(term_list, exclusions=exclusions)
+    corrector = engine.create_corrector(term_list, protected_terms=protected_terms)
     article = (
         "什麼是上帝的道那你應該知道這本聖經就是上帝的道上帝的話就是上帝的道"
         "沒有錯我在說道太出與上帝同在道是聖林帶到人間的所以聖林借著莫氏就約的先知跟新約的使徒 "
@@ -398,7 +398,7 @@ if __name__ == "__main__":
         ("手動別名", example_2_manual_aliases),
         ("台灣口音", example_3_taiwan_accent),
         ("上下文關鍵字", example_4_context_keywords),
-        ("豁免排除", example_5_exclusions),
+        ("上下文排除", example_5_exclude_when),
         ("權重系統", example_6_weight_system),
         ("同音過濾", example_7_homophone_filtering),
         ("混合格式", example_8_mixed_format),

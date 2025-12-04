@@ -4,7 +4,7 @@
 本檔案展示 UnifiedEngine 的混合語言校正功能：
 1. 中英文混合文本的校正
 2. 英文拼寫錯誤修正 (IPA 音標比對)
-3. 英文詞彙的 keywords/exclusions 支援
+3. 英文詞彙的 keywords/exclude_when 支援
 4. 跨語言上下文判斷
 
 架構說明：
@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from multi_language_corrector import UnifiedEngine
+from phonofix import UnifiedEngine
 
 # 全域 Engine (單例模式，避免重複初始化)
 engine = UnifiedEngine()
@@ -59,41 +59,41 @@ def example_1_basic_mixed():
 
 
 # =============================================================================
-# 範例 2: 英文 Keywords 和 Exclusions
+# 範例 2: 英文 Keywords 和 exclude_when
 # =============================================================================
-def example_2_english_keywords_exclusions():
+def example_2_english_keywords_exclude_when():
     """
-    英文詞彙也支援 keywords 和 exclusions：
+    英文詞彙也支援 keywords 和 exclude_when：
     - keywords: 必須匹配才替換 (必要條件)
-    - exclusions: 匹配就不替換 (否決條件)
+    - exclude_when: 匹配就不替換 (否決條件)
     """
     print("=" * 60)
-    print("範例 2: 英文 Keywords 和 Exclusions")
+    print("範例 2: 英文 Keywords 和 exclude_when")
     print("=" * 60)
 
     corrector = engine.create_corrector({
         "EKG": {
             "aliases": ["1 kg", "1kg", "one kg"],
             "keywords": ["設備", "心電圖", "檢查", "device", "heart", "medical"],
-            "exclusions": ["水", "公斤", "重", "weight", "kg of"],
+            "exclude_when": ["水", "公斤", "重", "weight", "kg of"],
         },
         "API": {
             "aliases": ["a p i", "A P I"],
             "keywords": ["接口", "呼叫", "call", "request", "endpoint"],
-            "exclusions": ["藥", "drug", "medicine"],
+            "exclude_when": ["藥", "drug", "medicine"],
         }
     })
 
     test_cases = [
         # EKG 測試
         ("這個 1 kg設備很貴", "有 keywords(設備) → 替換為 EKG"),
-        ("這瓶 1kg水很重", "有 exclusions(水) → 不替換"),
+        ("這瓶 1kg水很重", "有 exclude_when(水) → 不替換"),
         ("The 1kg device is expensive", "有 keywords(device) → 替換為 EKG"),
         ("買了 1kg的東西", "無 keywords → 不替換"),
         
         # API 測試  
         ("call a p i endpoint", "有 keywords(call+endpoint) → 替換"),
-        ("這個a p i藥很有效", "有 exclusions(藥) → 不替換"),
+        ("這個a p i藥很有效", "有 exclude_when(藥) → 不替換"),
     ]
 
     for text, explanation in test_cases:
@@ -155,30 +155,30 @@ def example_3_technical_terms():
 
 
 # =============================================================================
-# 範例 4: Exclusions 優先級展示
+# 範例 4: exclude_when 優先級展示
 # =============================================================================
-def example_4_exclusion_priority():
+def example_4_exclude_when_priority():
     """
-    展示 exclusions 的優先級：
-    - 即使有 keywords 匹配，只要有 exclusions 匹配就不替換
+    展示 exclude_when 的優先級：
+    - 即使有 keywords 匹配，只要有 exclude_when 匹配就不替換
     """
     print("=" * 60)
-    print("範例 4: Exclusions 優先級")
+    print("範例 4: exclude_when 優先級")
     print("=" * 60)
 
     corrector = engine.create_corrector({
         "EKG": {
             "aliases": ["1kg", "1 kg"],
             "keywords": ["設備", "device", "醫療", "medical"],
-            "exclusions": ["重", "weight", "公斤", "kilogram"],
+            "exclude_when": ["重", "weight", "公斤", "kilogram"],
         }
     })
 
     test_cases = [
-        ("這個設備有 1kg重", "keywords(設備) + exclusions(重) → 不替換"),
-        ("medical device 1kg weight", "keywords(medical) + exclusions(weight) → 不替換"),
-        ("這個 1kg設備", "keywords(設備) 無 exclusions → 替換"),
-        ("1kg device here", "keywords(device) 無 exclusions → 替換"),
+        ("這個設備有 1kg重", "keywords(設備) + exclude_when(重) → 不替換"),
+        ("medical device 1kg weight", "keywords(medical) + exclude_when(weight) → 不替換"),
+        ("這個 1kg設備", "keywords(設備) 無 exclude_when → 替換"),
+        ("1kg device here", "keywords(device) 無 exclude_when → 替換"),
     ]
 
     for text, explanation in test_cases:
@@ -207,7 +207,7 @@ def example_5_full_test():
         "EKG": {
             "aliases": ["1 kg", "1kg"],
             "keywords": ["設備", "心電圖", "檢查"],
-            "exclusions": ["水", "公斤", "重"],
+            "exclude_when": ["水", "公斤", "重"],
         },
     })
 
@@ -266,9 +266,9 @@ if __name__ == "__main__":
 
     examples = [
         ("基礎混合語言", example_1_basic_mixed),
-        ("英文 Keywords/Exclusions", example_2_english_keywords_exclusions),
+        ("英文 Keywords/exclude_when", example_2_english_keywords_exclude_when),
         ("專業術語", example_3_technical_terms),
-        ("Exclusions 優先級", example_4_exclusion_priority),
+        ("exclude_when 優先級", example_4_exclude_when_priority),
         ("完整測試", example_5_full_test),
     ]
 

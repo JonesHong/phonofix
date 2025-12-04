@@ -5,7 +5,7 @@
 以便監控初始化和修正的效能。
 """
 
-from multi_language_corrector import (
+from phonofix import (
     UnifiedEngine,
     ChineseEngine,
     EnglishEngine,
@@ -125,7 +125,7 @@ def demo_manual_logging():
     enable_timing_logging()
     
     # 方法 2: 直接設定標準 logging
-    # logging.getLogger("multi_language_corrector").setLevel(logging.DEBUG)
+    # logging.getLogger("phonofix").setLevel(logging.DEBUG)
     
     # 現在所有 Engine/Corrector 都會輸出計時
     engine = ChineseEngine()  # 不需要傳入 verbose

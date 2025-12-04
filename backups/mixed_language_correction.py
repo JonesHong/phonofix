@@ -1,4 +1,4 @@
-from multi_language_corrector.correction.unified_corrector import UnifiedCorrector
+from phonofix.correction.unified_corrector import UnifiedCorrector
 
 
 def test_mixed_correction():
