@@ -102,6 +102,19 @@ from phonofix.correction.streaming_corrector import (
     DEFAULT_MIN_CONFIRM_SIZE,
 )
 
+# =============================================================================
+# Protocol 定義 (進階用途 - 擴展語言支援時使用)
+# =============================================================================
+from phonofix.correction.protocol import (
+    CorrectorProtocol,
+    ContextAwareCorrectorProtocol,
+)
+
+# =============================================================================
+# 組合型修正器 (進階用途 - 手動組合多語言)
+# =============================================================================
+from phonofix.correction.unified_corrector import UnifiedCorrector
+
 __all__ = [
     # Engine 層
     'UnifiedEngine',
@@ -136,6 +149,13 @@ __all__ = [
     'MIN_OVERLAP_SIZE',
     'OVERLAP_MARGIN',
     'DEFAULT_MIN_CONFIRM_SIZE',
+    
+    # Protocol (進階 - 擴展語言)
+    'CorrectorProtocol',
+    'ContextAwareCorrectorProtocol',
+    
+    # 組合型修正器 (進階)
+    'UnifiedCorrector',
 ]
 
 __version__ = '0.1.0'

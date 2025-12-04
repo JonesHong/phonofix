@@ -1,8 +1,13 @@
 """
-統一修正器模組
+統一修正器模組 (Unified Corrector)
 
 這是多語言修正系統的主要入口點。
 負責協調語言路由與特定語言的修正器，以處理混合語言的文本。
+
+設計原則：
+- 使用 Dict[str, CorrectorProtocol] 而非寫死的 zh/en
+- 新增語言只需在 dict 中加入對應的 corrector
+- 符合開放封閉原則 (OCP)
 
 使用方式:
     from phonofix import UnifiedEngine
@@ -13,13 +18,21 @@
         'Python': ['Pyton'],
     })
     result = corrector.correct('我在北車學習Pyton')
+    
+    # 進階：手動組合 correctors
+    from phonofix.correction import UnifiedCorrector
+    
+    unified = UnifiedCorrector(
+        correctors={'zh': zh_corrector, 'en': en_corrector},
+        router=language_router,
+    )
 """
 
 import logging
-from typing import List, Dict, Union, Optional, TYPE_CHECKING
+from typing import Dict, Optional, TYPE_CHECKING
+
 from phonofix.router.language_router import LanguageRouter
-from phonofix.languages.chinese.corrector import ChineseCorrector
-from phonofix.languages.english.corrector import EnglishCorrector
+from phonofix.correction.protocol import CorrectorProtocol
 from phonofix.utils.logger import get_logger, TimingContext
 
 if TYPE_CHECKING:
@@ -33,19 +46,52 @@ class UnifiedCorrector:
     功能:
     - 接收混合語言文本
     - 自動識別並分割不同語言的片段
-    - 將片段分派給對應的語言修正器 (中文/英文)
+    - 將片段分派給對應的語言修正器
     - 合併修正後的結果
     
+    設計:
+    - 使用 Dict[str, CorrectorProtocol] 儲存各語言修正器
+    - 語言代碼與 LanguageRouter 的分割結果對應
+    - 新增語言無需修改此類別
+    
     建立方式:
-        使用 UnifiedEngine.create_corrector() 建立實例
+        # 透過 UnifiedEngine（推薦）
+        engine = UnifiedEngine()
+        corrector = engine.create_corrector(terms)
+        
+        # 手動建立（進階）
+        corrector = UnifiedCorrector(
+            correctors={'zh': zh_corrector, 'en': en_corrector},
+            router=language_router,
+        )
     """
+    
+    def __init__(
+        self,
+        correctors: Dict[str, CorrectorProtocol],
+        router: LanguageRouter,
+    ):
+        """
+        初始化統一修正器
+        
+        Args:
+            correctors: 語言代碼到修正器的映射
+                例如 {'zh': ChineseCorrector, 'en': EnglishCorrector}
+            router: 語言路由器，負責分割混合語言文本
+        """
+        self._correctors = correctors
+        self.router = router
+        self._logger = get_logger("corrector.unified")
+        
+        self._logger.debug(
+            f"UnifiedCorrector initialized with languages: {list(correctors.keys())}"
+        )
     
     @classmethod
     def _from_engine(
         cls,
         engine: "UnifiedEngine",
-        zh_corrector: Optional[ChineseCorrector],
-        en_corrector: Optional[EnglishCorrector],
+        correctors: Dict[str, CorrectorProtocol],
     ) -> "UnifiedCorrector":
         """
         由 UnifiedEngine 調用的內部工廠方法
@@ -54,8 +100,7 @@ class UnifiedCorrector:
         
         Args:
             engine: UnifiedEngine 實例
-            zh_corrector: 已初始化的中文修正器 (可為 None)
-            en_corrector: 已初始化的英文修正器 (可為 None)
+            correctors: 語言代碼到修正器的映射
             
         Returns:
             UnifiedCorrector: 輕量實例
@@ -64,22 +109,37 @@ class UnifiedCorrector:
         instance._engine = engine
         instance._logger = get_logger("corrector.unified")
         instance.router = engine.router
-        instance.zh_corrector = zh_corrector
-        instance.en_corrector = en_corrector
+        instance._correctors = correctors
+        
+        instance._logger.debug(
+            f"UnifiedCorrector created via engine with languages: {list(correctors.keys())}"
+        )
         
         return instance
+    
+    @property
+    def correctors(self) -> Dict[str, CorrectorProtocol]:
+        """取得所有語言修正器"""
+        return self._correctors
+    
+    @property
+    def supported_languages(self) -> list:
+        """取得支援的語言列表"""
+        return list(self._correctors.keys())
 
     def correct(self, text: str) -> str:
         """
         執行混合語言文本修正
 
         流程:
-        1. 使用 LanguageRouter 將文本分割為語言片段 (如 [('zh', '我有一台'), ('en', 'computer')])
+        1. 使用 LanguageRouter 將文本分割為語言片段
+           例如: [('zh', '我有一台'), ('en', 'computer')]
         2. 遍歷每個片段，根據語言標籤呼叫對應的修正器
         3. 將修正後的片段重新組合成完整字串
 
         限制:
-        - 目前的簡單路由策略可能會將混合詞彙 (如 "C語言") 切開為 "C" (en) 和 "語言" (zh)
+        - 目前的簡單路由策略可能會將混合詞彙切開
+          例如 "C語言" 切為 "C" (en) 和 "語言" (zh)
         - 這可能導致某些跨語言邊界的專有名詞無法正確修正
         - 但對於解決 "1kg" -> "EKG" 這類純英文/數字問題非常有效
 
@@ -97,16 +157,47 @@ class UnifiedCorrector:
             corrected_segments = []
             
             for lang, segment in segments:
-                if lang == 'zh' and self.zh_corrector is not None:
-                    # 中文修正: "我有一台" -> "我有一台" (無變更)
-                    corrected_segments.append(self.zh_corrector.correct(segment))
-                elif lang == 'en' and self.en_corrector is not None:
-                    # 英文修正: "1kg" -> "EKG" (假設 EKG 在詞庫中且符合規則)
-                    # 傳入完整原文作為上下文，供 keyword/exclusion 檢查
-                    corrected_segments.append(self.en_corrector.correct(segment, full_context=text))
+                if lang in self._correctors:
+                    corrector = self._correctors[lang]
+                    
+                    # 嘗試傳入完整上下文（如果 corrector 支援）
+                    # 這對於 keyword/exclude_when 判斷很重要
+                    try:
+                        corrected = corrector.correct(segment, full_context=text)
+                    except TypeError:
+                        # 如果 corrector 不接受 full_context 參數
+                        corrected = corrector.correct(segment)
+                    
+                    corrected_segments.append(corrected)
                 else:
-                    # 無對應修正器或未知語言，保持原樣
+                    # 無對應修正器，保持原樣
                     corrected_segments.append(segment)
             
             # 2. 結果合併
             return "".join(corrected_segments)
+    
+    def add_corrector(self, lang: str, corrector: CorrectorProtocol) -> None:
+        """
+        動態新增語言修正器
+        
+        Args:
+            lang: 語言代碼 (如 'zh', 'en', 'ja', 'ko')
+            corrector: 符合 CorrectorProtocol 的修正器實例
+        """
+        self._correctors[lang] = corrector
+        self._logger.info(f"Added corrector for language: {lang}")
+    
+    def remove_corrector(self, lang: str) -> Optional[CorrectorProtocol]:
+        """
+        移除語言修正器
+        
+        Args:
+            lang: 語言代碼
+            
+        Returns:
+            移除的修正器實例，若不存在則返回 None
+        """
+        corrector = self._correctors.pop(lang, None)
+        if corrector:
+            self._logger.info(f"Removed corrector for language: {lang}")
+        return corrector

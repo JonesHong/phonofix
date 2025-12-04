@@ -19,7 +19,7 @@ class EnglishTokenizer(Tokenizer):
     """
 
     def tokenize(self, text: str) -> List[str]:
-        """
+        r"""
         將英文文本分割為單字列表
 
         使用正規表達式 `\b\w+\b` 提取所有單字。

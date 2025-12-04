@@ -35,8 +35,9 @@
 """
 
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable, Any
+from typing import Any
 
+from phonofix.correction.protocol import CorrectorProtocol
 from phonofix.utils.logger import get_logger
 
 
@@ -55,12 +56,6 @@ OVERLAP_MARGIN = 5
 
 # 預設最小確認長度
 DEFAULT_MIN_CONFIRM_SIZE = 10
-
-
-@runtime_checkable
-class CorrectorProtocol(Protocol):
-    """修正器協議"""
-    def correct(self, text: str) -> str: ...
 
 
 def calculate_safe_overlap(

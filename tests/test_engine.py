@@ -117,8 +117,8 @@ class TestUnifiedEngine:
         })
         
         assert corrector._engine is engine
-        assert corrector.zh_corrector is not None
-        assert corrector.en_corrector is not None
+        assert 'zh' in corrector.correctors
+        assert 'en' in corrector.correctors
     
     def test_create_corrector_chinese_only(self):
         """測試建立純中文修正器"""
@@ -127,8 +127,8 @@ class TestUnifiedEngine:
         engine = UnifiedEngine()
         corrector = engine.create_corrector({'台北車站': ['北車']})
         
-        assert corrector.zh_corrector is not None
-        assert corrector.en_corrector is None
+        assert 'zh' in corrector.correctors
+        assert 'en' not in corrector.correctors
     
     def test_create_corrector_english_only(self):
         """測試建立純英文修正器"""
@@ -137,8 +137,8 @@ class TestUnifiedEngine:
         engine = UnifiedEngine()
         corrector = engine.create_corrector({'Python': ['Pyton']})
         
-        assert corrector.zh_corrector is None
-        assert corrector.en_corrector is not None
+        assert 'zh' not in corrector.correctors
+        assert 'en' in corrector.correctors
     
     def test_mixed_correction(self):
         """測試混合語言修正"""

@@ -168,20 +168,21 @@ class UnifiedEngine(CorrectorEngine):
                 f"Term classification: {len(zh_terms)} Chinese, {len(en_terms)} English"
             )
             
-            # 建立子 Corrector
-            zh_corrector = self._chinese_engine.create_corrector(
-                zh_terms, protected_terms=protected_terms
-            ) if zh_terms else None
+            # 建立語言修正器字典
+            correctors = {}
             
-            en_corrector = self._english_engine.create_corrector(
-                en_terms
-            ) if en_terms else None
+            if zh_terms:
+                correctors['zh'] = self._chinese_engine.create_corrector(
+                    zh_terms, protected_terms=protected_terms
+                )
+            
+            if en_terms:
+                correctors['en'] = self._english_engine.create_corrector(en_terms)
             
             # 建立 UnifiedCorrector
             return UnifiedCorrector._from_engine(
                 engine=self,
-                zh_corrector=zh_corrector,
-                en_corrector=en_corrector,
+                correctors=correctors,
             )
     
     def _is_english_term(self, term: str) -> bool:
