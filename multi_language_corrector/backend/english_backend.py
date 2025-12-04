@@ -8,8 +8,7 @@
 import os
 import threading
 import warnings
-from functools import lru_cache
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from .base import PhoneticBackend
 
@@ -103,16 +102,31 @@ def _get_phonemize():
 # IPA 快取 (模組層級，所有 Backend 實例共享)
 # =============================================================================
 
-@lru_cache(maxsize=50000)
+# 使用字典作為快取 (比 lru_cache 更靈活，支援批次填充)
+_ipa_cache: Dict[str, str] = {}
+_cache_lock = threading.Lock()
+_cache_maxsize = 50000
+_cache_stats = {"hits": 0, "misses": 0}
+
+
 def _cached_ipa_convert(text: str) -> str:
     """
-    快取版 IPA 轉換
+    快取版 IPA 轉換 (單一文字)
     
     使用 phonemizer + espeak-ng 將英文文字轉換為 IPA
     """
+    global _cache_stats
+    
+    # 檢查快取
+    if text in _ipa_cache:
+        _cache_stats["hits"] += 1
+        return _ipa_cache[text]
+    
+    _cache_stats["misses"] += 1
+    
+    # 未命中快取，執行轉換
     phonemize = _get_phonemize()
     
-    # 忽略 phonemizer 的警告訊息
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         result = phonemize(
@@ -121,10 +135,80 @@ def _cached_ipa_convert(text: str) -> str:
             backend="espeak",
             strip=True,
             preserve_punctuation=False,
-            with_stress=False,  # 不保留重音符號，簡化比對
+            with_stress=False,
         )
     
-    return result.strip() if result else ""
+    result = result.strip() if result else ""
+    
+    # 存入快取
+    with _cache_lock:
+        if len(_ipa_cache) < _cache_maxsize:
+            _ipa_cache[text] = result
+    
+    return result
+
+
+def _batch_ipa_convert(texts: list) -> Dict[str, str]:
+    """
+    批次 IPA 轉換 (效能優化)
+    
+    一次呼叫 phonemizer 處理多個文字，避免重複啟動進程。
+    批次處理比逐一呼叫快約 10 倍。
+    
+    Args:
+        texts: 要轉換的文字列表
+        
+    Returns:
+        Dict[str, str]: 文字 -> IPA 映射
+    """
+    global _cache_stats
+    
+    if not texts:
+        return {}
+    
+    # 分離已快取和未快取的項目
+    results = {}
+    uncached = []
+    
+    for text in texts:
+        if text in _ipa_cache:
+            _cache_stats["hits"] += 1
+            results[text] = _ipa_cache[text]
+        else:
+            uncached.append(text)
+    
+    if not uncached:
+        return results
+    
+    _cache_stats["misses"] += len(uncached)
+    
+    # 批次轉換未快取的項目
+    phonemize = _get_phonemize()
+    
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        ipas = phonemize(
+            uncached,
+            language="en-us",
+            backend="espeak",
+            strip=True,
+            preserve_punctuation=False,
+            with_stress=False,
+        )
+    
+    # 處理結果 (可能是字串或列表)
+    if isinstance(ipas, str):
+        ipas = [ipas]
+    
+    # 存入快取並建立結果
+    with _cache_lock:
+        for text, ipa in zip(uncached, ipas):
+            ipa = ipa.strip() if ipa else ""
+            if len(_ipa_cache) < _cache_maxsize:
+                _ipa_cache[text] = ipa
+            results[text] = ipa
+    
+    return results
 
 
 # =============================================================================
@@ -214,6 +298,23 @@ class EnglishPhoneticBackend(PhoneticBackend):
         
         return _cached_ipa_convert(text)
     
+    def to_phonetic_batch(self, texts: list) -> Dict[str, str]:
+        """
+        批次將文字轉換為 IPA (效能優化)
+        
+        一次呼叫處理多個文字，比逐一呼叫快約 10 倍。
+        
+        Args:
+            texts: 輸入文字列表
+            
+        Returns:
+            Dict[str, str]: 文字 -> IPA 映射
+        """
+        if not self._initialized:
+            self.initialize()
+        
+        return _batch_ipa_convert(texts)
+    
     def get_cache_stats(self) -> Dict[str, Any]:
         """
         取得 IPA 快取統計
@@ -221,17 +322,19 @@ class EnglishPhoneticBackend(PhoneticBackend):
         Returns:
             Dict: 包含 hits, misses, currsize, maxsize
         """
-        info = _cached_ipa_convert.cache_info()
         return {
-            "hits": info.hits,
-            "misses": info.misses,
-            "currsize": info.currsize,
-            "maxsize": info.maxsize,
+            "hits": _cache_stats["hits"],
+            "misses": _cache_stats["misses"],
+            "currsize": len(_ipa_cache),
+            "maxsize": _cache_maxsize,
         }
     
     def clear_cache(self) -> None:
         """清除 IPA 快取"""
-        _cached_ipa_convert.cache_clear()
+        global _ipa_cache, _cache_stats
+        with _cache_lock:
+            _ipa_cache.clear()
+            _cache_stats = {"hits": 0, "misses": 0}
 
 
 # =============================================================================

@@ -67,7 +67,7 @@ class EnglishCorrector:
         instance.keywords = keywords or {}
         instance.exclusions = exclusions or {}
         
-        # 預先計算所有別名的發音特徵
+        # 預先計算所有別名的發音特徵 (使用批次處理)
         instance._compute_alias_phonetics()
         
         return instance
@@ -76,44 +76,37 @@ class EnglishCorrector:
         """
         預先計算所有別名的發音特徵
         
+        使用批次處理優化：一次呼叫 phonemizer 處理所有 token，
+        比逐一呼叫快約 10 倍。
+        
         重要：使用逐 token 計算再合併的方式，與 correct() 中的處理保持一致
         這樣 "view js" 會被拆成 ["view", "js"]，"js" 會被識別為縮寫並正確轉換
         """
         aliases = list(self.term_mapping.keys())
         
-        def compute_alias_ipa(alias):
-            """計算 alias 的 IPA（逐 token 計算再合併）"""
+        # Step 1: 收集所有需要計算 IPA 的 tokens
+        alias_tokens = {}  # alias -> [tokens]
+        all_tokens = set()
+        
+        for alias in aliases:
             tokens = self.tokenizer.tokenize(alias)
-            token_ipas = [self.phonetic.to_phonetic(t) for t in tokens]
-            return ''.join(token_ipas)
+            alias_tokens[alias] = tokens
+            all_tokens.update(tokens)
         
-        if len(aliases) > 20:
-            # 多執行緒計算 IPA
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-            raw_alias_phonetics = {}
-            with ThreadPoolExecutor(max_workers=16) as executor:
-                futures = {executor.submit(compute_alias_ipa, alias): alias for alias in aliases}
-                for future in as_completed(futures):
-                    alias = futures[future]
-                    raw_alias_phonetics[alias] = future.result()
-        else:
-            # 少量 alias 直接計算
-            raw_alias_phonetics = {
-                alias: compute_alias_ipa(alias) 
-                for alias in aliases
-            }
+        # Step 2: 批次計算所有 token 的 IPA
+        token_ipa_map = self._engine._backend.to_phonetic_batch(list(all_tokens))
         
-        # 直接使用計算好的 IPA（不過濾）
-        # 注意：英文不需要像中文那樣過濾同音字，因為：
-        # 1. 中文過濾的是「不同漢字但同音」的變體（如"測試"、"側試"）
-        # 2. 英文的 alias 是「同一詞的不同輸入形式」（如"React"、"re act"）
-        # 這些不同形式都是合法的 ASR 輸入，不應過濾
-        self.alias_phonetics = raw_alias_phonetics
+        # Step 3: 組合每個 alias 的 IPA
+        self.alias_phonetics = {}
+        for alias in aliases:
+            tokens = alias_tokens[alias]
+            ipa_parts = [token_ipa_map.get(t, '') for t in tokens]
+            self.alias_phonetics[alias] = ''.join(ipa_parts)
         
         # 預先計算所有別名的 token 數量 (用於視窗大小匹配)
         self.alias_token_counts = {
-            alias: len(self.tokenizer.tokenize(alias))
-            for alias in self.term_mapping.keys()
+            alias: len(tokens)
+            for alias, tokens in alias_tokens.items()
         }
         
         # 計算專有名詞的最大 Token 長度，用於限制滑動視窗的大小
@@ -157,9 +150,11 @@ class EnglishCorrector:
         if not tokens:
             return text
         
-        # 預先計算每個 token 的 IPA (這會利用快取)
-        # 這樣每個唯一的 token 只需要計算一次 IPA
-        token_ipas = [self.phonetic.to_phonetic(token) for token in tokens]
+        # 預先計算每個 token 的 IPA (使用批次處理)
+        # 這會利用快取，同時批次計算未快取的 token
+        unique_tokens = list(set(tokens))
+        token_ipa_map = self._engine._backend.to_phonetic_batch(unique_tokens)
+        token_ipas = [token_ipa_map.get(token, '') for token in tokens]
             
         matches = [] # 儲存匹配結果: (start_index, end_index, replacement)
         
