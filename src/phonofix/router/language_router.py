@@ -61,4 +61,62 @@ class LanguageRouter:
         if current_buffer:
             segments.append((current_lang, "".join(current_buffer)))
 
-        return segments
+        return self._merge_numeric_segments(segments)
+
+    def _merge_numeric_segments(self, segments: List[Tuple[str, str]]) -> List[Tuple[str, str]]:
+        """
+        合併純數字的英文片段到相鄰的中文片段
+        
+        解決如 "11位" 被拆分為 ('en', '11'), ('zh', '位') 的問題。
+        如果 'en' 片段只包含數字（不含字母），且相鄰有 'zh' 片段，則合併。
+        """
+        if not segments:
+            return []
+            
+        merged = []
+        i = 0
+        while i < len(segments):
+            lang, text = segments[i]
+            
+            # 檢查是否為純數字（允許空格、點號，但不允許字母）
+            # 這裡的邏輯是：如果它被標記為 'en'，但沒有英文字母，那它可能只是數字或符號
+            # 如果它旁邊是中文，那它應該屬於中文語境
+            is_numeric_en = (
+                lang == 'en' and 
+                not any(c.isalpha() for c in text) and 
+                any(c.isdigit() for c in text)
+            )
+            
+            if is_numeric_en:
+                # 檢查前一個是否為中文 (在已合併列表中)
+                prev_is_zh = (merged and merged[-1][0] == 'zh')
+                
+                # 檢查下一個是否為中文 (在未處理列表中)
+                next_is_zh = (i + 1 < len(segments) and segments[i+1][0] == 'zh')
+                
+                if prev_is_zh and next_is_zh:
+                    # 三明治情況：前中 + 數 + 後中 -> 合併成一個大中文片段
+                    prev_lang, prev_text = merged.pop()
+                    next_lang, next_text = segments[i+1]
+                    merged.append(('zh', prev_text + text + next_text))
+                    i += 2 # 跳過當前和下一個
+                elif prev_is_zh:
+                    # 前中 + 數 -> 合併
+                    prev_lang, prev_text = merged.pop()
+                    merged.append(('zh', prev_text + text))
+                    i += 1 # 跳過當前
+                elif next_is_zh:
+                    # 數 + 後中 -> 合併
+                    next_lang, next_text = segments[i+1]
+                    merged.append(('zh', text + next_text))
+                    i += 2 # 跳過當前和下一個
+                else:
+                    # 孤立數字，保持原樣
+                    merged.append((lang, text))
+                    i += 1
+            else:
+                # 非數字或非英文，直接加入
+                merged.append((lang, text))
+                i += 1
+            
+        return merged

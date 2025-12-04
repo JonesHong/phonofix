@@ -34,6 +34,7 @@
 """
 
 import logging
+import re
 from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from phonofix.router.language_router import LanguageRouter
@@ -87,6 +88,7 @@ class UnifiedCorrector:
         self._correctors = correctors
         self.router = router
         self._logger = get_logger("corrector.unified")
+        self._cross_lingual_mappings = []  # 跨語言詞彙映射，格式: [(alias, canonical), ...]
         
         self._logger.debug(
             f"UnifiedCorrector initialized with languages: {list(correctors.keys())}"
@@ -115,6 +117,7 @@ class UnifiedCorrector:
         instance._logger = get_logger("corrector.unified")
         instance.router = engine.router
         instance._correctors = correctors
+        instance._cross_lingual_mappings = []  # 將在 set_cross_lingual_mappings 中設定
         
         instance._logger.debug(
             f"UnifiedCorrector created via engine with languages: {list(correctors.keys())}"
@@ -211,16 +214,86 @@ class UnifiedCorrector:
         # 都沒有修正，保持原樣
         return segment
 
-    def correct(self, text: str) -> str:
+    def set_cross_lingual_mappings(self, mappings: List[Tuple[str, str]]) -> None:
+        """
+        設定跨語言詞彙映射
+        
+        這些映射會在 Router 切分之前先進行預匹配替換，
+        解決跨語言詞彙被切斷的問題。
+        
+        Args:
+            mappings: 映射列表，格式為 [(alias, canonical), ...]
+                      例如 [("PCN的引流袋", "PCN引流袋"), ("11位", "3-Way")]
+        """
+        # 按 alias 長度降序排列，優先匹配長的
+        self._cross_lingual_mappings = sorted(
+            mappings, 
+            key=lambda x: len(x[0]), 
+            reverse=True
+        )
+        self._logger.debug(
+            f"Set {len(mappings)} cross-lingual mappings"
+        )
+
+    def _pre_match_cross_lingual(self, text: str) -> str:
+        """
+        預匹配跨語言詞彙
+        
+        在 Router 切分之前，先對跨語言的完整詞彙進行直接替換。
+        這解決了如 "PCN的引流袋" 被切成 "PCN" + "的引流袋" 導致無法匹配的問題。
+        
+        Args:
+            text: 原始文本
+            
+        Returns:
+            str: 預處理後的文本
+        """
+        if not self._cross_lingual_mappings:
+            return text
+        
+        result = text
+        for alias, canonical in self._cross_lingual_mappings:
+            if alias in result:
+                result = result.replace(alias, canonical)
+                self._logger.debug(
+                    f"Pre-match: '{alias}' → '{canonical}'"
+                )
+        
+        return result
+
+    def _add_boundary_spaces(self, text: str) -> str:
+        """
+        在中英文邊界智能補充空格
+        
+        規則:
+        1. 只在「原本就分開」的中英文邊界補充空格
+        2. 如果是替換產生的邊界（原本就黏在一起），不補充空格
+        
+        注意：這個功能目前禁用，因為判斷「原本是否分開」需要更多上下文資訊。
+        未來可以透過追蹤修正位置來實現更精確的空格補充。
+        
+        Args:
+            text: 修正後的文本
+            
+        Returns:
+            str: 文本（目前直接返回，不做處理）
+        """
+        # 目前禁用自動空格補充，因為會破壞原有格式
+        # 如 "12號Folly" -> "12號Foley" 不應該變成 "12號 Foley"
+        return text
+
+    def correct(self, text: str, add_boundary_spaces: bool = True) -> str:
         """
         執行混合語言文本修正
 
         流程:
+        0. 預匹配跨語言詞彙（解決詞彙被 Router 切斷的問題）
         1. 使用 LanguageRouter 將文本分割為語言片段
            例如: [('zh', '我有一台'), ('en', 'computer')]
         2. 遍歷每個片段，根據語言標籤呼叫對應的修正器
         3. 對於「短英數片段」，採用雙重處理策略（方案 A）
         4. 將修正後的片段重新組合成完整字串
+        5. 智能補充中英文邊界空格
 
         方案 A (雙重處理):
         - 對於 ≤5 字元的英數片段（如 "1kg", "2B"）
@@ -229,11 +302,16 @@ class UnifiedCorrector:
 
         Args:
             text: 原始混合語言文本
+            add_boundary_spaces: 是否在中英文邊界自動補充空格 (預設 True)
 
         Returns:
             str: 修正後的文本
         """
         with TimingContext("UnifiedCorrector.correct", self._logger, logging.DEBUG):
+            # 0. 預匹配跨語言詞彙
+            # 解決 "PCN的引流袋" 被切成 "PCN" + "的引流袋" 的問題
+            text = self._pre_match_cross_lingual(text)
+            
             # 1. 路由分割
             # 範例輸入: "我有一台1kg的computer"
             # 分割結果: [('zh', '我有一台'), ('en', '1kg'), ('zh', '的'), ('en', 'computer')]
@@ -266,7 +344,13 @@ class UnifiedCorrector:
                     corrected_segments.append(segment)
             
             # 2. 結果合併
-            return "".join(corrected_segments)
+            result = "".join(corrected_segments)
+            
+            # 3. 智能補充中英文邊界空格
+            if add_boundary_spaces:
+                result = self._add_boundary_spaces(result)
+            
+            return result
     
     def add_corrector(self, lang: str, corrector: CorrectorProtocol) -> None:
         """

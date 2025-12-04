@@ -154,19 +154,45 @@ class UnifiedEngine(CorrectorEngine):
             if isinstance(term_dict, list):
                 term_dict = {term: {} for term in term_dict}
             
-            # 分類詞彙
+            # 分類詞彙 - 考慮別名的語言
+            # 如果別名包含不同語言，則同時註冊到兩個引擎
             zh_terms = {}
             en_terms = {}
+            cross_lingual_mappings = []  # 跨語言映射: (alias, canonical)
             
             for term, value in term_dict.items():
-                if self._is_english_term(term):
-                    en_terms[term] = value
-                else:
+                # 提取別名列表
+                aliases = self._extract_aliases(value)
+                
+                # 判斷正確詞和別名的語言
+                term_is_english = self._is_english_term(term)
+                has_chinese_alias = any(not self._is_english_term(a) for a in aliases)
+                has_english_alias = any(self._is_english_term(a) for a in aliases)
+                
+                # 收集跨語言映射（alias 和 term 語言不同）
+                for alias in aliases:
+                    alias_is_english = self._is_english_term(alias)
+                    # 如果 alias 是跨語言的（混合中英文），直接加入映射
+                    if self._is_cross_lingual(alias):
+                        cross_lingual_mappings.append((alias, term))
+                
+                # 決定註冊到哪個引擎
+                # 策略：如果別名包含該語言的詞，就註冊到該引擎
+                should_register_zh = (not term_is_english) or has_chinese_alias
+                should_register_en = term_is_english or has_english_alias
+                
+                if should_register_zh:
                     zh_terms[term] = value
+                if should_register_en:
+                    en_terms[term] = value
             
             self._logger.debug(
                 f"Term classification: {len(zh_terms)} Chinese, {len(en_terms)} English"
             )
+            if cross_lingual_mappings:
+                self._logger.debug(
+                    f"Cross-lingual mappings: {len(cross_lingual_mappings)}"
+                )
             
             # 建立語言修正器字典
             correctors = {}
@@ -180,10 +206,16 @@ class UnifiedEngine(CorrectorEngine):
                 correctors['en'] = self._english_engine.create_corrector(en_terms)
             
             # 建立 UnifiedCorrector
-            return UnifiedCorrector._from_engine(
+            unified_corrector = UnifiedCorrector._from_engine(
                 engine=self,
                 correctors=correctors,
             )
+            
+            # 設定跨語言映射
+            if cross_lingual_mappings:
+                unified_corrector.set_cross_lingual_mappings(cross_lingual_mappings)
+            
+            return unified_corrector
     
     def _is_english_term(self, term: str) -> bool:
         """
@@ -200,3 +232,44 @@ class UnifiedEngine(CorrectorEngine):
             bool: 是否為英文
         """
         return all(ord(c) < 128 for c in term)
+    
+    def _is_cross_lingual(self, term: str) -> bool:
+        """
+        判斷詞彙是否為跨語言（同時包含中英文字符）
+        
+        例如:
+        - "PCN的引流袋" -> True (英文 PCN + 中文 的引流袋)
+        - "C語言" -> True (英文 C + 中文 語言)
+        - "Python" -> False (純英文)
+        - "引流袋" -> False (純中文)
+        
+        Args:
+            term: 詞彙
+            
+        Returns:
+            bool: 是否為跨語言
+        """
+        has_ascii_alpha = any(c.isalpha() and ord(c) < 128 for c in term)
+        has_non_ascii = any(ord(c) >= 0x4E00 and ord(c) <= 0x9FFF for c in term)
+        return has_ascii_alpha and has_non_ascii
+    
+    def _extract_aliases(self, value) -> list:
+        """
+        從詞彙配置中提取別名列表
+        
+        支援多種格式:
+        - [] 空列表
+        - ["alias1", "alias2"] 別名列表
+        - {"aliases": [...], "keywords": [...]} 完整配置
+        
+        Args:
+            value: 詞彙的配置值
+            
+        Returns:
+            list: 別名列表
+        """
+        if isinstance(value, list):
+            return value
+        elif isinstance(value, dict):
+            return value.get("aliases", [])
+        return []
