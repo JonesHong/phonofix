@@ -1,16 +1,32 @@
-# Chinese Text Corrector 依賴套件
+# phonofix 依賴套件
+# 
+# 安裝方式:
+#   pip install phonofix           # 預設安裝全部語言支援
+#   pip install "phonofix[ch]"     # 僅中文支援
+#   pip install "phonofix[en]"     # 僅英文支援
+#   pip install "phonofix[all]"    # 完整安裝 (與預設相同)
 
-# 拼音處理
-pypinyin>=0.44.0
-
+# ========================================
+# 核心依賴
+# ========================================
 # 字串相似度計算
 python-Levenshtein>=0.12.2
+
+# ========================================
+# 中文支援: pip install "phonofix[ch]"
+# ========================================
+# 拼音處理
+pypinyin>=0.44.0
 
 # 拼音轉漢字
 Pinyin2Hanzi>=0.1.1
 
-# 英文發音處理
-phonemizer>=3.3.0
-
 # 簡繁轉換
 hanziconv>=0.3.2
+
+# ========================================
+# 英文支援: pip install "phonofix[en]"
+# 注意: 還需安裝 espeak-ng 系統套件
+# ========================================
+# 英文發音處理
+phonemizer>=3.3.0

@@ -64,6 +64,18 @@ def _setup_espeak_library():
 _phonemizer_available: Optional[bool] = None
 _phonemize_func = None
 
+# 安裝提示訊息
+ENGLISH_INSTALL_HINT = (
+    "缺少英文依賴。請執行:\n"
+    "  pip install \"phonofix[english]\"\n"
+    "或安裝完整版本:\n"
+    "  pip install \"phonofix[all]\"\n\n"
+    "注意: 英文支援還需要安裝 espeak-ng 系統套件:\n"
+    "  Windows: https://github.com/espeak-ng/espeak-ng/releases\n"
+    "  macOS: brew install espeak-ng\n"
+    "  Linux: apt install espeak-ng"
+)
+
 
 def _get_phonemize():
     """延遲載入 phonemizer 模組"""
@@ -74,10 +86,7 @@ def _get_phonemize():
             return _phonemize_func
         else:
             raise RuntimeError(
-                "phonemizer/espeak-ng 不可用。請確認:\n"
-                "1. 已安裝 espeak-ng: https://github.com/espeak-ng/espeak-ng/releases\n"
-                "2. Windows 使用者需設定環境變數 PHONEMIZER_ESPEAK_LIBRARY 指向 libespeak-ng.dll\n"
-                "   例如: C:\\Program Files\\eSpeak NG\\libespeak-ng.dll"
+                "phonemizer/espeak-ng 不可用。\n\n" + ENGLISH_INSTALL_HINT
             )
     
     try:
@@ -90,11 +99,13 @@ def _get_phonemize():
         _phonemize_func = phonemize
         _phonemizer_available = True
         return _phonemize_func
+    except ImportError as e:
+        _phonemizer_available = False
+        raise ImportError(ENGLISH_INSTALL_HINT)
     except Exception as e:
         _phonemizer_available = False
         raise RuntimeError(
-            f"phonemizer/espeak-ng 初始化失敗: {e}\n"
-            "請確認已正確安裝 espeak-ng 並設定環境變數。"
+            f"phonemizer/espeak-ng 初始化失敗: {e}\n\n" + ENGLISH_INSTALL_HINT
         )
 
 

@@ -10,15 +10,22 @@
     engine = ChineseEngine()
     corrector = engine.create_corrector({'台北車站': ['北車', '台北站']})
     result = corrector.correct('我在北車等你')
+
+注意：此模組使用延遲導入 (Lazy Import) 機制，
+僅在實際使用中文功能時才會載入 pypinyin。
+
+安裝中文支援:
+    pip install "phonofix[chinese]"
 """
 
-import pypinyin
 import Levenshtein
 import re
+import logging
 from functools import lru_cache
 from typing import Generator, Optional, Callable, Dict, List, Any, TYPE_CHECKING, Union
 from .config import ChinesePhoneticConfig
-from .utils import ChinesePhoneticUtils
+from .utils import ChinesePhoneticUtils, _get_pypinyin
+from multi_language_corrector.utils.logger import get_logger, TimingContext
 
 if TYPE_CHECKING:
     from multi_language_corrector.engine.chinese_engine import ChineseEngine
@@ -32,6 +39,7 @@ if TYPE_CHECKING:
 @lru_cache(maxsize=50000)
 def cached_get_pinyin_string(text: str) -> str:
     """快取版拼音字串計算"""
+    pypinyin = _get_pypinyin()
     pinyin_list = pypinyin.lazy_pinyin(text, style=pypinyin.NORMAL)
     return "".join(pinyin_list)
 
@@ -39,6 +47,7 @@ def cached_get_pinyin_string(text: str) -> str:
 @lru_cache(maxsize=50000)
 def cached_get_initials(text: str) -> tuple:
     """快取版聲母列表計算"""
+    pypinyin = _get_pypinyin()
     return tuple(pypinyin.lazy_pinyin(text, style=pypinyin.INITIALS, strict=False))
 
 
@@ -78,6 +87,7 @@ class ChineseCorrector:
         """
         instance = cls.__new__(cls)
         instance._engine = engine
+        instance._logger = get_logger("corrector.chinese")
         instance.config = engine.config
         instance.utils = engine.utils
         instance.use_canonical = True
@@ -479,12 +489,22 @@ class ChineseCorrector:
                     asr_text, i, original_segment, item
                 )
                 if candidate:
+                    # 匹配詳情日誌
+                    self._logger.debug(
+                        f"  [Match] '{candidate['original']}' -> '{candidate['replacement']}' "
+                        f"(exact, score={candidate['score']:.3f})"
+                    )
                     candidates.append(candidate)
                     continue
                 candidate = self._process_fuzzy_match(
                     asr_text, i, original_segment, item
                 )
                 if candidate:
+                    # 匹配詳情日誌
+                    self._logger.debug(
+                        f"  [Match] '{candidate['original']}' -> '{candidate['replacement']}' "
+                        f"(fuzzy, score={candidate['score']:.3f})"
+                    )
                     candidates.append(candidate)
         return candidates
 
@@ -535,10 +555,11 @@ class ChineseCorrector:
         Returns:
             修正後的文本
         """
-        protected_indices = self._build_protection_mask(asr_text)
-        candidates = self._find_candidates(asr_text, protected_indices)
-        final_candidates = self._resolve_conflicts(candidates)
-        return self._apply_replacements(asr_text, final_candidates, silent=silent)
+        with TimingContext("ChineseCorrector.correct", self._logger, logging.DEBUG):
+            protected_indices = self._build_protection_mask(asr_text)
+            candidates = self._find_candidates(asr_text, protected_indices)
+            final_candidates = self._resolve_conflicts(candidates)
+            return self._apply_replacements(asr_text, final_candidates, silent=silent)
 
     def correct_streaming(
         self,

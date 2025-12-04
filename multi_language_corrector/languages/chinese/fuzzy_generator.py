@@ -2,13 +2,61 @@
 中文模糊變體生成器
 
 負責為專有名詞自動生成可能的 ASR 錯誤變體 (同音字/近音字)。
+
+注意：此模組使用延遲導入 (Lazy Import) 機制，
+僅在實際使用中文功能時才會載入 Pinyin2Hanzi 和 hanziconv。
+
+安裝中文支援:
+    pip install "phonofix[chinese]"
 """
 
 import itertools
-from Pinyin2Hanzi import DefaultDagParams, dag
-from hanziconv import HanziConv
 from .config import ChinesePhoneticConfig
 from .utils import ChinesePhoneticUtils
+
+
+# =============================================================================
+# 延遲導入 Pinyin2Hanzi 和 hanziconv
+# =============================================================================
+
+_pinyin2hanzi_dag = None
+_pinyin2hanzi_params_class = None
+_hanziconv = None
+_imports_checked = False
+
+
+def _get_pinyin2hanzi():
+    """延遲載入 Pinyin2Hanzi 模組"""
+    global _pinyin2hanzi_dag, _pinyin2hanzi_params_class, _imports_checked
+    
+    if _imports_checked and _pinyin2hanzi_dag is not None:
+        return _pinyin2hanzi_params_class, _pinyin2hanzi_dag
+    
+    try:
+        from Pinyin2Hanzi import DefaultDagParams, dag
+        _pinyin2hanzi_params_class = DefaultDagParams
+        _pinyin2hanzi_dag = dag
+        return _pinyin2hanzi_params_class, _pinyin2hanzi_dag
+    except ImportError:
+        from multi_language_corrector.utils.lazy_imports import CHINESE_INSTALL_HINT
+        raise ImportError(CHINESE_INSTALL_HINT)
+
+
+def _get_hanziconv():
+    """延遲載入 hanziconv 模組"""
+    global _hanziconv, _imports_checked
+    
+    if _imports_checked and _hanziconv is not None:
+        return _hanziconv
+    
+    try:
+        from hanziconv import HanziConv
+        _hanziconv = HanziConv
+        _imports_checked = True
+        return _hanziconv
+    except ImportError:
+        from multi_language_corrector.utils.lazy_imports import CHINESE_INSTALL_HINT
+        raise ImportError(CHINESE_INSTALL_HINT)
 
 
 class ChineseFuzzyGenerator:
@@ -25,7 +73,15 @@ class ChineseFuzzyGenerator:
     def __init__(self, config=None):
         self.config = config or ChinesePhoneticConfig
         self.utils = ChinesePhoneticUtils(config=self.config)
-        self.dag_params = DefaultDagParams()
+        self._dag_params = None  # 延遲初始化
+
+    @property
+    def dag_params(self):
+        """延遲初始化 DAG 參數"""
+        if self._dag_params is None:
+            DefaultDagParams, _ = _get_pinyin2hanzi()
+            self._dag_params = DefaultDagParams()
+        return self._dag_params
 
     def _pinyin_to_chars(self, pinyin_str, max_chars=2):
         """
@@ -41,6 +97,10 @@ class ChineseFuzzyGenerator:
             List[str]: 候選漢字列表 (繁體)
             範例: "zhong" -> ["中", "重"]
         """
+        # 延遲載入
+        _, dag = _get_pinyin2hanzi()
+        HanziConv = _get_hanziconv()
+        
         # 使用 DAG 演算法查詢拼音對應的漢字路徑
         result = dag(self.dag_params, [pinyin_str], path_num=max_chars)
         chars = []

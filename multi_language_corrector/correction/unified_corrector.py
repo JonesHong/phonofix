@@ -15,10 +15,12 @@
     result = corrector.correct('我在北車學習Pyton')
 """
 
+import logging
 from typing import List, Dict, Union, Optional, TYPE_CHECKING
 from multi_language_corrector.router.language_router import LanguageRouter
 from multi_language_corrector.languages.chinese.corrector import ChineseCorrector
 from multi_language_corrector.languages.english.corrector import EnglishCorrector
+from multi_language_corrector.utils.logger import get_logger, TimingContext
 
 if TYPE_CHECKING:
     from multi_language_corrector.engine.unified_engine import UnifiedEngine
@@ -60,6 +62,7 @@ class UnifiedCorrector:
         """
         instance = cls.__new__(cls)
         instance._engine = engine
+        instance._logger = get_logger("corrector.unified")
         instance.router = engine.router
         instance.zh_corrector = zh_corrector
         instance.en_corrector = en_corrector
@@ -86,23 +89,24 @@ class UnifiedCorrector:
         Returns:
             str: 修正後的文本
         """
-        # 1. 路由分割
-        # 範例輸入: "我有一台1kg的computer"
-        # 分割結果: [('zh', '我有一台'), ('en', '1kg'), ('zh', '的'), ('en', 'computer')]
-        segments = self.router.split_by_language(text)
-        corrected_segments = []
-        
-        for lang, segment in segments:
-            if lang == 'zh' and self.zh_corrector is not None:
-                # 中文修正: "我有一台" -> "我有一台" (無變更)
-                corrected_segments.append(self.zh_corrector.correct(segment))
-            elif lang == 'en' and self.en_corrector is not None:
-                # 英文修正: "1kg" -> "EKG" (假設 EKG 在詞庫中且符合規則)
-                # 傳入完整原文作為上下文，供 keyword/exclusion 檢查
-                corrected_segments.append(self.en_corrector.correct(segment, full_context=text))
-            else:
-                # 無對應修正器或未知語言，保持原樣
-                corrected_segments.append(segment)
-        
-        # 2. 結果合併
-        return "".join(corrected_segments)
+        with TimingContext("UnifiedCorrector.correct", self._logger, logging.DEBUG):
+            # 1. 路由分割
+            # 範例輸入: "我有一台1kg的computer"
+            # 分割結果: [('zh', '我有一台'), ('en', '1kg'), ('zh', '的'), ('en', 'computer')]
+            segments = self.router.split_by_language(text)
+            corrected_segments = []
+            
+            for lang, segment in segments:
+                if lang == 'zh' and self.zh_corrector is not None:
+                    # 中文修正: "我有一台" -> "我有一台" (無變更)
+                    corrected_segments.append(self.zh_corrector.correct(segment))
+                elif lang == 'en' and self.en_corrector is not None:
+                    # 英文修正: "1kg" -> "EKG" (假設 EKG 在詞庫中且符合規則)
+                    # 傳入完整原文作為上下文，供 keyword/exclusion 檢查
+                    corrected_segments.append(self.en_corrector.correct(segment, full_context=text))
+                else:
+                    # 無對應修正器或未知語言，保持原樣
+                    corrected_segments.append(segment)
+            
+            # 2. 結果合併
+            return "".join(corrected_segments)

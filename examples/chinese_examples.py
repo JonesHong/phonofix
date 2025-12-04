@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from multi_language_corrector import ChineseEngine
 
 # 全域 Engine (單例模式，避免重複初始化)
-engine = ChineseEngine()
+engine = ChineseEngine(verbose=True )
 
 
 # =============================================================================

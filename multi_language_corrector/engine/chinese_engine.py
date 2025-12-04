@@ -5,7 +5,7 @@
 並提供工廠方法建立輕量的 ChineseCorrector 實例。
 """
 
-from typing import Dict, List, Union, Any, Optional, TYPE_CHECKING
+from typing import Dict, List, Union, Any, Optional, Callable
 
 from .base import CorrectorEngine
 from multi_language_corrector.backend import get_chinese_backend, ChinesePhoneticBackend
@@ -14,9 +14,6 @@ from multi_language_corrector.languages.chinese.tokenizer import ChineseTokenize
 from multi_language_corrector.languages.chinese.fuzzy_generator import ChineseFuzzyGenerator
 from multi_language_corrector.languages.chinese.utils import ChinesePhoneticUtils
 from multi_language_corrector.languages.chinese.config import ChinesePhoneticConfig
-
-if TYPE_CHECKING:
-    from multi_language_corrector.languages.chinese.corrector import ChineseCorrector
 
 
 class ChineseEngine(CorrectorEngine):
@@ -29,33 +26,50 @@ class ChineseEngine(CorrectorEngine):
     - 提供工廠方法建立輕量 ChineseCorrector 實例
     
     使用方式:
-        engine = ChineseEngine()  # 初始化 (很快)
+        # 簡單用法
+        engine = ChineseEngine()
         
-        corrector1 = engine.create_corrector({"台北車站": ["北車"]})
-        corrector2 = engine.create_corrector({"高雄車站": ["高車"]})
+        # 開啟詳細日誌
+        engine = ChineseEngine(verbose=True)
         
-        result = corrector1.correct("我在北車")
+        corrector = engine.create_corrector({"台北車站": ["北車"]})
+        result = corrector.correct("我在北車")
     """
     
-    def __init__(self, config: Optional[ChinesePhoneticConfig] = None):
+    _engine_name = "chinese"
+    
+    def __init__(
+        self,
+        phonetic_config: Optional[ChinesePhoneticConfig] = None,
+        verbose: bool = False,
+        on_timing: Optional[Callable[[str, float], None]] = None,
+    ):
         """
         初始化中文修正引擎
         
         Args:
-            config: 配置選項 (可選)
+            phonetic_config: 語音配置選項 (可選)
+            verbose: 是否開啟詳細日誌
+            on_timing: 計時回呼函數
         """
-        # 取得並初始化 Backend 單例
-        self._backend: ChinesePhoneticBackend = get_chinese_backend()
-        self._backend.initialize()
+        # 初始化 Logger
+        self._init_logger(verbose=verbose, on_timing=on_timing)
         
-        # 建立共享元件 - 注入 Backend 以使用其快取
-        self._config = config or ChinesePhoneticConfig
-        self._phonetic = ChinesePhoneticSystem(backend=self._backend)
-        self._tokenizer = ChineseTokenizer()
-        self._fuzzy_generator = ChineseFuzzyGenerator(config=self._config)
-        self._utils = ChinesePhoneticUtils(config=self._config)
-        
-        self._initialized = True
+        with self._log_timing("ChineseEngine.__init__"):
+            # 取得並初始化 Backend 單例
+            self._backend: ChinesePhoneticBackend = get_chinese_backend()
+            self._backend.initialize()
+            
+            # 建立共享元件 - 注入 Backend 以使用其快取
+            self._phonetic_config = phonetic_config or ChinesePhoneticConfig
+            self._phonetic = ChinesePhoneticSystem(backend=self._backend)
+            self._tokenizer = ChineseTokenizer()
+            self._fuzzy_generator = ChineseFuzzyGenerator(config=self._phonetic_config)
+            self._utils = ChinesePhoneticUtils(config=self._phonetic_config)
+            
+            self._initialized = True
+            
+            self._logger.info("ChineseEngine initialized")
     
     @property
     def phonetic(self) -> ChinesePhoneticSystem:
@@ -79,8 +93,8 @@ class ChineseEngine(CorrectorEngine):
     
     @property
     def config(self) -> ChinesePhoneticConfig:
-        """取得配置"""
-        return self._config
+        """取得語音配置"""
+        return self._phonetic_config
     
     @property
     def backend(self) -> ChinesePhoneticBackend:
@@ -142,26 +156,40 @@ class ChineseEngine(CorrectorEngine):
                 }
             })
         """
-        # 延遲 import 避免循環依賴
-        from multi_language_corrector.languages.chinese.corrector import ChineseCorrector
-        
-        # 標準化 term_dict 格式
-        if isinstance(term_dict, list):
-            term_dict = {term: {} for term in term_dict}
-        
-        # 處理每個詞彙
-        normalized_dict = {}
-        for term, value in term_dict.items():
-            normalized_value = self._normalize_term_value(term, value)
-            if normalized_value:
-                normalized_dict[term] = normalized_value
-        
-        # 建立輕量 Corrector
-        return ChineseCorrector._from_engine(
-            engine=self,
-            term_mapping=normalized_dict,
-            exclusions=set(exclusions) if exclusions else None,
-        )
+        with self._log_timing("ChineseEngine.create_corrector"):
+            # 延遲 import 避免循環依賴
+            from multi_language_corrector.languages.chinese.corrector import ChineseCorrector
+            
+            # 標準化 term_dict 格式
+            if isinstance(term_dict, list):
+                term_dict = {term: {} for term in term_dict}
+            
+            # 處理每個詞彙
+            normalized_dict = {}
+            for term, value in term_dict.items():
+                normalized_value = self._normalize_term_value(term, value)
+                if normalized_value:
+                    normalized_dict[term] = normalized_value
+            
+            self._logger.debug(f"Creating corrector with {len(normalized_dict)} terms")
+            
+            # 快取統計日誌 (ChineseBackend 有多個快取)
+            cache_stats = self._backend.get_cache_stats()
+            pinyin_stats = cache_stats.get('pinyin', {})
+            total_hits = pinyin_stats.get('hits', 0)
+            total_misses = pinyin_stats.get('misses', 0)
+            hit_rate = total_hits / max(1, total_hits + total_misses) * 100
+            self._logger.debug(
+                f"  [Cache] pinyin: hits={total_hits}, misses={total_misses}, "
+                f"rate={hit_rate:.1f}%, size={pinyin_stats.get('currsize', 0)}"
+            )
+            
+            # 建立輕量 Corrector
+            return ChineseCorrector._from_engine(
+                engine=self,
+                term_mapping=normalized_dict,
+                exclusions=set(exclusions) if exclusions else None,
+            )
     
     def _normalize_term_value(self, term: str, value: Any) -> Optional[Dict[str, Any]]:
         """
@@ -182,12 +210,21 @@ class ChineseEngine(CorrectorEngine):
         else:
             value = {"aliases": []}
         
+        # 拼音轉換日誌
+        pinyin = self._utils.get_pinyin_string(term)
+        self._logger.debug(f"  [Pinyin] {term} -> {pinyin}")
+        
         # 如果沒有提供別名，自動生成
         if not value.get("aliases"):
-            fuzzy_result = self._fuzzy_generator.generate_variants(term)
+            with self._log_timing(f"generate_variants({term})"):
+                fuzzy_result = self._fuzzy_generator.generate_variants(term)
             auto_aliases = [alias for alias in fuzzy_result if alias != term]
             auto_aliases = self._filter_aliases_by_pinyin(auto_aliases)
             value["aliases"] = auto_aliases
+            
+            # 日誌輸出變體詳情
+            if auto_aliases:
+                self._logger.debug(f"  [Variants] {term} -> {auto_aliases[:5]}{'...' if len(auto_aliases) > 5 else ''}")
         else:
             value["aliases"] = self._filter_aliases_by_pinyin(value["aliases"])
         

@@ -1,5 +1,5 @@
 [project]
-name = "phonetic-substitution-engine"
+name = "phonofix"
 version = "0.1.0"
 description = "多語言語音相似替換引擎 - 基於語音相似度的專有名詞替換工具，支援 ASR/LLM 後處理"
 readme = "README.md"
@@ -17,6 +17,7 @@ keywords = [
     "text-correction",
     "speech-recognition",
     "nlp",
+    "phonofix",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -31,15 +32,38 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
+# 核心依賴 - 預設安裝全部語言支援
+# pip install phonofix (等同於 phonofix[all])
 dependencies = [
-    "pypinyin>=0.44.0",
     "python-Levenshtein>=0.12.2",
+    "pypinyin>=0.44.0",
     "Pinyin2Hanzi>=0.1.1",
-    "phonemizer>=3.3.0",
     "hanziconv>=0.3.2",
+    "phonemizer>=3.3.0",
 ]
 
 [project.optional-dependencies]
+# 中文支援: pip install "phonofix[ch]"
+ch = [
+    "pypinyin>=0.44.0",
+    "Pinyin2Hanzi>=0.1.1",
+    "hanziconv>=0.3.2",
+]
+
+# 英文支援: pip install "phonofix[en]"
+en = [
+    "phonemizer>=3.3.0",
+]
+
+# 完整安裝 (與預設相同): pip install "phonofix[all]"
+all = [
+    "pypinyin>=0.44.0",
+    "pinyin2hanzi>=0.1.1",
+    "hanziconv>=0.3.2",
+    "phonemizer>=3.3.0",
+]
+
+# 開發依賴: pip install "phonofix[dev]"
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
@@ -48,9 +72,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/phonetic-substitution-engine"
-Repository = "https://github.com/yourusername/phonetic-substitution-engine"
-Documentation = "https://github.com/yourusername/phonetic-substitution-engine#readme"
+Homepage = "https://github.com/yourusername/phonofix"
+Repository = "https://github.com/yourusername/phonofix"
+Documentation = "https://github.com/yourusername/phonofix#readme"
 
 [build-system]
 requires = ["hatchling"]

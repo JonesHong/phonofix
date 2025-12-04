@@ -12,9 +12,11 @@
 """
 
 import re
+import logging
 from typing import List, Dict, Union, Optional, Set, TYPE_CHECKING
 from .phonetic_impl import EnglishPhoneticSystem
 from .tokenizer import EnglishTokenizer
+from multi_language_corrector.utils.logger import get_logger, TimingContext
 
 if TYPE_CHECKING:
     from multi_language_corrector.engine.english_engine import EnglishEngine
@@ -61,6 +63,7 @@ class EnglishCorrector:
         """
         instance = cls.__new__(cls)
         instance._engine = engine
+        instance._logger = get_logger("corrector.english")
         instance.phonetic = engine.phonetic
         instance.tokenizer = engine.tokenizer
         instance.term_mapping = term_mapping
@@ -141,6 +144,11 @@ class EnglishCorrector:
         Returns:
             str: 修正後的文本
         """
+        with TimingContext("EnglishCorrector.correct", self._logger, logging.DEBUG):
+            return self._correct_internal(text, full_context)
+    
+    def _correct_internal(self, text: str, full_context: str = None) -> str:
+        """內部修正邏輯"""
         # 用於 keyword/exclusion 檢查的完整上下文
         context = full_context if full_context else text
         
@@ -221,6 +229,14 @@ class EnglishCorrector:
                 # 記錄匹配位置與替換詞 (使用標準詞)
                 start_char = indices[i][0]
                 end_char = indices[i + best_match_len - 1][1]
+                
+                # 匹配詳情日誌
+                original_text = text[start_char:end_char]
+                self._logger.debug(
+                    f"  [Match] '{original_text}' -> '{best_match_canonical}' "
+                    f"(via alias '{best_match}')"
+                )
+                
                 matches.append((start_char, end_char, best_match_canonical))
                 # 跳過已匹配的 Token
                 # 範例: 如果匹配了長度 3 的 "one k g"，則 i 增加 3，跳過這三個 token

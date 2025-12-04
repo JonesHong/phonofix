@@ -2,11 +2,46 @@
 中文語音工具模組
 
 提供底層的拼音處理、模糊音判斷與字串操作工具函數。
+
+注意：此模組使用延遲導入 (Lazy Import) 機制，
+僅在實際使用中文功能時才會載入 pypinyin。
+
+安裝中文支援:
+    pip install "phonofix[chinese]"
 """
 
-import pypinyin
 import re
 from .config import ChinesePhoneticConfig
+
+
+# =============================================================================
+# 延遲導入 pypinyin
+# =============================================================================
+
+_pypinyin = None
+_pypinyin_checked = False
+
+
+def _get_pypinyin():
+    """延遲載入 pypinyin 模組"""
+    global _pypinyin, _pypinyin_checked
+    
+    if _pypinyin_checked:
+        if _pypinyin is not None:
+            return _pypinyin
+        else:
+            from multi_language_corrector.utils.lazy_imports import CHINESE_INSTALL_HINT
+            raise ImportError(CHINESE_INSTALL_HINT)
+    
+    try:
+        import pypinyin
+        _pypinyin = pypinyin
+        _pypinyin_checked = True
+        return _pypinyin
+    except ImportError:
+        _pypinyin_checked = True
+        from multi_language_corrector.utils.lazy_imports import CHINESE_INSTALL_HINT
+        raise ImportError(CHINESE_INSTALL_HINT)
 
 
 class ChinesePhoneticUtils:
@@ -29,11 +64,15 @@ class ChinesePhoneticUtils:
         return bool(re.search(r"[a-zA-Z]", text))
 
     @staticmethod
-    def get_pinyin(text, style=pypinyin.NORMAL):
+    def get_pinyin(text, style=None):
+        pypinyin = _get_pypinyin()
+        if style is None:
+            style = pypinyin.NORMAL
         return pypinyin.lazy_pinyin(text, style=style)
 
     @staticmethod
     def get_pinyin_string(text):
+        pypinyin = _get_pypinyin()
         pinyin_list = pypinyin.lazy_pinyin(text, style=pypinyin.NORMAL)
         return "".join(pinyin_list).lower()
 

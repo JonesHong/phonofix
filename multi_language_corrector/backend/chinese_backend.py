@@ -3,13 +3,18 @@
 
 負責 pypinyin 的拼音轉換快取管理。
 實作為執行緒安全的單例模式。
+
+注意：此模組使用延遲導入 (Lazy Import) 機制，
+僅在實際使用中文功能時才會載入 pypinyin。
+如果未安裝中文依賴，將在首次使用時拋出清楚的 ImportError。
+
+安裝中文支援:
+    pip install "phonofix[chinese]"
 """
 
 import threading
 from functools import lru_cache
 from typing import Dict, Any, Optional, Tuple
-
-import pypinyin
 
 from .base import PhoneticBackend
 
@@ -20,6 +25,32 @@ from .base import PhoneticBackend
 
 _instance: Optional["ChinesePhoneticBackend"] = None
 _instance_lock = threading.Lock()
+
+# 延遲導入狀態
+_pypinyin = None
+_pypinyin_checked = False
+
+
+def _get_pypinyin():
+    """延遲載入 pypinyin 模組"""
+    global _pypinyin, _pypinyin_checked
+    
+    if _pypinyin_checked:
+        if _pypinyin is not None:
+            return _pypinyin
+        else:
+            from multi_language_corrector.utils.lazy_imports import CHINESE_INSTALL_HINT
+            raise ImportError(CHINESE_INSTALL_HINT)
+    
+    try:
+        import pypinyin
+        _pypinyin = pypinyin
+        _pypinyin_checked = True
+        return _pypinyin
+    except ImportError:
+        _pypinyin_checked = True
+        from multi_language_corrector.utils.lazy_imports import CHINESE_INSTALL_HINT
+        raise ImportError(CHINESE_INSTALL_HINT)
 
 
 # =============================================================================
@@ -37,6 +68,7 @@ def _cached_get_pinyin_string(text: str) -> str:
     Returns:
         str: 拼音字串 (無聲調，小寫)
     """
+    pypinyin = _get_pypinyin()
     pinyin_list = pypinyin.lazy_pinyin(text, style=pypinyin.NORMAL)
     return "".join(pinyin_list).lower()
 
@@ -52,6 +84,7 @@ def _cached_get_initials(text: str) -> Tuple[str, ...]:
     Returns:
         Tuple[str, ...]: 聲母元組
     """
+    pypinyin = _get_pypinyin()
     return tuple(pypinyin.lazy_pinyin(text, style=pypinyin.INITIALS, strict=False))
 
 
@@ -66,6 +99,7 @@ def _cached_get_finals(text: str) -> Tuple[str, ...]:
     Returns:
         Tuple[str, ...]: 韻母元組
     """
+    pypinyin = _get_pypinyin()
     return tuple(pypinyin.lazy_pinyin(text, style=pypinyin.FINALS, strict=False))
 
 

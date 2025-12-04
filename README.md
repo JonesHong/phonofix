@@ -5,7 +5,13 @@
 
 ## 💡 核心理念
 
-**本工具專注於提供替換引擎，不維護任何預設字典。**
+**本套件不維護任何專有名詞字典，而是提供一個基於語音向量空間的替換引擎。**
+
+此套件的核心機制是將不同語言的文本統一映射到**語音向量空間**（由拼音、IPA 音標組成）。
+
+無論是 ASR（語音識別）、LLM（大型語言模型）或其他場景出現的拼寫錯誤——通常是因為專有名詞罕見導致選字錯誤——本工具都會將其轉換到**拼音/音標維度**。
+
+接著，系統會將這些轉換後的語音特徵，與**使用者提供的專有名詞**（加上系統自動生成的模糊音變體）進行比對，計算可能性，進而精準替換拼寫錯誤。
 
 > ⚠️ **注意**：這不是全文糾錯工具，而是專注於「專有名詞的語音相似替換」。
 
@@ -103,7 +109,7 @@ uv run mypy chinese_text_corrector multi_language_corrector
 ### 1. 混合語言替換 (Unified Corrector)
 
 ```python
-from multi_language_corrector.correction.unified_corrector import UnifiedCorrector
+from multi_language_corrector import UnifiedEngine
 
 # 定義您的專有名詞字典
 terms = [
@@ -112,8 +118,11 @@ terms = [
     "Python"
 ]
 
-# 初始化替換器
-corrector = UnifiedCorrector(terms)
+# 初始化引擎 (單例模式，建議全域只初始化一次)
+engine = UnifiedEngine()
+
+# 建立替換器
+corrector = engine.create_corrector(terms)
 
 # ASR 輸出後處理
 asr_text = "我在北車用Pyton寫Ten so floor的code"
@@ -128,7 +137,7 @@ print(result)
 # 輸出: "我在台北車站用Python寫code"
 ```
 
-### 2. 中文專用 (Legacy Mode)
+### 2. 中文專用 (Chinese Engine)
 pip install pypinyin Levenshtein Pinyin2Hanzi hanziconv
 ```
 
@@ -138,19 +147,21 @@ pip install pypinyin Levenshtein Pinyin2Hanzi hanziconv
 
 ### 推薦使用方式 - 自動生成別名
 
-使用 `ChineseTextCorrector.from_terms()` 類方法，**只需提供您的專有名詞清單**，工具會自動生成所有可能的模糊音變體並進行拼音去重：
+使用 `ChineseEngine`，**只需提供您的專有名詞清單**，工具會自動生成所有可能的模糊音變體並進行拼音去重：
 
 #### 最簡格式 - 僅提供關鍵字列表
 
 ```python
-from chinese_text_corrector import ChineseTextCorrector
+from multi_language_corrector import ChineseEngine
 
 # 步驟 1: 提供您的專有名詞清單（這是您需要維護的字典）
 my_terms = ["台北車站", "牛奶", "發揮"]
 
-# 步驟 2: 工具自動生成所有可能的模糊音變體
+# 步驟 2: 初始化引擎並建立替換器
+# 工具會自動生成所有可能的模糊音變體
 # 例如："台北車站" → 自動生成 "北車"、"臺北車站" 等變體
-corrector = ChineseTextCorrector.from_terms(my_terms)
+engine = ChineseEngine()
+corrector = engine.create_corrector(my_terms)
 
 # 步驟 3: 自動將接近音的詞轉換為正確的專有名詞
 result = corrector.correct("我在北車買了流奶,他花揮了才能")
@@ -177,7 +188,8 @@ my_business_terms = {
     }
 }
 
-corrector = ChineseTextCorrector.from_terms(my_business_terms)
+engine = ChineseEngine()
+corrector = engine.create_corrector(my_business_terms)
 
 result = corrector.correct("我去買勇鬥當宵夜")
 # 結果: '我去買永和豆漿當宵夜'
@@ -195,14 +207,11 @@ result = corrector.correct("我去買勇鬥當宵夜")
 如果需要完全控制別名，可以手動建立校正器：
 
 ```python
-from multi_language_corrector.languages.chinese import ChineseCorrector, ChineseFuzzyGenerator
+from multi_language_corrector import ChineseEngine
 
-# 1. 生成模糊音詞典
-generator = ChineseFuzzyGenerator()
-fuzzy_dict = generator.generate_variants(["台北車站", "阿斯匹靈"])
-
-# 2. 建立校正器
-corrector = ChineseCorrector.from_terms({
+# 建立校正器 (直接傳入字典，包含手動別名)
+engine = ChineseEngine()
+corrector = engine.create_corrector({
     "台北車站": ["北車", "臺北車站"],
     "阿斯匹靈": ["阿斯匹林", "二四批林"]
 })
@@ -217,10 +226,11 @@ result = corrector.correct("我在北車等你,醫生開了二四批林給我")
 #### 上下文關鍵字校正
 
 ```python
-from multi_language_corrector.languages.chinese import ChineseCorrector
+from multi_language_corrector import ChineseEngine
 
 # 使用上下文關鍵字提高準確度
-corrector = ChineseCorrector.from_terms({
+engine = ChineseEngine()
+corrector = engine.create_corrector({
     "永和豆漿": {
         "aliases": ["永豆"],
         "keywords": ["吃", "喝", "買", "宵夜", "早餐"]
@@ -239,7 +249,8 @@ result = corrector.correct("這款永豆的攻略很難找")  # 命中「攻略�
 
 ```python
 # 使用權重提高優先級
-corrector = ChineseTextCorrector({
+engine = ChineseEngine()
+corrector = engine.create_corrector({
     "恩典": {
         "aliases": ["安點"],
         "weight": 0.3  # 高權重,優先匹配
@@ -255,8 +266,9 @@ corrector = ChineseTextCorrector({
 
 ```python
 # 設定豁免清單,避免特定詞被修正
-corrector = ChineseTextCorrector(
-    term_mapping={
+engine = ChineseEngine()
+corrector = engine.create_corrector(
+    terms={
         "台北車站": ["北車"]
     },
     exclusions=["北側", "南側"]  # 這些詞不會被修正
@@ -294,7 +306,8 @@ chinese_text_corrector/
 # 您的專有名詞字典
 terms = ["牛奶", "發揮", "然後", "TensorFlow", "Kubernetes"]
 
-corrector = UnifiedCorrector(terms)
+engine = UnifiedEngine()
+corrector = engine.create_corrector(terms)
 
 # ASR 輸出：專有名詞被聽錯
 asr_output = "我買了流奶，蘭後用Ten so floor訓練模型"
@@ -310,7 +323,8 @@ result = corrector.correct(asr_output)
 # 您的專有名詞字典
 terms = ["耶穌", "恩典", "PyTorch", "NumPy"]
 
-corrector = UnifiedCorrector(terms)
+engine = UnifiedEngine()
+corrector = engine.create_corrector(terms)
 
 # LLM 輸出：罕見專有名詞被替換成同音常用字
 llm_output = "耶穌的恩點很大，我用排炬和南派做機器學習"
@@ -329,7 +343,8 @@ region_terms = {
     "影片": {"aliases": ["視頻"], "weight": 0.0}
 }
 
-corrector = ChineseTextCorrector.from_terms(region_terms)
+engine = ChineseEngine()
+corrector = engine.create_corrector(region_terms)
 
 result = corrector.correct("我用土豆做了視頻")
 # 結果: "我用馬鈴薯做了影片"
@@ -345,7 +360,8 @@ abbreviation_terms = {
     "台北車站": {"aliases": ["北車"], "weight": 0.0}
 }
 
-corrector = ChineseTextCorrector.from_terms(abbreviation_terms)
+engine = ChineseEngine()
+corrector = engine.create_corrector(abbreviation_terms)
 
 result = corrector.correct("我在北車等你")
 # 結果: "我在台北車站等你"
@@ -361,7 +377,8 @@ medical_terms = {
     "阿斯匹靈": {"aliases": ["阿斯匹林", "二四批林"], "weight": 0.2}
 }
 
-corrector = ChineseTextCorrector.from_terms(medical_terms)
+engine = ChineseEngine()
+corrector = engine.create_corrector(medical_terms)
 
 result = corrector.correct("醫生開了二四批林給我")
 # 結果: "醫生開了阿斯匹靈給我"

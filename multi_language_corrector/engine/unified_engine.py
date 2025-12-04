@@ -7,15 +7,12 @@
 - 提供工廠方法建立 UnifiedCorrector 實例
 """
 
-from typing import Dict, List, Union, Any, Optional, TYPE_CHECKING
+from typing import Dict, List, Union, Any, Optional, Callable
 
 from .base import CorrectorEngine
 from .english_engine import EnglishEngine
 from .chinese_engine import ChineseEngine
 from multi_language_corrector.router.language_router import LanguageRouter
-
-if TYPE_CHECKING:
-    from multi_language_corrector.correction.unified_corrector import UnifiedCorrector
 
 
 class UnifiedEngine(CorrectorEngine):
@@ -28,7 +25,17 @@ class UnifiedEngine(CorrectorEngine):
     - 提供工廠方法建立 UnifiedCorrector 實例
     
     使用方式:
-        engine = UnifiedEngine()  # 初始化 (~2秒，因為英文需要初始化 espeak-ng)
+        # 簡單用法
+        engine = UnifiedEngine()
+        
+        # 開啟詳細日誌
+        engine = UnifiedEngine(verbose=True)
+        
+        # 自定義計時回呼
+        engine = UnifiedEngine(
+            verbose=True,
+            on_timing=lambda op, t: print(f"{op}: {t:.3f}s")
+        )
         
         corrector = engine.create_corrector({
             "台北車站": ["北車"],      # 中文
@@ -38,17 +45,37 @@ class UnifiedEngine(CorrectorEngine):
         result = corrector.correct("我在北車用Pyton寫code")
     """
     
-    def __init__(self):
+    _engine_name = "unified"
+    
+    def __init__(
+        self,
+        verbose: bool = False,
+        on_timing: Optional[Callable[[str, float], None]] = None,
+    ):
         """
         初始化統一修正引擎
         
         這會初始化 EnglishEngine 和 ChineseEngine，
         其中 EnglishEngine 需要約 2 秒初始化 espeak-ng。
+        
+        Args:
+            verbose: 是否開啟詳細日誌 (顯示初始化時間、變體等)
+            on_timing: 計時回呼函數 (operation, elapsed_seconds) -> None
         """
-        self._english_engine = EnglishEngine()
-        self._chinese_engine = ChineseEngine()
-        self._router = LanguageRouter()
-        self._initialized = True
+        # 初始化 Logger
+        self._init_logger(verbose=verbose, on_timing=on_timing)
+        
+        with self._log_timing("UnifiedEngine.__init__"):
+            self._english_engine = EnglishEngine(
+                verbose=verbose, on_timing=on_timing
+            )
+            self._chinese_engine = ChineseEngine(
+                verbose=verbose, on_timing=on_timing
+            )
+            self._router = LanguageRouter()
+            self._initialized = True
+            
+            self._logger.info("UnifiedEngine initialized")
     
     @property
     def english_engine(self) -> EnglishEngine:
@@ -119,38 +146,43 @@ class UnifiedEngine(CorrectorEngine):
                 }
             })
         """
-        # 延遲 import 避免循環依賴
-        from multi_language_corrector.correction.unified_corrector import UnifiedCorrector
-        
-        # 標準化輸入
-        if isinstance(term_dict, list):
-            term_dict = {term: {} for term in term_dict}
-        
-        # 分類詞彙
-        zh_terms = {}
-        en_terms = {}
-        
-        for term, value in term_dict.items():
-            if self._is_english_term(term):
-                en_terms[term] = value
-            else:
-                zh_terms[term] = value
-        
-        # 建立子 Corrector
-        zh_corrector = self._chinese_engine.create_corrector(
-            zh_terms, exclusions=exclusions
-        ) if zh_terms else None
-        
-        en_corrector = self._english_engine.create_corrector(
-            en_terms
-        ) if en_terms else None
-        
-        # 建立 UnifiedCorrector
-        return UnifiedCorrector._from_engine(
-            engine=self,
-            zh_corrector=zh_corrector,
-            en_corrector=en_corrector,
-        )
+        with self._log_timing("UnifiedEngine.create_corrector"):
+            # 延遲 import 避免循環依賴
+            from multi_language_corrector.correction.unified_corrector import UnifiedCorrector
+            
+            # 標準化輸入
+            if isinstance(term_dict, list):
+                term_dict = {term: {} for term in term_dict}
+            
+            # 分類詞彙
+            zh_terms = {}
+            en_terms = {}
+            
+            for term, value in term_dict.items():
+                if self._is_english_term(term):
+                    en_terms[term] = value
+                else:
+                    zh_terms[term] = value
+            
+            self._logger.debug(
+                f"Term classification: {len(zh_terms)} Chinese, {len(en_terms)} English"
+            )
+            
+            # 建立子 Corrector
+            zh_corrector = self._chinese_engine.create_corrector(
+                zh_terms, exclusions=exclusions
+            ) if zh_terms else None
+            
+            en_corrector = self._english_engine.create_corrector(
+                en_terms
+            ) if en_terms else None
+            
+            # 建立 UnifiedCorrector
+            return UnifiedCorrector._from_engine(
+                engine=self,
+                zh_corrector=zh_corrector,
+                en_corrector=en_corrector,
+            )
     
     def _is_english_term(self, term: str) -> bool:
         """
