@@ -9,6 +9,11 @@
 - 新增語言只需在 dict 中加入對應的 corrector
 - 符合開放封閉原則 (OCP)
 
+路由策略 (方案 A)：
+- 對「短英數片段」(≤5字元) 採用雙重處理策略
+- 同時讓中文和英文修正器嘗試，選擇有修正的結果
+- 解決 "1kg" → "EKG" 這類中文語境下的誤識問題
+
 使用方式:
     from phonofix import UnifiedEngine
     
@@ -29,7 +34,7 @@
 """
 
 import logging
-from typing import Dict, Optional, TYPE_CHECKING
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from phonofix.router.language_router import LanguageRouter
 from phonofix.correction.protocol import CorrectorProtocol
@@ -127,6 +132,85 @@ class UnifiedCorrector:
         """取得支援的語言列表"""
         return list(self._correctors.keys())
 
+    def _is_short_alphanumeric(self, text: str) -> bool:
+        """
+        判斷是否為短英數字串（可能需要雙重處理）
+        
+        這類片段在中文語境中可能是誤識，例如：
+        - "1kg" 可能應該是 "EKG"（醫療設備）
+        - "2B" 可能是鉛筆型號，不需替換
+        - "A4" 可能是紙張大小
+        
+        Args:
+            text: 待判斷的文本片段
+            
+        Returns:
+            bool: 是否為短英數字串
+        """
+        cleaned = text.replace(' ', '').replace('.', '')
+        # 長度 ≤ 5 且全是英數字
+        return len(cleaned) <= 5 and len(cleaned) > 0 and cleaned.isalnum()
+    
+    def _competitive_correct(
+        self, 
+        segment: str, 
+        full_context: str,
+        primary_lang: str,
+    ) -> str:
+        """
+        競爭式修正：讓多個修正器同時嘗試，選擇最佳結果
+        
+        策略：
+        1. 先讓原本被指派的修正器嘗試
+        2. 如果無修正，讓其他修正器也嘗試
+        3. 選擇有修正的結果（優先採用）
+        
+        Args:
+            segment: 待修正的片段
+            full_context: 完整上下文（用於 keyword/exclude_when 判斷）
+            primary_lang: 原本被路由指派的語言
+            
+        Returns:
+            str: 修正後的結果
+        """
+        candidates: List[Tuple[str, str]] = []  # [(lang, result), ...]
+        
+        # 定義嘗試順序：中文優先（因為這通常是中文語境下的誤識）
+        try_order = ['zh', 'en']
+        if primary_lang == 'en':
+            # 如果原本就是 en，還是先試 zh（雙重處理的核心目的）
+            try_order = ['zh', 'en']
+        
+        for lang in try_order:
+            if lang not in self._correctors:
+                continue
+                
+            corrector = self._correctors[lang]
+            
+            try:
+                result = corrector.correct(segment, full_context=full_context)
+            except TypeError:
+                result = corrector.correct(segment)
+            
+            # 如果有修正（結果與原文不同）
+            if result != segment:
+                candidates.append((lang, result))
+                self._logger.debug(
+                    f"Competitive correction: '{segment}' → '{result}' (by {lang})"
+                )
+        
+        # 選擇結果
+        if candidates:
+            # 採用第一個有修正的結果
+            chosen_lang, chosen_result = candidates[0]
+            self._logger.debug(
+                f"Competitive winner: {chosen_lang} with '{chosen_result}'"
+            )
+            return chosen_result
+        
+        # 都沒有修正，保持原樣
+        return segment
+
     def correct(self, text: str) -> str:
         """
         執行混合語言文本修正
@@ -135,13 +219,13 @@ class UnifiedCorrector:
         1. 使用 LanguageRouter 將文本分割為語言片段
            例如: [('zh', '我有一台'), ('en', 'computer')]
         2. 遍歷每個片段，根據語言標籤呼叫對應的修正器
-        3. 將修正後的片段重新組合成完整字串
+        3. 對於「短英數片段」，採用雙重處理策略（方案 A）
+        4. 將修正後的片段重新組合成完整字串
 
-        限制:
-        - 目前的簡單路由策略可能會將混合詞彙切開
-          例如 "C語言" 切為 "C" (en) 和 "語言" (zh)
-        - 這可能導致某些跨語言邊界的專有名詞無法正確修正
-        - 但對於解決 "1kg" -> "EKG" 這類純英文/數字問題非常有效
+        方案 A (雙重處理):
+        - 對於 ≤5 字元的英數片段（如 "1kg", "2B"）
+        - 同時讓中文和英文修正器嘗試
+        - 這解決了中文語境下的誤識問題（如 "1kg" → "EKG"）
 
         Args:
             text: 原始混合語言文本
@@ -157,6 +241,14 @@ class UnifiedCorrector:
             corrected_segments = []
             
             for lang, segment in segments:
+                # 方案 A：短英數片段的雙重處理
+                if lang == 'en' and self._is_short_alphanumeric(segment):
+                    # 對短英數片段，讓多個修正器競爭
+                    corrected = self._competitive_correct(segment, text, lang)
+                    corrected_segments.append(corrected)
+                    continue
+                
+                # 正常路由處理
                 if lang in self._correctors:
                     corrector = self._correctors[lang]
                     
