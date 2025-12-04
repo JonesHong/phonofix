@@ -1,107 +1,109 @@
-# Phonetic Substitution Engine (多語言語音相似替換引擎)
+**English** | [繁體中文](README.zh-TW.md)
 
-基於語音相似度的多語言專有名詞替換工具。支援 ASR/LLM 後處理、地域慣用詞轉換、縮寫擴展等多種應用場景。
-特別針對 **中英混合 (Code-Switching)** 場景進行了優化。
+# Phonetic Substitution Engine
 
-## 💡 核心理念
+A multi-language phonetic similarity-based proper noun substitution tool. Supports ASR/LLM post-processing, regional vocabulary conversion, abbreviation expansion, and various other use cases.
+Specially optimized for **Code-Switching** (mixed Chinese-English) scenarios.
 
-**本套件不維護任何專有名詞字典，而是提供一個基於語音向量空間的替換引擎。**
+## 💡 Core Philosophy
 
-此套件的核心機制是將不同語言的文本統一映射到**語音向量空間**（由拼音、IPA 音標組成）。
+**This package does not maintain any proper noun dictionaries; instead, it provides a substitution engine based on phonetic vector space.**
 
-無論是 ASR（語音識別）、LLM（大型語言模型）或其他場景出現的拼寫錯誤——通常是因為專有名詞罕見導致選字錯誤——本工具都會將其轉換到**拼音/音標維度**。
+The core mechanism of this package is to uniformly map text from different languages into a **phonetic vector space** (composed of Pinyin and IPA phonetic symbols).
 
-接著，系統會將這些轉換後的語音特徵，與**使用者提供的專有名詞**（加上系統自動生成的模糊音變體）進行比對，計算可能性，進而精準替換拼寫錯誤。
+Whether it's spelling errors from ASR (Automatic Speech Recognition), LLM (Large Language Models), or other scenarios—typically caused by rare proper nouns leading to incorrect character selection—this tool converts them to the **Pinyin/IPA dimension**.
 
-> ⚠️ **注意**：這不是全文糾錯工具，而是專注於「專有名詞的語音相似替換」。
+The system then compares these converted phonetic features with **user-provided proper nouns** (plus system-generated fuzzy phonetic variants) to calculate probability and precisely replace spelling errors.
 
-使用者需自行提供專有名詞字典，本工具會：
-1. **自動生成語音變體**：
-   - **中文**：自動產生台式口音/模糊音變體（如「北車」→「台北車站」）
-   - **英文**：基於 IPA (國際音標) 計算語音相似度（如 "Ten so floor" → "TensorFlow"）
-2. **智能詞彙替換**：自動識別語言片段，將語音相似的詞彙替換為您指定的標準專有名詞
+> ⚠️ **Note**: This is not a full-text spell checker, but focuses on "phonetic similarity substitution for proper nouns."
 
-**適用場景**：
-- **ASR 語音識別後處理**：修正語音轉文字產生的專有名詞錯誤（含中英夾雜）
-- **LLM 輸出後處理**：修正大型語言模型因專有名詞罕見而選錯的同音字/近音字
-- **專有名詞標準化**：將口語/誤寫的術語還原為正式名稱
-- **地域詞彙轉換**：中國慣用詞 ↔ 台灣慣用詞
+Users must provide their own proper noun dictionary. This tool will:
+1. **Automatically generate phonetic variants**:
+   - **Chinese**: Automatically generate Taiwanese accent/fuzzy phonetic variants (e.g., "北車" → "台北車站")
+   - **English**: Calculate phonetic similarity based on IPA (International Phonetic Alphabet) (e.g., "Ten so floor" → "TensorFlow")
+2. **Intelligent vocabulary substitution**: Automatically identify language segments and replace phonetically similar words with your specified standard proper nouns
 
-## 📚 功能特色
+**Use Cases**:
+- **ASR Post-Processing**: Correct proper noun errors from speech-to-text (including mixed Chinese-English)
+- **LLM Output Post-Processing**: Correct homophone/near-homophone errors when LLMs choose wrong characters for rare proper nouns
+- **Proper Noun Standardization**: Restore colloquial/misspelled terms to their formal names
+- **Regional Vocabulary Conversion**: Mainland China terms ↔ Taiwan terms
 
-### 1. 多語言支援
-- **Unified Corrector**: 統一入口，自動處理中英混合文本
-- **英文語音替換**: 
-    - 使用 IPA (International Phonetic Alphabet) 進行語音相似度比對
-    - 支援 Acronyms (縮寫) 的語音還原
-- **中文語音替換**:
-    - 使用拼音進行模糊音比對
-    - 支援台灣國語特有的發音混淆模式
+## 📚 Features
 
-### 2. 自動語音變體生成
-- **中文**：自動產生台式口音/模糊音變體
-  - 捲舌音 (z/zh, c/ch, s/sh)
-  - n/l 不分 (台灣國語)
-  - r/l 混淆、f/h 混淆
-  - 韻母模糊 (in/ing, en/eng, ue/ie 等)
-- **英文**：自動產生 ASR/LLM 常見錯誤變體
-  - 音節分割變體 ("TensorFlow" → "Ten so floor")
-  - 縮寫展開變體 ("AWS" → "A W S")
+### 1. Multi-Language Support
+- **Unified Corrector**: Single entry point, automatically handles mixed Chinese-English text
+- **English Phonetic Substitution**: 
+    - Uses IPA (International Phonetic Alphabet) for phonetic similarity matching
+    - Supports phonetic restoration of acronyms
+- **Chinese Phonetic Substitution**:
+    - Uses Pinyin for fuzzy phonetic matching
+    - Supports Taiwanese Mandarin-specific pronunciation confusion patterns
 
-### 3. 智能替換引擎
-- 滑動視窗匹配算法
-- 上下文關鍵字加權機制
-- 動態容錯率調整
+### 2. Automatic Phonetic Variant Generation
+- **Chinese**: Automatically generates Taiwanese accent/fuzzy phonetic variants
+  - Retroflex consonants (z/zh, c/ch, s/sh)
+  - n/l confusion (Taiwanese Mandarin)
+  - r/l confusion, f/h confusion
+  - Final vowel confusion (in/ing, en/eng, ue/ie, etc.)
+- **English**: Automatically generates common ASR/LLM error variants
+  - Syllable split variants ("TensorFlow" → "Ten so floor")
+  - Acronym expansion variants ("AWS" → "A W S")
 
-### 4. 串流處理支援 (ASR/LLM Streaming)
-- **累積模式** (`StreamingCorrector`)：適用於 Realtime ASR
-  - 支援累積文本持續更新
-  - 自動偵測新段落並重置快取
-- **Chunk 模式** (`ChunkStreamingCorrector`)：適用於 LLM Streaming
-  - 增量輸入，即時輸出已確認的修正
-  - 保留重疊區域防止詞彙被切斷
+### 3. Intelligent Substitution Engine
+- Sliding window matching algorithm
+- Context keyword weighting mechanism
+- Dynamic tolerance rate adjustment
 
-## 📦 安裝
+### 4. Streaming Support (ASR/LLM Streaming)
+- **Accumulated Mode** (`StreamingCorrector`): For Realtime ASR
+  - Supports continuous updates of accumulated text
+  - Automatically detects new paragraphs and resets cache
+- **Chunk Mode** (`ChunkStreamingCorrector`): For LLM Streaming
+  - Incremental input, real-time output of confirmed corrections
+  - Preserves overlap region to prevent word truncation
 
-### 使用 uv (推薦)
+## 📦 Installation
 
-[uv](https://docs.astral.sh/uv/) 是新一代的 Python 套件管理工具，速度快且功能完整。
+### Using uv (Recommended)
+
+[uv](https://docs.astral.sh/uv/) is the next-generation Python package manager, fast and feature-complete.
 
 ```bash
-# 安裝 uv (Windows PowerShell)
+# Install uv (Windows PowerShell)
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-# 安裝 uv (macOS/Linux)
+# Install uv (macOS/Linux)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 ```bash
-# 預設安裝 (包含中英文支援)
+# Default installation (includes both Chinese and English support)
 uv add phonofix
 
-# 僅中文支援
+# Chinese support only
 uv add "phonofix[ch]"
 
-# 僅英文支援 (需先安裝 espeak-ng，見下方說明)
+# English support only (requires espeak-ng installation, see below)
 uv add "phonofix[en]"
 
-# 完整安裝 (與預設相同)
+# Full installation (same as default)
 uv add "phonofix[all]"
 ```
 
-### 英文支援說明 (espeak-ng 安裝)
+### English Support (espeak-ng Installation)
 
-英文語音功能依賴 [espeak-ng](https://github.com/espeak-ng/espeak-ng) 系統套件。
+English phonetic features depend on the [espeak-ng](https://github.com/espeak-ng/espeak-ng) system package.
 
-**使用內建安裝腳本 (推薦)**：
+**Using Built-in Installation Scripts (Recommended)**:
 
-本專案提供自動化安裝腳本，會自動下載、安裝並設定環境變數：
+This project provides automated installation scripts that will download, install, and configure environment variables automatically:
 
 ```bash
-# Windows PowerShell (建議以管理員權限執行)
+# Windows PowerShell (recommended to run as Administrator)
 .\scripts\setup_espeak.ps1
 
-# Windows CMD (建議以管理員權限執行)
+# Windows CMD (recommended to run as Administrator)
 scripts\setup_espeak_windows.bat
 
 # macOS / Linux
@@ -109,15 +111,15 @@ chmod +x scripts/setup_espeak.sh
 ./scripts/setup_espeak.sh
 ```
 
-腳本會自動完成：
-1. 檢查/安裝 espeak-ng
-2. 設定 `PHONEMIZER_ESPEAK_LIBRARY` 環境變數
-3. 驗證 phonemizer 是否正常運作
+The scripts will automatically:
+1. Check/install espeak-ng
+2. Set the `PHONEMIZER_ESPEAK_LIBRARY` environment variable
+3. Verify that phonemizer works correctly
 
-**手動安裝**：
+**Manual Installation**:
 
 ```bash
-# Windows: 從 GitHub 下載安裝程式
+# Windows: Download installer from GitHub
 # https://github.com/espeak-ng/espeak-ng/releases
 
 # macOS
@@ -130,116 +132,116 @@ sudo apt install espeak-ng
 sudo pacman -S espeak-ng
 ```
 
-### 開發環境設定
+### Development Environment Setup
 
 ```bash
-# Clone 專案後安裝依賴
+# Install dependencies after cloning
 uv sync
 
-# 安裝開發依賴
+# Install dev dependencies
 uv sync --dev
 
-# 執行範例
+# Run examples
 uv run python examples/chinese_examples.py
 
-# 執行測試
+# Run tests
 uv run pytest
 ```
 
-## 🧪 開發
+## 🧪 Development
 
 ```bash
-# 執行測試
+# Run tests
 uv run pytest
 
-# 執行測試並顯示覆蓋率
+# Run tests with coverage
 uv run pytest --cov
 
-# 程式碼格式化
+# Code formatting
 uv run ruff format .
 
-# 程式碼檢查
+# Code linting
 uv run ruff check .
 
-# 型別檢查
+# Type checking
 uv run mypy src/phonofix
 ```
 
-## 🚀 快速開始
+## 🚀 Quick Start
 
-### 1. 混合語言替換 (Unified Corrector)
+### 1. Mixed Language Substitution (Unified Corrector)
 
 ```python
 from phonofix import UnifiedEngine
 
-# 定義您的專有名詞字典
+# Define your proper noun dictionary
 terms = [
-    "台北車站",      # 中文詞
-    "TensorFlow",   # 英文專有名詞
+    "台北車站",      # Chinese word
+    "TensorFlow",   # English proper noun
     "Python"
 ]
 
-# 初始化引擎 (單例模式，建議全域只初始化一次)
+# Initialize engine (singleton pattern, recommended to initialize only once globally)
 engine = UnifiedEngine()
 
-# 建立替換器
+# Create corrector
 corrector = engine.create_corrector(terms)
 
-# ASR 輸出後處理
+# ASR output post-processing
 asr_text = "我在北車用Pyton寫Ten so floor的code"
 result = corrector.correct(asr_text)
 print(result)
-# 輸出: "我在台北車站用Python寫TensorFlow的code"
+# Output: "我在台北車站用Python寫TensorFlow的code"
 
-# LLM 輸出後處理 (LLM 可能因罕見詞而選錯同音字)
-llm_text = "我在北車用派森寫code"  # LLM 把 Python 音譯成「派森」
+# LLM output post-processing (LLM may choose wrong homophones for rare words)
+llm_text = "我在北車用派森寫code"  # LLM transliterated Python as "派森"
 result = corrector.correct(llm_text)
 print(result)
-# 輸出: "我在台北車站用Python寫code"
+# Output: "我在台北車站用Python寫code"
 ```
 
-### 2. 中文專用 (Chinese Engine)
+### 2. Chinese Only (Chinese Engine)
 
-**重要提醒**：本工具不提供預設字典，您需要根據自己的業務場景建立專有名詞清單。
+**Important Note**: This tool does not provide a default dictionary. You need to create your own proper noun list based on your business scenario.
 
-#### 推薦使用方式 - 自動生成別名
+#### Recommended Usage - Auto-generate Aliases
 
-使用 `ChineseEngine`，**只需提供您的專有名詞清單**，工具會自動生成所有可能的模糊音變體並進行拼音去重：
+Using `ChineseEngine`, **you only need to provide your proper noun list**, and the tool will automatically generate all possible fuzzy phonetic variants with Pinyin deduplication:
 
-#### 最簡格式 - 僅提供關鍵字列表
+#### Simplest Format - Keyword List Only
 
 ```python
 from phonofix import ChineseEngine
 
-# 步驟 1: 提供您的專有名詞清單（這是您需要維護的字典）
+# Step 1: Provide your proper noun list (this is the dictionary you need to maintain)
 my_terms = ["台北車站", "牛奶", "發揮"]
 
-# 步驟 2: 初始化引擎並建立替換器
-# 工具會自動生成所有可能的模糊音變體
-# 例如："台北車站" → 自動生成 "北車"、"臺北車站" 等變體
+# Step 2: Initialize engine and create corrector
+# The tool will automatically generate all possible fuzzy phonetic variants
+# For example: "台北車站" → automatically generates "北車", "臺北車站", etc.
 engine = ChineseEngine()
 corrector = engine.create_corrector(my_terms)
 
-# 步驟 3: 自動將接近音的詞轉換為正確的專有名詞
+# Step 3: Automatically convert phonetically similar words to correct proper nouns
 result = corrector.correct("我在北車買了流奶,他花揮了才能")
-# 結果: '我在台北車站買了牛奶,他發揮了才能'
-# 說明: "北車" → "台北車站", "流奶" → "牛奶", "花揮" → "發揮"
+# Result: '我在台北車站買了牛奶,他發揮了才能'
+# Explanation: "北車" → "台北車站", "流奶" → "牛奶", "花揮" → "發揮"
 ```
 
-#### 完整格式 - 別名 + 關鍵字 + 權重
+#### Full Format - Aliases + Keywords + Weights
 
-當同一個別名可能對應多個專有名詞時，可使用上下文關鍵字和權重來提高準確度：
+When the same alias may correspond to multiple proper nouns, use context keywords and weights to improve accuracy:
 
 ```python
-# 您的專有名詞字典（根據您的業務場景維護）
+# Your proper noun dictionary (maintain based on your business scenario)
 my_business_terms = {
     "永和豆漿": {
-        "aliases": ["永豆", "勇豆"],  # 手動提供常見別名或錯音
-        "keywords": ["吃", "喝", "買", "宵夜"],  # 上下文關鍵字幫助判斷
-        "weight": 0.3  # 匹配權重
+        "aliases": ["永豆", "勇豆"],  # Manually provide common aliases or mispronunciations
+        "keywords": ["吃", "喝", "買", "宵夜"],  # Context keywords help with judgment
+        "weight": 0.3  # Matching weight
     },
     "勇者鬥惡龍": {
-        "aliases": ["勇鬥", "永鬥"],  # 同音但不同意義
+        "aliases": ["勇鬥", "永鬥"],  # Homophones with different meanings
         "keywords": ["玩", "遊戲", "攻略"],
         "weight": 0.2
     }
@@ -249,24 +251,24 @@ engine = ChineseEngine()
 corrector = engine.create_corrector(my_business_terms)
 
 result = corrector.correct("我去買勇鬥當宵夜")
-# 結果: '我去買永和豆漿當宵夜'
-# 說明: 因為命中「買」和「宵夜」關鍵字，判斷為「永和豆漿」而非「勇者鬥惡龍」
+# Result: '我去買永和豆漿當宵夜'
+# Explanation: Matched "買" and "宵夜" keywords, determined to be "永和豆漿" instead of "勇者鬥惡龍"
 ```
 
-**優點**:
-- ✅ 自動生成模糊音變體，無需手動維護
-- ✅ 自動過濾拼音重複的別名（類似 Set 行為）
-- ✅ 支援多種輸入格式，使用靈活
-- ✅ 減少配置工作量，專注於核心詞彙
+**Advantages**:
+- ✅ Automatically generates fuzzy phonetic variants, no manual maintenance required
+- ✅ Automatically filters Pinyin-duplicate aliases (similar to Set behavior)
+- ✅ Supports multiple input formats, flexible usage
+- ✅ Reduces configuration effort, focus on core vocabulary
 
-### 進階功能
+### Advanced Features
 
-#### 上下文關鍵字
+#### Context Keywords
 
 ```python
 from phonofix import ChineseEngine
 
-# 使用上下文關鍵字提高準確度
+# Use context keywords to improve accuracy
 engine = ChineseEngine()
 corrector = engine.create_corrector({
     "永和豆漿": {
@@ -279,47 +281,47 @@ corrector = engine.create_corrector({
     }
 })
 
-result = corrector.correct("我去買勇鬥當宵夜")  # 命中「買」→ 永和豆漿
-result = corrector.correct("這款永豆的攻略很難找")  # 命中「攻略」→ 勇者鬥惡龍
+result = corrector.correct("我去買勇鬥當宵夜")  # Matched "買" → 永和豆漿
+result = corrector.correct("這款永豆的攻略很難找")  # Matched "攻略" → 勇者鬥惡龍
 ```
 
-#### 權重系統
+#### Weight System
 
 ```python
-# 使用權重提高優先級
+# Use weights to increase priority
 engine = ChineseEngine()
 corrector = engine.create_corrector({
     "恩典": {
         "aliases": ["安點"],
-        "weight": 0.3  # 高權重,優先匹配
+        "weight": 0.3  # High weight, priority matching
     },
     "上帝": {
         "aliases": ["上帝"],
-        "weight": 0.1  # 低權重
+        "weight": 0.1  # Low weight
     }
 })
 ```
 
-#### 豁免清單
+#### Protected Terms
 
 ```python
-# 設定保護詞彙清單,避免特定詞被修正
+# Set protected terms list to prevent specific words from being corrected
 engine = ChineseEngine()
 corrector = engine.create_corrector(
     terms={
         "台北車站": ["北車"]
     },
-    protected_terms=["北側", "南側"]  # 這些詞不會被修正
+    protected_terms=["北側", "南側"]  # These words will not be corrected
 )
 
-result = corrector.correct("我在北側等你")  # 不會修正為「台北車站側」
+result = corrector.correct("我在北側等你")  # Will not be corrected to "台北車站側"
 ```
 
-### 3. 串流處理 (ASR/LLM Streaming)
+### 3. Streaming Processing (ASR/LLM Streaming)
 
-#### Realtime ASR 串流
+#### Realtime ASR Streaming
 
-適用於語音識別的即時字幕場景，每次傳入累積的完整識別結果：
+For real-time subtitle scenarios in speech recognition, passing accumulated complete recognition results each time:
 
 ```python
 from phonofix import ChineseEngine, StreamingCorrector
@@ -327,10 +329,10 @@ from phonofix import ChineseEngine, StreamingCorrector
 engine = ChineseEngine()
 corrector = engine.create_corrector(["台北車站", "牛奶"])
 
-# 建立串流處理器
+# Create streaming processor
 streamer = StreamingCorrector(corrector, overlap_size=8)
 
-# 模擬 ASR 累積輸入
+# Simulate ASR accumulated input
 asr_outputs = [
     "我在胎北",
     "我在胎北車站",
@@ -340,17 +342,17 @@ asr_outputs = [
 
 for text in asr_outputs:
     result = streamer.feed(text)
-    print(f"已確認: {result.confirmed} | 待確認: {result.pending}")
+    print(f"Confirmed: {result.confirmed} | Pending: {result.pending}")
 
-# 結束時取得完整結果
+# Get complete result at the end
 final = streamer.finalize()
-print(f"最終: {final}")
-# 最終: 我在台北車站買了牛奶
+print(f"Final: {final}")
+# Final: 我在台北車站買了牛奶
 ```
 
-#### LLM Streaming 輸出
+#### LLM Streaming Output
 
-適用於 LLM 串流輸出，每次傳入新的 chunk：
+For LLM streaming output, passing new chunks each time:
 
 ```python
 from phonofix import ChineseEngine, ChunkStreamingCorrector
@@ -358,24 +360,24 @@ from phonofix import ChineseEngine, ChunkStreamingCorrector
 engine = ChineseEngine()
 corrector = engine.create_corrector(["聖靈", "聖經", "恩典"])
 
-# 建立 chunk 模式串流處理器
+# Create chunk mode streaming processor
 streamer = ChunkStreamingCorrector(corrector, overlap_size=6)
 
-# 模擬 LLM 串流輸出
+# Simulate LLM streaming output
 llm_chunks = ["聖林", "借著默氏", "寫了這本", "生經，", "是安點。"]
 
 for chunk in llm_chunks:
     result = streamer.feed_chunk(chunk)
     if result.confirmed:
-        print(result.confirmed, end="", flush=True)  # 即時輸出
+        print(result.confirmed, end="", flush=True)  # Real-time output
 
-# 結束時輸出剩餘部分
+# Output remaining part at the end
 remaining = streamer.finalize()
 print(remaining)
-# 輸出: 聖靈借著默氏寫了這本聖經，是恩典。
+# Output: 聖靈借著默氏寫了這本聖經，是恩典。
 ```
 
-#### WebSocket 實際應用
+#### WebSocket Real-World Application
 
 ```python
 from phonofix import ChineseEngine, StreamingCorrector
@@ -400,120 +402,120 @@ async def handle_asr_websocket(websocket):
         elif data["type"] == "final":
             final = streamer.finalize()
             await websocket.send(json.dumps({"final": final}))
-            streamer.reset()  # 重置，準備下一段
+            streamer.reset()  # Reset, ready for next segment
 ```
 
-## 📁 專案結構
+## 📁 Project Structure
 
 ```
 phonofix/
 ├── src/
-│   └── phonofix/                      # 主套件 (src layout)
-│       ├── __init__.py                # 主入口，匯出 UnifiedEngine, ChineseEngine 等
-│       ├── config.py                  # 全域配置
+│   └── phonofix/                      # Main package (src layout)
+│       ├── __init__.py                # Main entry, exports UnifiedEngine, ChineseEngine, etc.
 │       │
-│       ├── engine/                    # 引擎層 (單例模式入口)
-│       │   ├── base.py                # BaseEngine 抽象類別
-│       │   ├── unified_engine.py      # UnifiedEngine - 混合語言
-│       │   ├── chinese_engine.py      # ChineseEngine - 中文專用
-│       │   └── english_engine.py      # EnglishEngine - 英文專用
+│       ├── engine/                    # Engine layer (singleton pattern entry)
+│       │   ├── base.py                # BaseEngine abstract class
+│       │   ├── unified_engine.py      # UnifiedEngine - mixed language
+│       │   ├── chinese_engine.py      # ChineseEngine - Chinese only
+│       │   └── english_engine.py      # EnglishEngine - English only
 │       │
-│       ├── backend/                   # 語音後端 (phonemizer/pypinyin 封裝)
-│       │   ├── base.py                # PhoneticBackend 抽象類別
-│       │   ├── chinese_backend.py     # 中文拼音後端
-│       │   └── english_backend.py     # 英文 IPA 後端
+│       ├── backend/                   # Phonetic backend (phonemizer/pypinyin wrapper)
+│       │   ├── base.py                # PhoneticBackend abstract class
+│       │   ├── chinese_backend.py     # Chinese Pinyin backend
+│       │   └── english_backend.py     # English IPA backend
 │       │
-│       ├── correction/                # 修正器層
-│       │   ├── unified_corrector.py   # 混合語言修正器
-│       │   └── streaming_corrector.py # 串流修正器 (ASR/LLM)
+│       ├── correction/                # Corrector layer
+│       │   ├── protocol.py            # CorrectorProtocol definition
+│       │   ├── unified_corrector.py   # Mixed language corrector
+│       │   └── streaming_corrector.py # Streaming corrector (ASR/LLM)
 │       │
-│       ├── languages/                 # 語言特定實作
-│       │   ├── chinese/               # 中文模組
-│       │   │   ├── config.py          # 拼音配置 (聲母/韻母/模糊音)
-│       │   │   ├── corrector.py       # 中文校正器
-│       │   │   ├── fuzzy_generator.py # 模糊音變體生成
-│       │   │   ├── number_variants.py # 數字變體處理
-│       │   │   └── tokenizer.py       # 中文分詞器
+│       ├── languages/                 # Language-specific implementations
+│       │   ├── chinese/               # Chinese module
+│       │   │   ├── config.py          # Pinyin config (initials/finals/fuzzy sounds)
+│       │   │   ├── corrector.py       # Chinese corrector
+│       │   │   ├── fuzzy_generator.py # Fuzzy phonetic variant generator
+│       │   │   ├── number_variants.py # Number variant handling
+│       │   │   └── tokenizer.py       # Chinese tokenizer
 │       │   │
-│       │   └── english/               # 英文模組
-│       │       ├── config.py          # IPA 配置
-│       │       ├── corrector.py       # 英文校正器
-│       │       ├── fuzzy_generator.py # 音節分割變體生成
-│       │       └── tokenizer.py       # 英文分詞器
+│       │   └── english/               # English module
+│       │       ├── config.py          # IPA config
+│       │       ├── corrector.py       # English corrector
+│       │       ├── fuzzy_generator.py # Syllable split variant generator
+│       │       └── tokenizer.py       # English tokenizer
 │       │
-│       ├── router/                    # 語言路由
-│       │   └── language_router.py     # 自動偵測中英文區塊
+│       ├── router/                    # Language router
+│       │   └── language_router.py     # Auto-detect Chinese/English segments
 │       │
-│       └── utils/                     # 工具模組
-│           ├── lazy_imports.py        # 延遲導入 (可選依賴管理)
-│           └── logger.py              # 日誌工具
+│       └── utils/                     # Utility modules
+│           ├── lazy_imports.py        # Lazy imports (optional dependency management)
+│           └── logger.py              # Logging utilities
 │
-├── scripts/                           # 安裝腳本
-│   ├── setup_espeak.ps1               # Windows PowerShell 安裝 espeak-ng
-│   ├── setup_espeak.sh                # macOS/Linux 安裝 espeak-ng
-│   └── setup_espeak_windows.bat       # Windows CMD 安裝 espeak-ng
+├── scripts/                           # Installation scripts
+│   ├── setup_espeak.ps1               # Windows PowerShell espeak-ng installer
+│   ├── setup_espeak.sh                # macOS/Linux espeak-ng installer
+│   └── setup_espeak_windows.bat       # Windows CMD espeak-ng installer
 │
-├── examples/                          # 使用範例
-│   ├── chinese_examples.py            # 中文校正範例
-│   ├── english_examples.py            # 英文校正範例
-│   ├── mixed_language_examples.py     # 混合語言範例
-│   ├── streaming_demo.py              # 串流處理範例
-│   └── timing_demo.py                 # 效能計時範例
+├── examples/                          # Usage examples
+│   ├── chinese_examples.py            # Chinese correction examples
+│   ├── english_examples.py            # English correction examples
+│   ├── mixed_language_examples.py     # Mixed language examples
+│   ├── streaming_demo.py              # Streaming processing examples
+│   └── timing_demo.py                 # Performance timing examples
 │
-├── tests/                             # 單元測試
+├── tests/                             # Unit tests
 │   ├── test_chinese_corrector.py
 │   ├── test_english_corrector.py
 │   └── test_unified_corrector.py
 │
-├── pyproject.toml                     # 專案配置 (phonofix)
-├── requirements.txt                   # 依賴清單
+├── pyproject.toml                     # Project configuration (phonofix)
+├── requirements.txt                   # Dependency list
 └── README.md
 ```
 
-## 🎯 使用場景
+## 🎯 Use Cases
 
-以下範例展示不同業務場景下，如何建立您自己的專有名詞字典：
+The following examples demonstrate how to create your own proper noun dictionary for different business scenarios:
 
-### 1. ASR 語音識別後處理
+### 1. ASR Post-Processing
 
-**問題**：語音識別常將專有名詞聽錯成發音相近的一般詞彙
+**Problem**: Speech recognition often mishears proper nouns as phonetically similar common words
 
 ```python
-# 您的專有名詞字典
+# Your proper noun dictionary
 terms = ["牛奶", "發揮", "然後", "TensorFlow", "Kubernetes"]
 
 engine = UnifiedEngine()
 corrector = engine.create_corrector(terms)
 
-# ASR 輸出：專有名詞被聽錯
+# ASR output: proper nouns misheard
 asr_output = "我買了流奶，蘭後用Ten so floor訓練模型"
 result = corrector.correct(asr_output)
-# 結果: "我買了牛奶，然後用TensorFlow訓練模型"
+# Result: "我買了牛奶，然後用TensorFlow訓練模型"
 ```
 
-### 2. LLM 輸出後處理
+### 2. LLM Output Post-Processing
 
-**問題**：LLM 可能因專有名詞罕見而選擇發音相近的常用字
+**Problem**: LLMs may choose phonetically similar common characters for rare proper nouns
 
 ```python
-# 您的專有名詞字典
+# Your proper noun dictionary
 terms = ["耶穌", "恩典", "PyTorch", "NumPy"]
 
 engine = UnifiedEngine()
 corrector = engine.create_corrector(terms)
 
-# LLM 輸出：罕見專有名詞被替換成同音常用字
+# LLM output: rare proper nouns replaced with homophone common characters
 llm_output = "耶穌的恩點很大，我用排炬和南派做機器學習"
 result = corrector.correct(llm_output)
-# 結果: "耶穌的恩典很大，我用PyTorch和NumPy做機器學習"
+# Result: "耶穌的恩典很大，我用PyTorch和NumPy做機器學習"
 ```
 
-### 3. 地域慣用詞轉換
+### 3. Regional Vocabulary Conversion
 
-**您的字典**：維護地域對照表（例如：中國 ↔ 台灣慣用詞）
+**Your Dictionary**: Maintain regional mapping table (e.g., Mainland China ↔ Taiwan terms)
 
 ```python
-# 您的地域詞彙字典
+# Your regional vocabulary dictionary
 region_terms = {
     "馬鈴薯": {"aliases": ["土豆"], "weight": 0.0},
     "影片": {"aliases": ["視頻"], "weight": 0.0}
@@ -523,15 +525,15 @@ engine = ChineseEngine()
 corrector = engine.create_corrector(region_terms)
 
 result = corrector.correct("我用土豆做了視頻")
-# 結果: "我用馬鈴薯做了影片"
+# Result: "我用馬鈴薯做了影片"
 ```
 
-### 4. 縮寫擴展
+### 4. Abbreviation Expansion
 
-**您的字典**：維護常用縮寫與全稱對照表
+**Your Dictionary**: Maintain common abbreviations and full names mapping
 
 ```python
-# 您的縮寫字典
+# Your abbreviation dictionary
 abbreviation_terms = {
     "台北車站": {"aliases": ["北車"], "weight": 0.0}
 }
@@ -540,15 +542,15 @@ engine = ChineseEngine()
 corrector = engine.create_corrector(abbreviation_terms)
 
 result = corrector.correct("我在北車等你")
-# 結果: "我在台北車站等你"
+# Result: "我在台北車站等你"
 ```
 
-### 5. 專業術語標準化
+### 5. Professional Terminology Standardization
 
-**您的字典**：維護業務領域的專業術語
+**Your Dictionary**: Maintain professional terminology for your business domain
 
 ```python
-# 您的醫療術語字典
+# Your medical terminology dictionary
 medical_terms = {
     "阿斯匹靈": {"aliases": ["阿斯匹林", "二四批林"], "weight": 0.2}
 }
@@ -557,197 +559,203 @@ engine = ChineseEngine()
 corrector = engine.create_corrector(medical_terms)
 
 result = corrector.correct("醫生開了二四批林給我")
-# 結果: "醫生開了阿斯匹靈給我"
+# Result: "醫生開了阿斯匹靈給我"
 ```
 
-## 📖 完整範例
+## 📖 Complete Examples
 
-請參考 `examples/` 目錄，包含多個使用範例：
+Please refer to the `examples/` directory, which contains multiple usage examples:
 
-| 檔案 | 說明 |
-|------|------|
-| `chinese_examples.py` | 中文語音替換範例 |
-| `english_examples.py` | 英文語音替換範例 |
-| `mixed_language_examples.py` | 中英混合替換範例 |
-| `streaming_demo.py` | 基礎串流處理範例 |
-| `realtime_streaming_demo.py` | ASR/LLM 即時串流範例 |
-| `timing_demo.py` | 效能計時範例 |
+| File | Description |
+|------|-------------|
+| `chinese_examples.py` | Chinese phonetic substitution examples |
+| `english_examples.py` | English phonetic substitution examples |
+| `mixed_language_examples.py` | Mixed Chinese-English substitution examples |
+| `streaming_demo.py` | Basic streaming processing examples |
+| `realtime_streaming_demo.py` | ASR/LLM real-time streaming examples |
+| `timing_demo.py` | Performance timing examples |
 
 ```bash
-# 執行中文範例
+# Run Chinese examples
 uv run python examples/chinese_examples.py
 
-# 執行英文範例 (需安裝 espeak-ng)
+# Run English examples (requires espeak-ng)
 uv run python examples/english_examples.py
 
-# 執行串流範例
+# Run streaming examples
 uv run python examples/realtime_streaming_demo.py
 ```
 
-## 🔧 技術細節
+## 🔧 Technical Details
 
-### 語音比對機制
+### Phonetic Matching Mechanism
 
-#### 中文：拼音模糊音規則
+#### Chinese: Pinyin Fuzzy Sound Rules
 
-**聲母模糊群組**
-| 群組 | 音素 | 說明 |
-|------|------|------|
-| 捲舌音 | z ⇄ zh, c ⇄ ch, s ⇄ sh | 台灣國語常見 |
-| n/l 不分 | n ⇄ l | 台灣國語特色 |
-| r/l 混淆 | r ⇄ l | ASR 常見錯誤 |
-| f/h 混淆 | f ⇄ h | 方言影響 |
+**Initial Consonant Fuzzy Groups**
+| Group | Phonemes | Description |
+|-------|----------|-------------|
+| Retroflex | z ⇄ zh, c ⇄ ch, s ⇄ sh | Common in Taiwanese Mandarin |
+| n/l confusion | n ⇄ l | Taiwanese Mandarin characteristic |
+| r/l confusion | r ⇄ l | Common ASR error |
+| f/h confusion | f ⇄ h | Dialect influence |
 
-**韻母模糊對應**
+**Final Vowel Fuzzy Mapping**
 - `in` ⇄ `ing`, `en` ⇄ `eng`, `an` ⇄ `ang`
 - `ian` ⇄ `iang`, `uan` ⇄ `uang`, `uan` ⇄ `an`
 - `ong` ⇄ `eng`, `uo` ⇄ `o`, `ue` ⇄ `ie`
 
-**特例音節映射**
+**Special Syllable Mappings**
 - `fa` ⇄ `hua` (發/花)
 - `xue` ⇄ `xie` (學/鞋)
 - `ran` ⇄ `lan`, `yan` (然/蘭/嚴)
-- 更多請參考 `src/phonofix/languages/chinese/config.py`
+- For more, please refer to `src/phonofix/languages/chinese/config.py`
 
-#### 英文：IPA 音標比對
+#### English: IPA Phonetic Matching
 
-使用 [phonemizer](https://github.com/bootphon/phonemizer) 將英文轉換為 IPA (國際音標)，再計算 Levenshtein 編輯距離。
+Uses [phonemizer](https://github.com/bootphon/phonemizer) to convert English to IPA (International Phonetic Alphabet), then calculates Levenshtein edit distance.
 
-**常見 ASR/LLM 錯誤類型**
-| 錯誤類型 | 範例 | 說明 |
-|----------|------|------|
-| 音節分割 | "TensorFlow" → "Ten so floor" | 語音辨識分割錯誤 |
-| 同音異字 | "Python" → "Pyton" | 拼寫錯誤 |
-| 縮寫展開 | "API" → "A P I" | 逐字母發音 |
+**Common ASR/LLM Error Types**
+| Error Type | Example | Description |
+|------------|---------|-------------|
+| Syllable splitting | "TensorFlow" → "Ten so floor" | Speech recognition split error |
+| Homophone | "Python" → "Pyton" | Spelling error |
+| Acronym expansion | "API" → "A P I" | Letter-by-letter pronunciation |
 
-### Keywords 與 exclude_when 機制
+### Keywords and exclude_when Mechanism
 
-當同一個別名可能對應多個專有名詞時，使用 `keywords` 和 `exclude_when` 進行精確判斷：
+When the same alias may correspond to multiple proper nouns, use `keywords` and `exclude_when` for precise judgment:
 
 ```
-替換判斷邏輯:
+Substitution Logic:
 ┌─────────────────────────────────────────────────────────┐
-│  輸入文本包含別名 (如 "1kg")                              │
+│  Input text contains alias (e.g., "1kg")                │
 │                    ↓                                     │
 │  ┌─────────────────────────────────────────────────┐    │
-│  │ Step 1: 檢查 exclude_when (排除條件)               │    │
-│  │   - 若文本包含任一排除詞 → 不替換 ❌          │    │
-│  │   - 例: "1kg水很重" 包含 "水" → 不替換為 EKG      │    │
+│  │ Step 1: Check exclude_when (exclusion conditions)│    │
+│  │   - If text contains any exclusion word → No sub ❌│   │
+│  │   - e.g.: "1kg水很重" contains "水" → No sub to EKG│   │
 │  └─────────────────────────────────────────────────┘    │
-│                    ↓ (無排除詞匹配)                       │
+│                    ↓ (No exclusion match)                │
 │  ┌─────────────────────────────────────────────────┐    │
-│  │ Step 2: 檢查 keywords (必要條件)                 │    │
-│  │   - 若有設定 keywords 且無任何匹配 → 不替換 ❌     │    │
-│  │   - 若有設定 keywords 且有匹配 → 替換 ✅          │    │
-│  │   - 若未設定 keywords → 替換 ✅                   │    │
-│  │   - 例: "1kg設備" 包含 "設備" → 替換為 EKG        │    │
+│  │ Step 2: Check keywords (required conditions)     │    │
+│  │   - If keywords set and none match → No sub ❌    │    │
+│  │   - If keywords set and matched → Substitute ✅   │    │
+│  │   - If no keywords set → Substitute ✅            │    │
+│  │   - e.g.: "1kg設備" contains "設備" → Sub to EKG  │    │
 │  └─────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────┘
 ```
 
-**重要規則：exclude_when 優先於 Keywords**
+**Important Rule: exclude_when Takes Priority Over Keywords**
 
-即使有 keywords 匹配，只要有 exclude_when 匹配就不替換：
+Even if keywords match, no substitution occurs if exclude_when matches:
 
 ```python
 "EKG": {
     "aliases": ["1kg"],
-    "keywords": ["設備", "醫療"],      # 必須包含其一才替換
-    "exclude_when": ["重", "公斤"],    # 包含任一就不替換
+    "keywords": ["設備", "醫療"],      # Must contain one to substitute
+    "exclude_when": ["重", "公斤"],    # Contains any = no substitution
 }
 
-# 範例：
-"這個設備有 1kg重"  # keywords(設備) ✓ + exclude_when(重) ✓ → 不替換
-"這個 1kg設備"      # keywords(設備) ✓ + exclude_when ✗ → 替換為 EKG
-"買了 1kg的東西"    # keywords ✗ → 不替換
+# Examples:
+"這個設備有 1kg重"  # keywords(設備) ✓ + exclude_when(重) ✓ → No substitution
+"這個 1kg設備"      # keywords(設備) ✓ + exclude_when ✗ → Substitute to EKG
+"買了 1kg的東西"    # keywords ✗ → No substitution
 ```
 
-### 替換算法流程
+### Substitution Algorithm Flow
 
 ```
-輸入文本
+Input Text
     │
     ▼
 ┌─────────────────────────────────────┐
-│ 1. 建立保護遮罩                      │
-│    標記 protected_terms 中的詞位置    │
-│    這些位置不參與任何替換            │
+│ 1. Build Protection Mask             │
+│    Mark positions of protected_terms │
+│    These positions skip substitution │
 └─────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────┐
-│ 2. 語言區塊偵測 (UnifiedCorrector)   │
-│    中文區塊 → ChineseCorrector       │
-│    英文區塊 → EnglishCorrector       │
+│ 2. Language Block Detection          │
+│    (UnifiedCorrector)                │
+│    Chinese block → ChineseCorrector  │
+│    English block → EnglishCorrector  │
 └─────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────┐
-│ 3. 滑動視窗掃描                      │
-│    遍歷所有可能的詞長組合            │
+│ 3. Sliding Window Scan               │
+│    Traverse all possible word length │
+│    combinations                      │
 └─────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────┐
-│ 4. 語音相似度計算                    │
-│    中文: 拼音比對 (特例→韻母→編輯距離)│
-│    英文: IPA 音標編輯距離            │
+│ 4. Phonetic Similarity Calculation   │
+│    Chinese: Pinyin (special→final→   │
+│             edit distance)           │
+│    English: IPA edit distance        │
 └─────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────┐
-│ 5. Keywords/exclude_when 過濾     │
-│    - 有 exclude_when 匹配 → 跳過    │
-│    - 無 keywords 匹配 → 跳過         │
+│ 5. Keywords/exclude_when Filtering   │
+│    - exclude_when matched → Skip     │
+│    - No keywords matched → Skip      │
 └─────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────┐
-│ 6. 計算最終分數                      │
-│    分數 = 錯誤率 - 權重 - 上下文獎勵  │
-│    (分數越低越好)                    │
+│ 6. Calculate Final Score             │
+│    Score = error_rate - weight -     │
+│            context_bonus             │
+│    (Lower score is better)           │
 └─────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────┐
-│ 7. 衝突解決                          │
-│    依分數排序，選擇最佳不重疊候選     │
+│ 7. Conflict Resolution               │
+│    Sort by score, select best        │
+│    non-overlapping candidates        │
 └─────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────┐
-│ 8. 文字替換                          │
-│    從後向前替換，避免索引錯位         │
+│ 8. Text Replacement                  │
+│    Replace from back to front to     │
+│    avoid index shifting              │
 └─────────────────────────────────────┘
     │
     ▼
-輸出結果
+Output Result
 ```
 
-### 動態容錯率
+### Dynamic Tolerance Rate
 
-| 詞長 | 容錯率 | 說明 |
-|------|--------|------|
-| 2 字/字母 | 0.20 | 必須非常準確 |
-| 3 字/字母 | 0.30 | 中等嚴格 |
-| 4+ 字/字母 | 0.40 | 寬容度較高 |
-| 英文混用 | 0.45 | 容錯較高 |
+| Word Length | Tolerance | Description |
+|-------------|-----------|-------------|
+| 2 chars/letters | 0.20 | Must be very accurate |
+| 3 chars/letters | 0.30 | Moderately strict |
+| 4+ chars/letters | 0.40 | Higher tolerance |
+| English mixed | 0.45 | Higher tolerance |
 
-## 🤝 貢獻
+## 🤝 Contributing
 
-歡迎提交 Issue 和 Pull Request!
+Issues and Pull Requests are welcome!
 
-## 📄 授權
+## 📄 License
 
 MIT License
 
-## 👨‍💻 作者
+## 👨‍💻 Author
 
 JonesHong
 
-## 🙏 致謝
+## 🙏 Acknowledgments
 
-感謝以下專案:
+Thanks to the following projects:
 - [pypinyin](https://github.com/mozillazg/python-pinyin)
 - [python-Levenshtein](https://github.com/maxbachmann/Levenshtein)
 - [Pinyin2Hanzi](https://github.com/letiantian/Pinyin2Hanzi)
