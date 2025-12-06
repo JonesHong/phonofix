@@ -13,6 +13,11 @@ from .base import CorrectorEngine
 from .english_engine import EnglishEngine
 from .chinese_engine import ChineseEngine
 from phonofix.router.language_router import LanguageRouter
+# from phonofix.utils.lazy_imports import LazyImport # LazyImport class does not exist in lazy_imports.py
+
+# 延遲載入日文引擎，避免未安裝依賴時報錯
+# 注意：這裡我們不直接 import JapaneseCorrector，而是在需要時動態 import
+
 
 
 class UnifiedEngine(CorrectorEngine):
@@ -158,6 +163,7 @@ class UnifiedEngine(CorrectorEngine):
             # 如果別名包含不同語言，則同時註冊到兩個引擎
             zh_terms = {}
             en_terms = {}
+            ja_terms = {}
             cross_lingual_mappings = []  # 跨語言映射: (alias, canonical)
             
             for term, value in term_dict.items():
@@ -166,28 +172,33 @@ class UnifiedEngine(CorrectorEngine):
                 
                 # 判斷正確詞和別名的語言
                 term_is_english = self._is_english_term(term)
-                has_chinese_alias = any(not self._is_english_term(a) for a in aliases)
+                term_is_japanese = self._is_japanese_term(term)
+                
+                has_chinese_alias = any(not self._is_english_term(a) and not self._is_japanese_term(a) for a in aliases)
                 has_english_alias = any(self._is_english_term(a) for a in aliases)
+                has_japanese_alias = any(self._is_japanese_term(a) for a in aliases)
                 
                 # 收集跨語言映射（alias 和 term 語言不同）
                 for alias in aliases:
-                    alias_is_english = self._is_english_term(alias)
                     # 如果 alias 是跨語言的（混合中英文），直接加入映射
                     if self._is_cross_lingual(alias):
                         cross_lingual_mappings.append((alias, term))
                 
                 # 決定註冊到哪個引擎
                 # 策略：如果別名包含該語言的詞，就註冊到該引擎
-                should_register_zh = (not term_is_english) or has_chinese_alias
+                should_register_ja = term_is_japanese or has_japanese_alias
+                should_register_zh = (not term_is_english and not term_is_japanese) or has_chinese_alias
                 should_register_en = term_is_english or has_english_alias
                 
+                if should_register_ja:
+                    ja_terms[term] = value
                 if should_register_zh:
                     zh_terms[term] = value
                 if should_register_en:
                     en_terms[term] = value
             
             self._logger.debug(
-                f"Term classification: {len(zh_terms)} Chinese, {len(en_terms)} English"
+                f"Term classification: {len(zh_terms)} Chinese, {len(en_terms)} English, {len(ja_terms)} Japanese"
             )
             if cross_lingual_mappings:
                 self._logger.debug(
@@ -204,6 +215,16 @@ class UnifiedEngine(CorrectorEngine):
             
             if en_terms:
                 correctors['en'] = self._english_engine.create_corrector(en_terms)
+
+            if ja_terms:
+                try:
+                    from phonofix.languages.japanese import JapaneseCorrector
+                    correctors['ja'] = JapaneseCorrector(ja_terms)
+                except ImportError:
+                    self._logger.warning(
+                        f"Found Japanese terms {list(ja_terms.keys())} but 'phonofix[ja]' is not installed. "
+                        "These terms will be ignored."
+                    )
             
             # 建立 UnifiedCorrector
             unified_corrector = UnifiedCorrector._from_engine(
@@ -217,6 +238,14 @@ class UnifiedEngine(CorrectorEngine):
             
             return unified_corrector
     
+    def _is_japanese_term(self, term: str) -> bool:
+        """判斷詞彙是否包含日文平假名或片假名"""
+        for char in term:
+            code = ord(char)
+            if (0x3040 <= code <= 0x309F) or (0x30A0 <= code <= 0x30FF):
+                return True
+        return False
+
     def _is_english_term(self, term: str) -> bool:
         """
         判斷詞彙是否為英文

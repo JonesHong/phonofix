@@ -178,11 +178,11 @@ class UnifiedCorrector:
         """
         candidates: List[Tuple[str, str]] = []  # [(lang, result), ...]
         
-        # 定義嘗試順序：中文優先（因為這通常是中文語境下的誤識）
-        try_order = ['zh', 'en']
-        if primary_lang == 'en':
-            # 如果原本就是 en，還是先試 zh（雙重處理的核心目的）
-            try_order = ['zh', 'en']
+        # 定義嘗試順序
+        # 1. 日文 (ja): 優先處理 Romaji，因為它最容易被誤判為英文
+        # 2. 中文 (zh): 處理短代碼誤識 (如 1kg -> EKG)
+        # 3. 英文 (en): 最後處理標準英文
+        try_order = ['ja', 'zh', 'en']
         
         for lang in try_order:
             if lang not in self._correctors:
@@ -320,8 +320,14 @@ class UnifiedCorrector:
             
             for lang, segment in segments:
                 # 方案 A：短英數片段的雙重處理
-                if lang == 'en' and self._is_short_alphanumeric(segment):
-                    # 對短英數片段，讓多個修正器競爭
+                # 如果啟用了日文支援，則對所有英文片段嘗試競爭式修正 (支援 Romaji)
+                # 否則僅對短英數片段進行競爭式修正 (支援 1kg -> EKG)
+                is_en_segment = (lang == 'en')
+                has_ja_support = ('ja' in self._correctors)
+                is_short_code = self._is_short_alphanumeric(segment)
+                
+                if is_en_segment and (has_ja_support or is_short_code):
+                    # 對英文片段，讓多個修正器競爭
                     corrected = self._competitive_correct(segment, text, lang)
                     corrected_segments.append(corrected)
                     continue

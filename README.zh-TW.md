@@ -32,13 +32,16 @@
 ## 📚 功能特色
 
 ### 1. 多語言支援
-- **Unified Corrector**: 統一入口，自動處理中英混合文本
+- **Unified Corrector**: 統一入口，自動處理中英日混合文本
 - **英文語音替換**: 
     - 使用 IPA (International Phonetic Alphabet) 進行語音相似度比對
     - 支援 Acronyms (縮寫) 的語音還原
 - **中文語音替換**:
     - 使用拼音進行模糊音比對
     - 支援台灣國語特有的發音混淆模式
+- **日文語音替換**:
+    - 使用 Romaji (赫本式羅馬拼音) 進行語音相似度比對
+    - 支援語境讀音生成 (如助詞 "ha" -> "wa")
 
 ### 2. 自動語音變體生成
 - **中文**：自動產生台式口音/模糊音變體
@@ -132,6 +135,14 @@ sudo apt install espeak-ng
 sudo pacman -S espeak-ng
 ```
 
+### 日文支援 (選用)
+
+日文支援需要 `cutlet`, `fugashi`, 和 `unidic-lite`。
+
+```bash
+pip install "phonofix[ja]"
+```
+
 ### 開發環境設定
 
 ```bash
@@ -200,7 +211,27 @@ print(result)
 # 輸出: "我在台北車站用Python寫code"
 ```
 
-### 2. 中文專用 (Chinese Engine)
+### 2. 日文支援
+
+日文支援使用 Romaji (赫本式羅馬拼音) 進行語音比對。
+
+```python
+from phonofix import UnifiedEngine
+
+engine = UnifiedEngine()
+corrector = engine.create_corrector({
+    "アスピリン": ["asupirin"],  # Aspirin
+    "ロキソニン": ["rokisonin"], # Loxonin
+    "胃カメラ": ["ikamera"]      # Gastrocamera
+})
+
+text = "頭が痛いのでasupirinを飲みました"
+result = corrector.correct(text)
+print(result)
+# 輸出: "頭が痛いのでアスピリンを飲みました"
+```
+
+### 3. 中文專用 (Chinese Engine)
 
 **重要提醒**：本工具不提供預設字典，您需要根據自己的業務場景建立專有名詞清單。
 
@@ -317,7 +348,22 @@ corrector = engine.create_corrector(
 result = corrector.correct("我在北側等你")  # 不會修正為「台北車站側」
 ```
 
-### 3. 串流處理 (ASR/LLM Streaming)
+### 4. 英文專用 (English Engine)
+
+```python
+from phonofix import EnglishEngine
+
+engine = EnglishEngine()
+corrector = engine.create_corrector({
+    "TensorFlow": ["Ten so floor"],
+    "Python": ["Pyton"]
+})
+
+result = corrector.correct("I use Pyton to write Ten so floor code")
+# 輸出: "I use Python to write TensorFlow code"
+```
+
+### 5. 串流處理 (ASR/LLM Streaming)
 
 #### Realtime ASR 串流
 

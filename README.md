@@ -32,13 +32,16 @@ Users must provide their own proper noun dictionary. This tool will:
 ## 📚 Features
 
 ### 1. Multi-Language Support
-- **Unified Corrector**: Single entry point, automatically handles mixed Chinese-English text
+- **Unified Corrector**: Single entry point, automatically handles mixed Chinese-English-Japanese text
 - **English Phonetic Substitution**: 
     - Uses IPA (International Phonetic Alphabet) for phonetic similarity matching
     - Supports phonetic restoration of acronyms
 - **Chinese Phonetic Substitution**:
     - Uses Pinyin for fuzzy phonetic matching
     - Supports Taiwanese Mandarin-specific pronunciation confusion patterns
+- **Japanese Phonetic Substitution**:
+    - Uses Romaji (Hepburn) for phonetic similarity matching
+    - Supports context-aware reading generation (e.g., particle "ha" -> "wa")
 
 ### 2. Automatic Phonetic Variant Generation
 - **Chinese**: Automatically generates Taiwanese accent/fuzzy phonetic variants
@@ -132,6 +135,14 @@ sudo apt install espeak-ng
 sudo pacman -S espeak-ng
 ```
 
+### Japanese Support (Optional)
+
+Japanese support requires `cutlet`, `fugashi`, and `unidic-lite`.
+
+```bash
+pip install "phonofix[ja]"
+```
+
 ### Development Environment Setup
 
 ```bash
@@ -200,7 +211,27 @@ print(result)
 # Output: "我在台北車站用Python寫code"
 ```
 
-### 2. Chinese Only (Chinese Engine)
+### 2. Japanese Support
+
+Japanese support uses Romaji (Hepburn) for phonetic matching.
+
+```python
+from phonofix import UnifiedEngine
+
+engine = UnifiedEngine()
+corrector = engine.create_corrector({
+    "アスピリン": ["asupirin"],  # Aspirin
+    "ロキソニン": ["rokisonin"], # Loxonin
+    "胃カメラ": ["ikamera"]      # Gastrocamera
+})
+
+text = "頭が痛いのでasupirinを飲みました"
+result = corrector.correct(text)
+print(result)
+# Output: "頭が痛いのでアスピリンを飲みました"
+```
+
+### 3. Chinese Only (Chinese Engine)
 
 **Important Note**: This tool does not provide a default dictionary. You need to create your own proper noun list based on your business scenario.
 
@@ -317,7 +348,22 @@ corrector = engine.create_corrector(
 result = corrector.correct("我在北側等你")  # Will not be corrected to "台北車站側"
 ```
 
-### 3. Streaming Processing (ASR/LLM Streaming)
+### 4. English Only (English Engine)
+
+```python
+from phonofix import EnglishEngine
+
+engine = EnglishEngine()
+corrector = engine.create_corrector({
+    "TensorFlow": ["Ten so floor"],
+    "Python": ["Pyton"]
+})
+
+result = corrector.correct("I use Pyton to write Ten so floor code")
+# Output: "I use Python to write TensorFlow code"
+```
+
+### 5. Streaming Processing (ASR/LLM Streaming)
 
 #### Realtime ASR Streaming
 
