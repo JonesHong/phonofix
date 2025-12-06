@@ -1,434 +1,370 @@
 """
-English Speech Recognition Correction Examples
+英文語音辨識校正範例 (English ASR Correction Examples)
 
-This file demonstrates all core features of EnglishEngine:
-1. Basic Usage - Engine.create_corrector() factory method
-2. Phonetic Matching - IPA-based fuzzy matching via espeak-ng
-3. Split Word Matching - Handling ASR word boundary errors
-4. Acronym Expansion - Handling letter-by-letter pronunciation
-5. Context Keywords - Context-aware replacement
-6. Weight System - Controlling replacement priority
-7. exclude_when - Preventing unwanted replacements
-8. Framework Names - Common tech terms correction
+=== 核心理念 ===
+本工具專門解決 ASR (語音辨識) 將專有名詞誤聽為發音相似常見詞彙的問題。
+例如：
+- "TensorFlow" 被聽成 "tensor flow" 或 "tens are flow"
+- "Kubernetes" 被聽成 "cooper net ease" 
+- "acetaminophen" 被聽成 "a set a mini fan"
+
+這不是簡單的拼寫糾正，而是利用 IPA 音標進行語音相似度比對。
+
+=== 範例內容 ===
+1. 基礎用法 - 自動生成 IPA 音標索引
+2. 手動別名 - 已知的 ASR 錯誤模式
+3. 發音相似誤聽 - 專有名詞被聽成常見詞彙
+4. 上下文關鍵字 - 同音異義詞辨析
+5. 上下文排除 - 避免錯誤修正
+6. 權重系統 - 控制替換優先級
+7. 混合格式配置
+8. 長文章校正
 """
 
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+
+root_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(root_dir))
+sys.path.insert(0, str(root_dir / "src"))
 
 from phonofix import EnglishEngine
+from tools.translation_client import translate_text
 
-# Global Engine (singleton pattern, avoids repeated initialization)
+# 全域 Engine (單例模式，避免重複初始化)
 engine = EnglishEngine()
 
 
-# =============================================================================
-# Example 1: Basic Usage - Auto-generate phonetic variants
-# =============================================================================
-def example_1_basic_usage():
-    """
-    Simplest usage: provide a list of terms, system matches via IPA phonetics
-    """
-    print("=" * 60)
-    print("Example 1: Basic Usage - Phonetic Matching")
-    print("=" * 60)
-
-    # Provide correct terms, system will match phonetically similar errors
-    corrector = engine.create_corrector(
-        [
-            "Python",      # Matches: Pyton, pie thon, etc.
-            "TensorFlow",  # Matches: Ten so floor, tensor flow, etc.
-            "JavaScript",  # Matches: java script, Java Script, etc.
-            "React",       # Matches: re act, Re Act, etc.
-            "Django",      # Matches: Jango, jango, etc.
-        ]
-    )
-
-    test_cases = [
-        ("I use Python for data science", "No correction needed"),
-        ("I use Pyton for machine learning", "Phonetic match: Pyton→Python"),
-        ("Learning Ten so floor for AI", "ASR error: Ten so floor→TensorFlow"),
-        ("Building apps with java script", "Split word: java script→JavaScript"),
-        ("Jango is a great web framework", "Phonetic match: Jango→Django"),
-    ]
-
-    for text, explanation in test_cases:
-        result = corrector.correct(text)
-        print(f"Input:  {text}")
-        print(f"Output: {result}")
-        print(f"Note:   {explanation}")
-        print()
-
-
-# =============================================================================
-# Example 2: Manual Aliases
-# =============================================================================
-def example_2_manual_aliases():
-    """
-    Manually provide aliases for specific error patterns
-    Useful for: known ASR mistakes, abbreviations, common typos
-    """
-    print("=" * 60)
-    print("Example 2: Manual Aliases")
-    print("=" * 60)
-
-    corrector = engine.create_corrector(
-        {
-            "TensorFlow": ["Ten so floor", "tensor flow", "Tensor flow"],
-            "PyTorch": ["pie torch", "Pie Torch", "py torch"],
-            "Kubernetes": ["cooper netties", "cube netties", "K eight S"],
-        }
-    )
-
-    test_cases = [
-        ("Learning Ten so floor", "Manual alias: Ten so floor→TensorFlow"),
-        ("Using pie torch for deep learning", "Manual alias: pie torch→PyTorch"),
-        ("Deploy on cooper netties", "Manual alias: cooper netties→Kubernetes"),
-    ]
-
-    for text, explanation in test_cases:
-        result = corrector.correct(text)
-        print(f"Input:  {text}")
-        print(f"Output: {result}")
-        print(f"Note:   {explanation}")
-        print()
-
-
-# =============================================================================
-# Example 3: Split Word Matching (Common ASR Error)
-# =============================================================================
-def example_3_split_words():
-    """
-    Handle split word errors - common in ASR output:
-    - "JavaScript" → "java script" or "Java Script"
-    - "TypeScript" → "type script" or "Type Script"
-    """
-    print("=" * 60)
-    print("Example 3: Split Word Matching")
-    print("=" * 60)
-
-    corrector = engine.create_corrector(
-        [
-            "JavaScript",
-            "TypeScript",
-            "PostgreSQL",
-            "MongoDB",
-            "GraphQL",
-        ]
-    )
-
-    test_cases = [
-        ("I love java script", "Split: java script→JavaScript"),
-        ("Using type script for frontend", "Split: type script→TypeScript"),
-        ("post gres q l is my database", "Split: post gres q l→PostgreSQL"),
-        ("mongo d b for NoSQL", "Split: mongo d b→MongoDB"),
-        ("graph q l for API", "Split: graph q l→GraphQL"),
-    ]
-
-    for text, explanation in test_cases:
-        result = corrector.correct(text)
-        print(f"Input:  {text}")
-        print(f"Output: {result}")
-        print(f"Note:   {explanation}")
-        print()
-
-
-# =============================================================================
-# Example 4: Acronym Matching
-# =============================================================================
-def example_4_acronyms():
-    """
-    Handle acronyms that may be spoken letter-by-letter:
-    - "AWS" → "A W S" or "a w s"
-    - "API" → "A P I" or "a p i"
-    """
-    print("=" * 60)
-    print("Example 4: Acronym Matching")
-    print("=" * 60)
-
-    corrector = engine.create_corrector(
-        [
-            "AWS",
-            "GCP",
-            "API",
-            "SDK",
-            "CLI",
-            "GPU",
-            "CPU",
-        ]
-    )
-
-    test_cases = [
-        ("Deploy on A W S", "Acronym: A W S→AWS"),
-        ("Using G C P for cloud", "Acronym: G C P→GCP"),
-        ("Call the A P I endpoint", "Acronym: A P I→API"),
-        ("Install the S D K", "Acronym: S D K→SDK"),
-        ("Run from C L I", "Acronym: C L I→CLI"),
-    ]
-
-    for text, explanation in test_cases:
-        result = corrector.correct(text)
-        print(f"Input:  {text}")
-        print(f"Output: {result}")
-        print(f"Note:   {explanation}")
-        print()
-
-
-# =============================================================================
-# Example 5: Context Keywords
-# =============================================================================
-def example_5_context_keywords():
-    """
-    Use keywords for context-aware replacement:
-    - keywords are "required conditions": must match at least one
-    - Useful for ambiguous abbreviations
-    """
-    print("=" * 60)
-    print("Example 5: Context Keywords")
-    print("=" * 60)
-
-    corrector = engine.create_corrector(
-        {
-            "API": {
-                "aliases": ["a p i", "A P I"],
-                "keywords": ["call", "endpoint", "request", "REST", "GraphQL"],
-                "weight": 0.3,
-            },
-            "GPU": {
-                "aliases": ["g p u", "G P U"],
-                "keywords": ["CUDA", "compute", "graphics", "rendering", "training"],
-                "weight": 0.3,
-            },
-            "EKG": {
-                "aliases": ["1 kg", "1kg", "one kg"],
-                "keywords": ["heart", "medical", "device", "monitor", "patient"],
-                "weight": 0.3,
-            },
-        }
-    )
-
-    test_cases = [
-        ("Call the a p i endpoint", "Keywords(call+endpoint) → API"),
-        ("Use g p u for CUDA compute", "Keywords(CUDA+compute) → GPU"),
-        ("The medical 1 kg device", "Keywords(medical+device) → EKG"),
-        ("I bought 1 kg of apples", "No keywords → no replacement"),
-    ]
-
-    for text, explanation in test_cases:
-        result = corrector.correct(text)
-        print(f"Input:  {text}")
-        print(f"Output: {result}")
-        print(f"Note:   {explanation}")
-        print()
-
-
-# =============================================================================
-# Example 6: exclude_when
-# =============================================================================
-def example_6_exclude_when():
-    """
-    Use exclude_when to prevent specific replacements:
-    - exclude_when are "veto conditions": match any = no replacement
-    - exclude_when takes priority over keywords
-    """
-    print("=" * 60)
-    print("Example 6: exclude_when")
-    print("=" * 60)
-
-    corrector = engine.create_corrector(
-        {
-            "EKG": {
-                "aliases": ["1 kg", "1kg"],
-                "keywords": ["medical", "device", "heart", "monitor"],
-                "exclude_when": ["weight", "heavy", "kilogram", "kg of"],
-            }
-        }
-    )
-
-    test_cases = [
-        ("The medical 1 kg device", "Keywords(medical) → EKG"),
-        ("This 1 kg weight", "exclude_when(weight) → no change"),
-        ("Bought 1 kg of sugar", "exclude_when(kg of) → no change"),
-        ("The 1 kg device is heavy", "Keywords(device) + exclude_when(heavy) → no change"),
-    ]
-
-    for text, explanation in test_cases:
-        result = corrector.correct(text)
-        print(f"Input:  {text}")
-        print(f"Output: {result}")
-        print(f"Note:   {explanation}")
-        print()
-
-
-# =============================================================================
-# Example 7: Weight System
-# =============================================================================
-def example_7_weight_system():
-    """
-    Use weights to control replacement priority:
-    - Default weight is 0.15
-    - Higher weight = higher priority for phonetic matches
-    """
-    print("=" * 60)
-    print("Example 7: Weight System")
-    print("=" * 60)
-
-    corrector = engine.create_corrector(
-        {
-            "TensorFlow": {"aliases": [], "weight": 0.5},  # High weight
-            "TensorBoard": {"aliases": [], "weight": 0.1},  # Low weight
-        }
-    )
-
-    result = corrector.correct("I use Ten so floor for training")
-    print(f"Input:  I use Ten so floor for training")
-    print(f"Output: {result}")
-    print(f"Note:   Higher weight TensorFlow matched")
+def print_case(title, text, result, explanation):
+    """統一的輸出格式"""
+    print(f"--- {title} ---")
+    print(f"原文 (Original):  {text}")
+    print(f"譯文 (Trans):     {translate_text(text)}")
+    print(f"修正 (Corrected): {result}")
+    print(f"譯文 (Trans):     {translate_text(result)}")
+    print(f"說明 (Note):      {explanation}")
     print()
 
 
 # =============================================================================
-# Example 8: Framework and Library Names
+# 範例 1: 基礎用法 - 自動生成 IPA 音標索引
 # =============================================================================
-def example_8_frameworks():
+def example_1_basic_usage():
     """
-    Complete example with tech stack terms:
-    - Programming languages
-    - Frameworks and libraries
-    - Cloud services
+    最簡單的用法：只提供正確詞彙，系統自動透過 IPA 音標進行模糊比對。
+    重點展示：ASR 將專有名詞誤聽為發音相似的常見詞彙。
     """
     print("=" * 60)
-    print("Example 8: Framework and Library Names")
+    print("範例 1: 基礎用法 (Basic Usage)")
     print("=" * 60)
 
-    corrector = engine.create_corrector(
-        {
-            # Programming Languages
-            "Python": ["Pyton", "Pyson", "pie thon"],
-            "JavaScript": ["java script", "Java Script"],
-            "TypeScript": ["type script", "Type Script"],
-            
-            # ML/AI Frameworks
-            "TensorFlow": ["Ten so floor", "tensor flow"],
-            "PyTorch": ["pie torch", "Pie Torch"],
-            "Scikit-learn": ["sigh kit learn", "sky kit learn"],
-            
-            # Web Frameworks
-            "Django": ["Jango", "jango"],
-            "FastAPI": ["fast a p i", "Fast A P I"],
-            "Vue.js": ["view js", "View JS", "vue j s"],
-            "Node.js": ["node js", "Node JS", "no JS"],
-            
-            # Databases
-            "PostgreSQL": ["post gres", "postgres q l"],
-            "MongoDB": ["mongo d b", "Mongo DB"],
-            "Redis": ["read is", "red is"],
-        }
-    )
+    # 只需提供正確的詞彙，系統會自動透過 IPA 音標比對錯誤
+    corrector = engine.create_corrector([
+        "TensorFlow",   # ASR 可能誤聽為 "ten so flow" 或 "tensor flow"
+        "Kubernetes",   # ASR 可能誤聽為 "cooper net ease" 或 "cube and at ease"
+        "PostgreSQL",   # ASR 可能誤聽為 "post grass sequel"
+        "Django",       # ASR 可能誤聽為 "jango" (D 被吃掉)
+    ])
 
     test_cases = [
-        "I use Pyton and Ten so floor for AI",
-        "Frontend with java script and view js",
-        "Backend using Jango and fast a p i",
-        "Database is post gres and read is",
-        "Full stack with node js and mongo d b",
+        ("Learning tensor flow for AI", "ASR 誤聽為常見詞 (tensor flow -> TensorFlow)"),
+        ("Deploy on cooper net ease", "發音相似誤聽 (cooper net ease -> Kubernetes)"),
+        ("Using post grass sequel database", "發音相似誤聽 (post grass sequel -> PostgreSQL)"),
+        ("The jango framework is great", "首字母遺失 (jango -> Django)"),
     ]
 
-    print("Correction Results:")
-    for text in test_cases:
+    for text, explanation in test_cases:
         result = corrector.correct(text)
-        print(f"  Input:  {text}")
-        print(f"  Output: {result}")
-        print()
+        print_case("Basic", text, result, explanation)
 
 
 # =============================================================================
-# Example 9: Full Test Suite
+# 範例 2: 手動別名 - 已知的 ASR 錯誤模式
 # =============================================================================
-def example_9_full_test():
+def example_2_manual_aliases():
     """
-    Complete test cases covering all features
+    手動提供別名，處理已知的 ASR 錯誤模式。
+    當你知道特定詞彙經常被誤聽為什麼時，可以直接指定。
     """
     print("=" * 60)
-    print("Example 9: Full Test Suite")
+    print("範例 2: 手動別名 (Manual Aliases)")
     print("=" * 60)
 
-    corrector = engine.create_corrector(
-        {
-            "Python": ["Pyton"],
-            "TensorFlow": ["Ten so floor"],
-            "JavaScript": ["java script"],
-            "EKG": {
-                "aliases": ["1 kg", "1kg"],
-                "keywords": ["medical", "device", "heart"],
-                "exclude_when": ["weight", "heavy", "kilogram"],
-            },
-        }
-    )
+    corrector = engine.create_corrector({
+        # ASR 經常將專有名詞誤聽為發音相似的常見詞組
+        "TensorFlow": ["tensor flow", "tens are flow", "ten so flow"],
+        "PyTorch": ["pie torch", "pi torch", "by torch"],
+        "scikit-learn": ["psychic learn", "sky kit learn", "sigh kit learn"],
+    })
 
     test_cases = [
-        # Basic corrections
-        ("I use Pyton", "I use Python"),
-        ("Learning Ten so floor", "Learning TensorFlow"),
-        ("Using java script", "Using JavaScript"),
-        
-        # Already correct
-        ("I use Python", "I use Python"),
-        
-        # Context-dependent (EKG)
-        ("The medical 1 kg device", "The medical EKG device"),
-        ("This 1 kg weight", "This 1 kg weight"),  # exclude_when
-        ("Bought 1kg of sugar", "Bought 1kg of sugar"),  # no keywords
+        ("I learned tens are flow yesterday", "誤聽為常見詞 (tens are flow -> TensorFlow)"),
+        ("Training models with pie torch", "誤聽為常見詞 (pie torch -> PyTorch)"),
+        ("Using psychic learn for ML", "發音相似誤聽 (psychic learn -> scikit-learn)"),
     ]
 
-    passed = 0
-    failed = 0
-    
-    for input_text, expected in test_cases:
-        result = corrector.correct(input_text)
-        status = "✅" if result == expected else "❌"
-        if result == expected:
-            passed += 1
-        else:
-            failed += 1
-            
-        print(f"Input:    {input_text}")
-        print(f"Output:   {result}")
-        print(f"Expected: {expected} {status}")
-        print("-" * 50)
-    
-    print(f"\nResult: {passed} passed, {failed} failed")
+    for text, explanation in test_cases:
+        result = corrector.correct(text)
+        print_case("Manual Aliases", text, result, explanation)
 
 
 # =============================================================================
-# Main
+# 範例 3: 發音相似誤聽 (Phonetic Mishearing)
+# =============================================================================
+def example_3_phonetic_mishearing():
+    """
+    處理 ASR 將專有名詞誤聽為發音相似詞彙的情況。
+    這是語音辨識最常見的錯誤類型。
+    """
+    print("=" * 60)
+    print("範例 3: 發音相似誤聽 (Phonetic Mishearing)")
+    print("=" * 60)
+
+    corrector = engine.create_corrector({
+        # 醫療/科學術語經常被誤聽
+        "acetaminophen": ["a set a mini fan", "acid a mini fan"],
+        "algorithm": ["Al Gore rhythm", "all go rhythm"],
+        "Alzheimer's": ["all timers", "old timers"],
+    })
+
+    test_cases = [
+        ("Take a set a mini fan for pain", "藥名誤聽 (a set a mini fan -> acetaminophen)"),
+        ("The Al Gore rhythm is efficient", "術語誤聽 (Al Gore rhythm -> algorithm)"),
+        ("My grandma has all timers disease", "疾病名誤聽 (all timers -> Alzheimer's)"),
+    ]
+
+    for text, explanation in test_cases:
+        result = corrector.correct(text)
+        print_case("Phonetic", text, result, explanation)
+
+
+# =============================================================================
+# 範例 4: 上下文關鍵字 (Context Keywords)
+# =============================================================================
+def example_4_context_keywords():
+    """
+    使用 keywords 進行同音異義詞辨析。
+    當 ASR 誤聽結果可能對應多個專有名詞時，根據上下文決定。
+    """
+    print("=" * 60)
+    print("範例 4: 上下文關鍵字 (Context Keywords)")
+    print("=" * 60)
+
+    corrector = engine.create_corrector({
+        # "cell" 可能是多種專有名詞的誤聽
+        "Excel": {
+            "aliases": ["egg cell", "ex cell"],
+            "keywords": ["spreadsheet", "Microsoft", "table", "formula"],
+            "weight": 0.5
+        },
+        "Axel": {
+            "aliases": ["axle", "ex cell"],
+            "keywords": ["jump", "skating", "figure", "triple"],
+            "weight": 0.5
+        },
+        # "1 kg" 可能是 EKG 的誤聽
+        "EKG": {
+            "aliases": ["1 kg", "one kg", "e k g"],
+            "keywords": ["heart", "medical", "patient", "monitor"],
+            "weight": 0.5
+        },
+    })
+
+    test_cases = [
+        ("Open the egg cell spreadsheet", "上下文: spreadsheet -> Excel"),
+        ("She landed a triple ex cell", "上下文: triple/skating -> Axel (花式滑冰跳躍)"),
+        ("Check the patient's 1 kg reading", "上下文: patient -> EKG (心電圖)"),
+    ]
+
+    for text, explanation in test_cases:
+        result = corrector.correct(text)
+        print_case("Keywords", text, result, explanation)
+
+
+# =============================================================================
+# 範例 5: 上下文排除 (Context Exclusion)
+# =============================================================================
+def example_5_exclude_when():
+    """
+    使用 exclude_when 避免錯誤修正。
+    當上下文明確表示這不是專有名詞時，不進行替換。
+    """
+    print("=" * 60)
+    print("範例 5: 上下文排除 (Context Exclusion)")
+    print("=" * 60)
+
+    corrector = engine.create_corrector({
+        # "1 kg" 通常是 EKG 的誤聽，但在重量相關語境則不是
+        "EKG": {
+            "aliases": ["1 kg", "one kg"],
+            "keywords": ["medical", "heart", "patient"],
+            "exclude_when": ["weight", "heavy", "kilogram", "weighs", "pounds"],
+        },
+        # "cell" 可能是 Excel 的誤聽，但在生物學語境則不是
+        "Excel": {
+            "aliases": ["egg cell"],
+            "keywords": ["spreadsheet", "Microsoft"],
+            "exclude_when": ["biology", "membrane", "organism", "microscope"],
+        }
+    })
+
+    test_cases = [
+        ("The patient's 1 kg shows normal rhythm", "醫療語境 -> EKG"),
+        ("This box weighs 1 kg", "排除詞 'weighs' -> 不修正 (真的是一公斤)"),
+        ("Open egg cell in Microsoft", "軟體語境 -> Excel"),
+        ("The egg cell under microscope", "排除詞 'microscope' -> 不修正 (真的是卵細胞)"),
+    ]
+
+    for text, explanation in test_cases:
+        result = corrector.correct(text)
+        print_case("Exclusion", text, result, explanation)
+
+
+# =============================================================================
+# 範例 6: 權重系統 (Weight System)
+# =============================================================================
+def example_6_weight_system():
+    """
+    使用權重控制優先級。
+    當同一個誤聽結果可能對應多個專有名詞時，高權重者優先。
+    """
+    print("=" * 60)
+    print("範例 6: 權重系統 (Weight System)")
+    print("=" * 60)
+
+    corrector = engine.create_corrector({
+        # "neural" 可能被誤聽為多個相似發音的詞
+        "NumPy": {
+            "aliases": ["numb pie", "num pie"],
+            "weight": 0.8  # 較常見，較高優先級
+        },
+        "Gnome": {
+            "aliases": ["numb", "num"],
+            "weight": 0.2  # 較少見，較低優先級
+        }
+    })
+
+    test_cases = [
+        ("Import numb pie for arrays", "高權重 -> NumPy (較常見的選擇)"),
+    ]
+
+    for text, explanation in test_cases:
+        result = corrector.correct(text)
+        print_case("Weight", text, result, explanation)
+
+
+# =============================================================================
+# 範例 7: 混合格式 (Mixed Format)
+# =============================================================================
+def example_7_mixed_format():
+    """
+    混合使用列表和字典配置。
+    展示不同配置方式的靈活性。
+    """
+    print("=" * 60)
+    print("範例 7: 混合格式 (Mixed Format)")
+    print("=" * 60)
+
+    corrector = engine.create_corrector({
+        # 簡單列表：只指定已知誤聽
+        "PyTorch": ["pie torch", "by torch"],
+        
+        # 空字典：讓系統自動生成發音相似變體
+        "Matplotlib": {},
+        
+        # 完整配置：精細控制
+        "scikit-learn": {
+            "aliases": ["psychic learn", "sigh kit learn"],
+            "keywords": ["machine learning", "classifier", "regression"],
+            "weight": 0.5
+        }
+    })
+
+    test_cases = [
+        ("Training with pie torch", "簡單列表 -> PyTorch"),
+        ("Plot with mat plot lib", "自動生成變體 -> Matplotlib"),
+        ("Using psychic learn classifier", "完整配置 + 上下文 -> scikit-learn"),
+    ]
+
+    for text, explanation in test_cases:
+        result = corrector.correct(text)
+        print_case("Mixed", text, result, explanation)
+
+
+# =============================================================================
+# 範例 8: 長文章校正 (Long Article)
+# =============================================================================
+def example_8_long_article():
+    """
+    長文章綜合測試。
+    模擬真實的語音轉文字輸出，包含多種 ASR 誤聽。
+    """
+    print("=" * 60)
+    print("範例 8: 長文章校正 (Long Article)")
+    print("=" * 60)
+
+    terms = {
+        "TensorFlow": ["tensor flow", "tens are flow"],
+        "PyTorch": ["pie torch", "by torch"],
+        "scikit-learn": ["psychic learn", "sigh kit learn"],
+        "Kubernetes": ["cooper net ease", "cube and at ease"],
+        "PostgreSQL": ["post grass sequel", "post gress sequel"],
+        "algorithm": ["Al Gore rhythm", "all go rhythm"],
+    }
+    
+    corrector = engine.create_corrector(terms)
+
+    article = (
+        "Today I learned about tensor flow and pie torch for deep learning. "
+        "The psychic learn library is great for classical machine learning. "
+        "We deploy our models on cooper net ease with post grass sequel as the database. "
+        "The Al Gore rhythm we developed runs very efficiently."
+    )
+
+    print("原文 (Original):")
+    print(article)
+    print(f"譯文: {translate_text(article)}")
+    print("-" * 40)
+    
+    result = corrector.correct(article)
+    
+    print("修正後 (Corrected):")
+    print(result)
+    print(f"譯文: {translate_text(result)}")
+    print("-" * 40)
+
+
+
+
+
+# =============================================================================
+# 主程式
 # =============================================================================
 if __name__ == "__main__":
-    print("\n" + "🚀" * 20)
-    print("  English Speech Recognition Correction Examples")
-    print("🚀" * 20 + "\n")
+    print("\n" + "🇺🇸" * 20)
+    print("  英文語音辨識校正範例 (English Examples)")
+    print("🇺🇸" * 20 + "\n")
 
     examples = [
-        ("Basic Usage", example_1_basic_usage),
-        ("Manual Aliases", example_2_manual_aliases),
-        ("Split Words", example_3_split_words),
-        ("Acronyms", example_4_acronyms),
-        ("Context Keywords", example_5_context_keywords),
-        ("exclude_when", example_6_exclude_when),
-        ("Weight System", example_7_weight_system),
-        ("Frameworks", example_8_frameworks),
-        ("Full Test", example_9_full_test),
+        example_1_basic_usage,
+        example_2_manual_aliases,
+        example_3_phonetic_mishearing,
+        example_4_context_keywords,
+        example_5_exclude_when,
+        example_6_weight_system,
+        example_7_mixed_format,
+        example_8_long_article,
     ]
 
-    for name, func in examples:
+    for func in examples:
         try:
             func()
         except Exception as e:
-            print(f"❌ Example '{name}' failed: {e}")
+            print(f"❌ 範例執行失敗: {e}")
             import traceback
             traceback.print_exc()
         print()
 
     print("=" * 60)
-    print("✅ All examples completed!")
+    print("✅ 所有範例執行完成!")
     print("=" * 60)

@@ -14,12 +14,24 @@
 
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+
+root_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(root_dir))
+sys.path.insert(0, str(root_dir / "src"))
 
 from phonofix import ChineseEngine
 
 # 全域 Engine (單例模式，避免重複初始化)
-engine = ChineseEngine(verbose=True )
+engine = ChineseEngine(verbose=False)
+
+
+def print_case(title, text, result, explanation):
+    """統一的輸出格式"""
+    print(f"--- {title} ---")
+    print(f"原文 (Original):  {text}")
+    print(f"修正 (Corrected): {result}")
+    print(f"說明 (Note):      {explanation}")
+    print()
 
 
 # =============================================================================
@@ -30,7 +42,7 @@ def example_1_basic_usage():
     最簡單的用法：只提供關鍵字列表，系統自動生成所有模糊音變體
     """
     print("=" * 60)
-    print("範例 1: 基礎用法 - 自動生成別名")
+    print("範例 1: 基礎用法 (Basic Usage)")
     print("=" * 60)
 
     # 只需提供正確的詞彙，系統會自動生成同音/近音的錯誤變體
@@ -54,10 +66,7 @@ def example_1_basic_usage():
 
     for text, explanation in test_cases:
         result = corrector.correct(text)
-        print(f"原句: {text}")
-        print(f"結果: {result}")
-        print(f"說明: {explanation}")
-        print()
+        print_case("Basic", text, result, explanation)
 
 
 # =============================================================================
@@ -69,7 +78,7 @@ def example_2_manual_aliases():
     適用於：需要特定簡稱或縮寫的情況
     """
     print("=" * 60)
-    print("範例 2: 手動提供別名 + 拼音去重")
+    print("範例 2: 手動別名 (Manual Aliases)")
     print("=" * 60)
 
     corrector = engine.create_corrector(
@@ -92,10 +101,7 @@ def example_2_manual_aliases():
 
     for text, explanation in test_cases:
         result = corrector.correct(text)
-        print(f"原句: {text}")
-        print(f"結果: {result}")
-        print(f"說明: {explanation}")
-        print()
+        print_case("Manual Aliases", text, result, explanation)
 
 
 # =============================================================================
@@ -109,7 +115,7 @@ def example_3_taiwan_accent():
     - f/h 混淆: 發(fa) ↔ 花(hua)
     """
     print("=" * 60)
-    print("範例 3: 台灣口音特色 (n/l, r/l, f/h 混淆)")
+    print("範例 3: 台灣口音 (Taiwan Accent)")
     print("=" * 60)
 
     corrector = engine.create_corrector(
@@ -130,10 +136,7 @@ def example_3_taiwan_accent():
 
     for text, explanation in test_cases:
         result = corrector.correct(text)
-        print(f"原句: {text}")
-        print(f"結果: {result}")
-        print(f"說明: {explanation}")
-        print()
+        print_case("Taiwan Accent", text, result, explanation)
 
 
 # =============================================================================
@@ -147,7 +150,7 @@ def example_4_context_keywords():
     - 沒有 keywords 的詞彙仍可透過一般發音匹配替換
     """
     print("=" * 60)
-    print("範例 4: 上下文關鍵字 (keywords)")
+    print("範例 4: 上下文關鍵字 (Context Keywords)")
     print("=" * 60)
 
     corrector = engine.create_corrector(
@@ -174,10 +177,7 @@ def example_4_context_keywords():
 
     for text, explanation in test_cases:
         result = corrector.correct(text)
-        print(f"原句: {text}")
-        print(f"結果: {result}")
-        print(f"說明: {explanation}")
-        print()
+        print_case("Keywords", text, result, explanation)
 
 
 # =============================================================================
@@ -192,7 +192,7 @@ def example_5_exclude_when():
     注意：exclude_when 是關鍵字匹配，不需要完整詞彙
     """
     print("=" * 60)
-    print("範例 5: 上下文排除 (exclude_when)")
+    print("範例 5: 上下文排除 (Context Exclusion)")
     print("=" * 60)
 
     corrector = engine.create_corrector(
@@ -213,10 +213,7 @@ def example_5_exclude_when():
 
     for text, explanation in test_cases:
         result = corrector.correct(text)
-        print(f"原句: {text}")
-        print(f"結果: {result}")
-        print(f"說明: {explanation}")
-        print()
+        print_case("Exclusion", text, result, explanation)
 
 
 # =============================================================================
@@ -230,7 +227,7 @@ def example_6_weight_system():
     - 權重也影響模糊匹配的門檻
     """
     print("=" * 60)
-    print("範例 6: 權重系統 (weight)")
+    print("範例 6: 權重系統 (Weight System)")
     print("=" * 60)
 
     corrector = engine.create_corrector(
@@ -241,11 +238,9 @@ def example_6_weight_system():
     )
 
     # 權重影響距離計算: 較高權重的詞彙更容易被匹配
-    result = corrector.correct("我在北車等你")
-    print(f"原句: 我在北車等你")
-    print(f"結果: {result}")
-    print(f"說明: 權重 0.5 的台北車站優先匹配")
-    print()
+    text = "我在北車等你"
+    result = corrector.correct(text)
+    print_case("Weight", text, result, "權重 0.5 的台北車站優先匹配")
 
 
 # =============================================================================
@@ -258,7 +253,7 @@ def example_7_homophone_filtering():
     - 這避免了「正確→正確」的無意義替換
     """
     print("=" * 60)
-    print("範例 7: 同音字過濾原理")
+    print("範例 7: 同音過濾 (Homophone Filtering)")
     print("=" * 60)
 
     from phonofix.languages.chinese.fuzzy_generator import (
@@ -295,7 +290,7 @@ def example_8_mixed_format():
     - 完整配置: 別名 + keywords + exclude_when + weight
     """
     print("=" * 60)
-    print("範例 8: 混合格式配置")
+    print("範例 8: 混合格式 (Mixed Format)")
     print("=" * 60)
 
     corrector = engine.create_corrector(
@@ -323,10 +318,7 @@ def example_8_mixed_format():
 
     text = "我在北車買了流奶和永豆,他充分花揮了才能。我正在寫Pyson程式。你有玩過西語言的遊戲欸屁屁嗎？西語言真的很難學。C語法跟派森的程式差別好多。"
     result = corrector.correct(text)
-
-    print(f"原句: {text}")
-    print(f"結果: {result}")
-    print()
+    print_case("Mixed", text, result, "混合格式綜合測試")
 
 
 # =============================================================================
@@ -337,7 +329,7 @@ def example_9_long_article():
     完整段落測試：展示多種錯誤類型的同時修正
     """
     print("=" * 60)
-    print("範例 9: 長文章修正")
+    print("範例 9: 長文章校正 (Long Article)")
     print("=" * 60)
 
     term_list = [
@@ -381,41 +373,42 @@ def example_9_long_article():
         "沒有真理的恩典是為叫人放重的沒有錯所以這兩者你必須多了解"
     )
 
-    print("原文:")
+    print("原文 (Original):")
     print(article)
-    print()
+    print("-" * 40)
+    
     result = corrector.correct(article)
-    print()
-    print("修正後:")
+    
+    print("修正後 (Corrected):")
     print(result)
-    print()
+    print("-" * 40)
 
 
 # =============================================================================
 # 主程式
 # =============================================================================
 if __name__ == "__main__":
-    print("\n" + "🚀" * 20)
-    print("  中文語音辨識校正範例")
-    print("🚀" * 20 + "\n")
+    print("\n" + "🇹🇼" * 20)
+    print("  中文語音辨識校正範例 (Chinese Examples)")
+    print("🇹🇼" * 20 + "\n")
 
     examples = [
-        ("基礎用法", example_1_basic_usage),
-        ("手動別名", example_2_manual_aliases),
-        ("台灣口音", example_3_taiwan_accent),
-        ("上下文關鍵字", example_4_context_keywords),
-        ("上下文排除", example_5_exclude_when),
-        ("權重系統", example_6_weight_system),
-        ("同音過濾", example_7_homophone_filtering),
-        ("混合格式", example_8_mixed_format),
-        ("長文章", example_9_long_article),
+        example_1_basic_usage,
+        example_2_manual_aliases,
+        example_3_taiwan_accent,
+        example_4_context_keywords,
+        example_5_exclude_when,
+        example_6_weight_system,
+        example_7_homophone_filtering,
+        example_8_mixed_format,
+        example_9_long_article,
     ]
 
-    for name, func in examples:
+    for func in examples:
         try:
             func()
         except Exception as e:
-            print(f"❌ 範例 '{name}' 執行失敗: {e}")
+            print(f"❌ 範例執行失敗: {e}")
             import traceback
 
             traceback.print_exc()

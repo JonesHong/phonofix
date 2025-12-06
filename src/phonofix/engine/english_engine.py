@@ -155,95 +155,18 @@ class EnglishEngine(CorrectorEngine):
             # 延遲 import 避免循環依賴
             from phonofix.languages.english.corrector import EnglishCorrector
             
-            # 處理詞彙配置
-            term_mapping = {}
-            keywords = {}
-            exclude_when = {}
-            
-            # 處理列表格式
+            # 標準化 term_dict 格式
             if isinstance(term_dict, list):
-                for term in term_dict:
-                    # IPA 轉換日誌
-                    ipa = self._backend.to_phonetic(term)
-                    self._logger.debug(f"  [IPA] {term} -> {ipa}")
-                    
-                    # 自動生成變體
-                    with self._log_timing(f"generate_variants({term})"):
-                        variants = self._fuzzy_generator.generate_variants(term)
-                    term_mapping[term] = term
-                    for variant in variants:
-                        term_mapping[variant] = term
-                    
-                    # 日誌輸出變體詳情
-                    if variants:
-                        self._logger.debug(f"  [Variants] {term} -> {variants[:5]}{'...' if len(variants) > 5 else ''}")
-            else:
-                # 處理字典格式
-                for term, value in term_dict.items():
-                    term_mapping[term] = term
-                    
-                    if isinstance(value, list):
-                        # 格式 2
-                        for alias in value:
-                            term_mapping[alias] = term
-                        
-                        # IPA 轉換日誌
-                        ipa = self._backend.to_phonetic(term)
-                        self._logger.debug(f"  [IPA] {term} -> {ipa}")
-                        
-                        # 自動生成額外變體
-                        with self._log_timing(f"generate_variants({term})"):
-                            auto_variants = self._fuzzy_generator.generate_variants(term)
-                        for variant in auto_variants:
-                            if variant not in term_mapping:
-                                term_mapping[variant] = term
-                        
-                        # 日誌輸出變體詳情
-                        if auto_variants:
-                            self._logger.debug(f"  [Variants] {term} -> {auto_variants[:5]}{'...' if len(auto_variants) > 5 else ''}")
-                                
-                    elif isinstance(value, dict):
-                        # 格式 3
-                        aliases = value.get("aliases", [])
-                        for alias in aliases:
-                            term_mapping[alias] = term
-                        
-                        # IPA 轉換日誌
-                        ipa = self._backend.to_phonetic(term)
-                        self._logger.debug(f"  [IPA] {term} -> {ipa}")
-                        
-                        if value.get("auto_fuzzy", True):
-                            with self._log_timing(f"generate_variants({term})"):
-                                auto_variants = self._fuzzy_generator.generate_variants(term)
-                            for variant in auto_variants:
-                                if variant not in term_mapping:
-                                    term_mapping[variant] = term
-                            
-                            # 日誌輸出變體詳情
-                            if auto_variants:
-                                self._logger.debug(f"  [Variants] {term} -> {auto_variants[:5]}{'...' if len(auto_variants) > 5 else ''}")
-                        
-                        if value.get("keywords"):
-                            keywords[term] = value["keywords"]
-                        if value.get("exclude_when"):
-                            exclude_when[term] = value["exclude_when"]
-                        
-                    else:
-                        # 空值或其他
-                        # IPA 轉換日誌
-                        ipa = self._backend.to_phonetic(term)
-                        self._logger.debug(f"  [IPA] {term} -> {ipa}")
-                        
-                        with self._log_timing(f"generate_variants({term})"):
-                            auto_variants = self._fuzzy_generator.generate_variants(term)
-                        for variant in auto_variants:
-                            term_mapping[variant] = term
-                        
-                        # 日誌輸出變體詳情
-                        if auto_variants:
-                            self._logger.debug(f"  [Variants] {term} -> {auto_variants[:5]}{'...' if len(auto_variants) > 5 else ''}")
+                term_dict = {term: {} for term in term_dict}
             
-            self._logger.debug(f"Creating corrector with {len(term_mapping)} term mappings")
+            # 處理每個詞彙
+            normalized_dict = {}
+            for term, value in term_dict.items():
+                normalized_value = self._normalize_term_value(term, value)
+                if normalized_value:
+                    normalized_dict[term] = normalized_value
+            
+            self._logger.debug(f"Creating corrector with {len(normalized_dict)} terms")
             
             # 快取統計日誌
             cache_stats = self._backend.get_cache_stats()
@@ -256,7 +179,52 @@ class EnglishEngine(CorrectorEngine):
             # 建立輕量 Corrector
             return EnglishCorrector._from_engine(
                 engine=self,
-                term_mapping=term_mapping,
-                keywords=keywords,
-                exclude_when=exclude_when,
+                term_mapping=normalized_dict,
             )
+
+    def _normalize_term_value(self, term: str, value: Any) -> Optional[Dict[str, Any]]:
+        """
+        標準化詞彙配置值
+        
+        Args:
+            term: 詞彙
+            value: 配置值 (List, Dict, 或 None)
+            
+        Returns:
+            標準化後的配置字典
+        """
+        if isinstance(value, list):
+            value = {"aliases": value}
+        elif isinstance(value, dict):
+            if "aliases" not in value:
+                value = {**value, "aliases": []}
+        else:
+            value = {"aliases": []}
+        
+        # IPA 轉換日誌
+        ipa = self._backend.to_phonetic(term)
+        self._logger.debug(f"  [IPA] {term} -> {ipa}")
+        
+        # 自動生成變體 (如果需要)
+        should_auto_generate = not value.get("aliases") or value.get("auto_fuzzy", False)
+        
+        if should_auto_generate:
+            with self._log_timing(f"generate_variants({term})"):
+                auto_variants = self._fuzzy_generator.generate_variants(term)
+            
+            # 合併別名，避免重複
+            current_aliases = set(value["aliases"])
+            for variant in auto_variants:
+                if variant != term and variant not in current_aliases:
+                    value["aliases"].append(variant)
+            
+            # 日誌輸出變體詳情
+            if auto_variants:
+                self._logger.debug(f"  [Variants] {term} -> {auto_variants[:5]}{'...' if len(auto_variants) > 5 else ''}")
+        
+        return {
+            "aliases": value["aliases"],
+            "keywords": value.get("keywords", []),
+            "exclude_when": value.get("exclude_when", []),
+            "weight": value.get("weight", 0.0),
+        }

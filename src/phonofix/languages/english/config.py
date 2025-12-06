@@ -47,7 +47,8 @@ class EnglishPhoneticConfig:
         (r'er$', 'a'),               # docker -> docka
         (r'er$', 'er'),              # 保留原形
         (r'or$', 'er'),              # tensor -> tenser
-        (r'le$', 'el'),              # google -> googel
+                (r'le$', 'el'),              # google -> googel
+
         (r'que$', 'k'),              # technique -> technik
     ]
     
@@ -143,3 +144,21 @@ class EnglishPhoneticConfig:
     
     # 默認容錯率 (IPA Levenshtein 距離 / 最大長度)
     DEFAULT_TOLERANCE = 0.40
+
+    # 相似音素群組 (用於首音素檢查與模糊比對)
+    FUZZY_PHONEME_GROUPS = [
+        {"p", "b"},           # 雙唇塞音
+        {"t", "d"},           # 齒齦塞音
+        {"k", "g"},           # 軟顎塞音
+        {"f", "v"},           # 唇齒擦音
+        {"s", "z"},           # 齒齦擦音
+        {"θ", "ð"},           # 齒間擦音
+        {"ʃ", "ʒ"},           # 後齒齦擦音
+        {"ʧ", "ʤ", "t", "d"}, # 塞擦音
+        {"m", "n", "ŋ"},      # 鼻音
+        {"l", "r", "ɹ"},      # 流音 (espeak 用 ɹ 表示 r)
+        {"w", "ʍ"},           # 滑音
+        {"i", "ɪ", "e", "ɛ"}, # 前元音
+        {"u", "ʊ", "o", "ɔ"}, # 後元音
+        {"a", "ɑ", "æ", "ʌ"}, # 低元音/央元音
+    ]

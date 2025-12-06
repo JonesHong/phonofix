@@ -48,6 +48,8 @@ class JapaneseTokenizer(Tokenizer):
     def get_token_indices(self, text: str) -> List[Tuple[int, int]]:
         """
         取得每個單詞在原始文本中的起始與結束索引
+        
+        注意：會自動跳過 token 之間的空白字符
 
         Args:
             text: 輸入日文文本
@@ -62,11 +64,19 @@ class JapaneseTokenizer(Tokenizer):
         indices = []
         current_pos = 0
         
-        # Fugashi 的 word.surface 是原始文字
         for word in cutlet.tagger(text):
             surface = word.surface
-            start = current_pos
-            end = current_pos + len(surface)
+            
+            # 在 text 中尋找 surface，從 current_pos 開始
+            # 這可以處理 token 之間有空格的情況
+            start = text.find(surface, current_pos)
+            
+            if start == -1:
+                # 如果找不到 (理論上不應該發生，除非 fugashi 正規化了文本)，
+                # 則退回到直接累加 (fallback)
+                start = current_pos
+            
+            end = start + len(surface)
             indices.append((start, end))
             current_pos = end
             

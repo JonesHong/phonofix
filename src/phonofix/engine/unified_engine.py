@@ -12,6 +12,7 @@ from typing import Dict, List, Union, Any, Optional, Callable
 from .base import CorrectorEngine
 from .english_engine import EnglishEngine
 from .chinese_engine import ChineseEngine
+from .japanese_engine import JapaneseEngine
 from phonofix.router.language_router import LanguageRouter
 # from phonofix.utils.lazy_imports import LazyImport # LazyImport class does not exist in lazy_imports.py
 
@@ -77,6 +78,9 @@ class UnifiedEngine(CorrectorEngine):
             self._chinese_engine = ChineseEngine(
                 verbose=verbose, on_timing=on_timing
             )
+            self._japanese_engine = JapaneseEngine(
+                verbose=verbose, on_timing=on_timing
+            )
             self._router = LanguageRouter()
             self._initialized = True
             
@@ -91,6 +95,11 @@ class UnifiedEngine(CorrectorEngine):
     def chinese_engine(self) -> ChineseEngine:
         """取得中文修正引擎"""
         return self._chinese_engine
+
+    @property
+    def japanese_engine(self) -> JapaneseEngine:
+        """取得日文修正引擎"""
+        return self._japanese_engine
     
     @property
     def router(self) -> LanguageRouter:
@@ -217,14 +226,7 @@ class UnifiedEngine(CorrectorEngine):
                 correctors['en'] = self._english_engine.create_corrector(en_terms)
 
             if ja_terms:
-                try:
-                    from phonofix.languages.japanese import JapaneseCorrector
-                    correctors['ja'] = JapaneseCorrector(ja_terms)
-                except ImportError:
-                    self._logger.warning(
-                        f"Found Japanese terms {list(ja_terms.keys())} but 'phonofix[ja]' is not installed. "
-                        "These terms will be ignored."
-                    )
+                correctors['ja'] = self._japanese_engine.create_corrector(ja_terms)
             
             # 建立 UnifiedCorrector
             unified_corrector = UnifiedCorrector._from_engine(
@@ -239,11 +241,34 @@ class UnifiedEngine(CorrectorEngine):
             return unified_corrector
     
     def _is_japanese_term(self, term: str) -> bool:
-        """判斷詞彙是否包含日文平假名或片假名"""
+        """
+        判斷詞彙是否為日文
+        
+        策略:
+        - 包含平假名或片假名 -> 日文
+        - 純漢字且能被 Cutlet 轉換為有效羅馬拼音 -> 可能是日文
+        
+        注意：純漢字的情況下，日文和中文可能重疊（如「会議」）。
+        這種情況下會傾向於判斷為日文，讓系統同時在中文和日文引擎註冊。
+        """
+        # 1. 檢查是否包含假名
         for char in term:
             code = ord(char)
             if (0x3040 <= code <= 0x309F) or (0x30A0 <= code <= 0x30FF):
                 return True
+        
+        # 2. 如果是純漢字，嘗試用日文引擎轉換看看是否能產生有效羅馬拼音
+        # 這用於處理純漢字的日文詞彙（如「会議」）
+        has_kanji = any(0x4E00 <= ord(c) <= 0x9FFF for c in term)
+        if has_kanji:
+            try:
+                romaji = self._japanese_engine.phonetic.to_phonetic(term)
+                # 如果轉換結果與原詞不同且是純 ASCII，則可能是日文
+                if romaji and romaji != term.lower() and all(ord(c) < 128 for c in romaji):
+                    return True
+            except Exception:
+                pass
+        
         return False
 
     def _is_english_term(self, term: str) -> bool:

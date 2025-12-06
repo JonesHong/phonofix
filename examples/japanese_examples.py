@@ -10,54 +10,20 @@
 6. 權重系統 - 控制替換優先級
 7. 混合格式配置
 8. 長文章校正
-
-This file demonstrates all core features of UnifiedEngine for Japanese:
-1. Basic Usage - Auto-generation of Romaji index
-2. Manual Aliases - Specifying common misspellings
-3. Phonetic Variants - Long vowels, gemination, particles
-4. Context Keywords - Disambiguation based on context (Homophones)
-5. Context Exclusion - Preventing incorrect corrections
-6. Weight System - Controlling replacement priority
-7. Mixed Format Configuration
-8. Long Article Correction
 """
 
 import sys
-import json
-import urllib.request
-import urllib.error
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+root_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(root_dir))
+sys.path.insert(0, str(root_dir / "src"))
 
 from phonofix import UnifiedEngine
+from tools.translation_client import translate_text
 
 # Initialize Engine
 engine = UnifiedEngine()
-
-def translate_text(text, target_lang="zh-tw"):
-    """
-    Call the local translation API.
-    Endpoint: POST http://localhost:8000/api/v1/translate
-    """
-    url = "http://localhost:8000/api/v1/translate"
-    payload = {
-        "text": text,
-        "target_lang": target_lang,
-        "preferred_provider": "auto"
-    }
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-    
-    try:
-        with urllib.request.urlopen(req) as response:
-            if response.status == 200:
-                result = json.loads(response.read().decode("utf-8"))
-                if result.get("success"):
-                    return result["data"]["text"]
-    except Exception:
-        return "[Translation Skipped]"
-    return "[Translation Failed]"
 
 def print_case(title, text, result, explanation):
     print(f"--- {title} ---")
@@ -141,11 +107,13 @@ def example_3_phonetic_variants():
     print("範例 3: 發音變體 (Phonetic Variants)")
     print("=" * 60)
 
-    corrector = engine.create_corrector({
-        "通り": ["tori"],       # Missing long vowel (toori -> tori)
-        "切手": ["kite"],       # Missing gemination (kitte -> kite)
-        "こんにちは": ["konnichiwa"], # Particle wa/ha mismatch
-    })
+    # term_map = {
+    #     "通り": ["tori"],       # Missing long vowel (toori -> tori)
+    #     "切手": ["kite"],       # Missing gemination (kitte -> kite)
+    #     "こんにちは": ["konnichiwa"], # Particle wa/ha mismatch
+    # }
+    term_list= ["通り", "切手", "こんにちは"]
+    corrector = engine.create_corrector(term_list)
 
     test_cases = [
         ("このtoriは賑やかです", "Long vowel correction (tori -> 通り)"),
@@ -288,7 +256,7 @@ def example_7_mixed_format():
     test_cases = [
         ("tokyoに行きたい", "Simple list -> 東京"),
         ("osakaのたこ焼き", "Auto-gen -> 大阪"),
-        ("kyotoの寺を見学", "Full config -> 京都"),
+        ("kyo toの寺を見学", "Full config -> 京都"),
     ]
 
     for text, explanation in test_cases:

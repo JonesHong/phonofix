@@ -34,6 +34,7 @@ from typing import List, Optional
 import Levenshtein
 
 from phonofix.core.phonetic_interface import PhoneticSystem
+from .config import EnglishPhoneticConfig
 
 
 # =============================================================================
@@ -373,6 +374,40 @@ class EnglishPhoneticSystem(PhoneticSystem):
         
         return ratio <= tolerance
     
+    def calculate_similarity_score(self, phonetic1: str, phonetic2: str) -> tuple[float, bool]:
+        """
+        計算 IPA 相似度分數
+
+        Returns:
+            (error_ratio, is_fuzzy_match)
+            error_ratio: 0.0 ~ 1.0 (越低越相似)
+            is_fuzzy_match: 是否通過模糊匹配閾值
+        """
+        # 計算 Levenshtein 編輯距離
+        dist = Levenshtein.distance(phonetic1, phonetic2)
+        
+        # 根據較長字串的長度進行正規化
+        max_len = max(len(phonetic1), len(phonetic2))
+        min_len = min(len(phonetic1), len(phonetic2))
+        
+        if max_len == 0:
+            return 0.0, True
+        
+        # 長度差異檢查：如果兩個字串長度差異超過 50%，視為不匹配
+        if min_len > 0 and (max_len - min_len) / min_len > 0.5:
+            return 1.0, False
+        
+        ratio = dist / max_len
+        tolerance = self.get_tolerance(max_len)
+        
+        # 額外檢查：首音素必須相同或相似
+        if len(phonetic1) > 0 and len(phonetic2) > 0:
+            if not self._are_first_phonemes_similar(phonetic1, phonetic2):
+                # 如果首音素不相似，大幅降低容錯率 (要求更精確的匹配)
+                tolerance = min(tolerance, 0.15)
+        
+        return ratio, ratio <= tolerance
+
     def _are_first_phonemes_similar(self, phonetic1: str, phonetic2: str) -> bool:
         """
         檢查兩個 IPA 字串的首音素是否相似
@@ -386,25 +421,7 @@ class EnglishPhoneticSystem(PhoneticSystem):
         if first1 == first2:
             return True
         
-        # 定義相似的首音素群組
-        similar_groups = [
-            {"p", "b"},           # 雙唇塞音
-            {"t", "d"},           # 齒齦塞音
-            {"k", "g"},           # 軟顎塞音
-            {"f", "v"},           # 唇齒擦音
-            {"s", "z"},           # 齒齦擦音
-            {"θ", "ð"},           # 齒間擦音
-            {"ʃ", "ʒ"},           # 後齒齦擦音
-            {"ʧ", "ʤ", "t", "d"}, # 塞擦音
-            {"m", "n", "ŋ"},      # 鼻音
-            {"l", "r", "ɹ"},      # 流音 (espeak 用 ɹ 表示 r)
-            {"w", "ʍ"},           # 滑音
-            {"i", "ɪ", "e", "ɛ"}, # 前元音
-            {"u", "ʊ", "o", "ɔ"}, # 後元音
-            {"a", "ɑ", "æ", "ʌ"}, # 低元音/央元音
-        ]
-        
-        for group in similar_groups:
+        for group in EnglishPhoneticConfig.FUZZY_PHONEME_GROUPS:
             if first1 in group and first2 in group:
                 return True
         

@@ -4,6 +4,7 @@
 實作基於 Cutlet (Romaji) 的日文發音轉換。
 """
 
+from typing import Tuple
 from phonofix.core.phonetic_interface import PhoneticSystem
 from .utils import _get_cutlet
 from .config import JapanesePhoneticConfig
@@ -41,7 +42,46 @@ class JapanesePhoneticSystem(PhoneticSystem):
         # 例如 "Tokyo Station" -> "tokyostation"
         romaji = romaji.replace(" ", "")
         
+        # 移除長音符號 (Macrons) 以統一格式
+        # Cutlet 預設使用赫本式 (Hepburn) 會產生長音符號
+        macrons = {
+            "ā": "a", "ī": "i", "ū": "u", "ē": "e", "ō": "o",
+            "â": "a", "î": "i", "û": "u", "ê": "e", "ô": "o",
+        }
+        for m, p in macrons.items():
+            romaji = romaji.replace(m, p)
+            
         return romaji
+
+    def calculate_similarity_score(self, phonetic1: str, phonetic2: str) -> Tuple[float, bool]:
+        """
+        計算羅馬拼音相似度分數
+
+        Returns:
+            (error_ratio, is_fuzzy_match)
+            error_ratio: 0.0 ~ 1.0 (越低越相似)
+            is_fuzzy_match: 是否通過模糊匹配閾值
+        """
+        import Levenshtein
+        
+        # 1. 正規化
+        norm1 = self._normalize_phonetic(phonetic1)
+        norm2 = self._normalize_phonetic(phonetic2)
+        
+        # 2. 計算編輯距離
+        dist = Levenshtein.distance(norm1, norm2)
+        max_len = max(len(norm1), len(norm2))
+        
+        if max_len == 0:
+            return 0.0, True
+            
+        ratio = dist / max_len
+        
+        # 3. 判斷是否匹配
+        # 容錯率：短詞較嚴格，長詞較寬鬆
+        tolerance = 0.25 if max_len > 5 else 0.15
+        
+        return ratio, ratio <= tolerance
 
     def _normalize_phonetic(self, phonetic: str) -> str:
         """

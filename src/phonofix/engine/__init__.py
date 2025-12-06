@@ -12,11 +12,13 @@ Engine 是應用程式生命週期的物件，建立後可重複使用。
 from .base import CorrectorEngine
 from .english_engine import EnglishEngine
 from .chinese_engine import ChineseEngine
+from .japanese_engine import JapaneseEngine
 from .unified_engine import UnifiedEngine
 
 __all__ = [
     "CorrectorEngine",
     "EnglishEngine",
     "ChineseEngine",
+    "JapaneseEngine",
     "UnifiedEngine",
 ]
