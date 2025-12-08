@@ -17,14 +17,15 @@ from typing import List, Dict, Union, Optional, Set, TYPE_CHECKING, Any, Generat
 from .phonetic_impl import EnglishPhoneticSystem
 from .tokenizer import EnglishTokenizer
 from phonofix.utils.logger import get_logger, TimingContext
+from phonofix.core import BaseCorrector
 
 if TYPE_CHECKING:
     from phonofix.engine.english_engine import EnglishEngine
 
 
-class EnglishCorrector:
+class EnglishCorrector(BaseCorrector):
     """
-    英文修正器
+    英文修正器（繼承 BaseCorrector）
 
     功能:
     - 針對英文文本進行專有名詞修正
@@ -33,9 +34,13 @@ class EnglishCorrector:
     - 支援自動生成 ASR 錯誤變體
     - 支援 keywords 條件過濾 (需要上下文關鍵字才替換)
     - 支援 exclude_when 上下文排除 (看到排除詞時不替換)
-    
+
     建立方式:
         使用 EnglishEngine.create_corrector() 建立實例
+
+    版本更新 (0.3.0):
+        - 繼承 BaseCorrector ABC，統一接口
+        - 接口已符合標準（text, full_context, silent）
     """
 
     @classmethod

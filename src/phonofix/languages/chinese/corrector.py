@@ -26,6 +26,7 @@ from typing import Generator, Optional, Callable, Dict, List, Any, TYPE_CHECKING
 from .config import ChinesePhoneticConfig
 from .utils import ChinesePhoneticUtils, _get_pypinyin
 from phonofix.utils.logger import get_logger, TimingContext
+from phonofix.core import BaseCorrector
 
 if TYPE_CHECKING:
     from phonofix.engine.chinese_engine import ChineseEngine
@@ -51,18 +52,23 @@ def cached_get_initials(text: str) -> tuple:
     return tuple(pypinyin.lazy_pinyin(text, style=pypinyin.INITIALS, strict=False))
 
 
-class ChineseCorrector:
+class ChineseCorrector(BaseCorrector):
     """
-    中文修正器
+    中文修正器（繼承 BaseCorrector）
 
     功能:
     - 載入專有名詞庫並建立搜尋索引
     - 針對輸入文本進行滑動視窗掃描
     - 結合拼音模糊比對與上下文關鍵字驗證
     - 修正 ASR 產生的同音異字或近音字錯誤
-    
+
     建立方式:
         使用 ChineseEngine.create_corrector() 建立實例
+
+    版本更新 (0.3.0):
+        - 繼承 BaseCorrector ABC，統一接口
+        - correct() 方法參數 asr_text 改為 text
+        - 添加 full_context 可選參數
     """
     
     @classmethod
@@ -545,22 +551,36 @@ class ChineseCorrector:
             )
         return "".join(final_text_list)
 
-    def correct(self, asr_text: str, silent: bool = False) -> str:
+    def correct(
+        self,
+        text: str,
+        full_context: Optional[str] = None,
+        silent: bool = False
+    ) -> str:
         """
         執行修正流程
 
         Args:
-            asr_text: 輸入的 ASR 文本
+            text: 待修正的文本
+            full_context: 完整上下文（可選，用於 keyword 判斷）
+                         目前中文修正器尚未使用此參數，保留供未來擴展
             silent: 是否靜默模式 (不輸出修正日誌)
 
         Returns:
             修正後的文本
+
+        版本更新 (0.3.0):
+            - 參數 asr_text 改為 text（統一接口）
+            - 添加 full_context 參數（向後兼容）
         """
+        # full_context 參數目前可以忽略，保留供未來擴展
+        # 例如：可以用於更智能的 keyword 權重計算
+
         with TimingContext("ChineseCorrector.correct", self._logger, logging.DEBUG):
-            protected_indices = self._build_protection_mask(asr_text)
-            candidates = self._find_candidates(asr_text, protected_indices)
+            protected_indices = self._build_protection_mask(text)
+            candidates = self._find_candidates(text, protected_indices)
             final_candidates = self._resolve_conflicts(candidates)
-            return self._apply_replacements(asr_text, final_candidates, silent=silent)
+            return self._apply_replacements(text, final_candidates, silent=silent)
 
     def correct_streaming(
         self,

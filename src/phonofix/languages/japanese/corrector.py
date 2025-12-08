@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Any, Tuple, Generator, Callable, TYPE_C
 import logging
 
 from phonofix.correction.protocol import CorrectorProtocol
+from phonofix.core import BaseCorrector
 from .phonetic_impl import JapanesePhoneticSystem
 from .tokenizer import JapaneseTokenizer
 from .config import JapanesePhoneticConfig
@@ -25,9 +26,9 @@ if TYPE_CHECKING:
     from phonofix.engine.japanese_engine import JapaneseEngine
 
 
-class JapaneseCorrector:
+class JapaneseCorrector(BaseCorrector):
     """
-    日文修正器
+    日文修正器（繼承 BaseCorrector）
 
     功能:
     - 針對日文文本進行專有名詞修正
@@ -35,9 +36,13 @@ class JapaneseCorrector:
     - 結合羅馬拼音相似度進行模糊比對
     - 支援 keywords 條件過濾 (需要上下文關鍵字才替換)
     - 支援 exclude_when 上下文排除 (看到排除詞時不替換)
-    
+
     建立方式:
         使用 JapaneseEngine.create_corrector() 建立實例
+
+    版本更新 (0.3.0):
+        - 繼承 BaseCorrector ABC，統一接口
+        - 接口已符合標準（text, full_context, silent）
     """
 
     @classmethod

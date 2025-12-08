@@ -12,11 +12,13 @@ from .fuzzy_generator_interface import (
     VariantSource,
     convert_to_simple_list,
 )
+from .corrector_interface import BaseCorrector
 
 __all__ = [
     "PhoneticSystem",
     "Tokenizer",
     "BaseFuzzyGenerator",
+    "BaseCorrector",
     "PhoneticVariant",
     "VariantSource",
     "convert_to_simple_list",
