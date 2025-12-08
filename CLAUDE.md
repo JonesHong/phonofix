@@ -156,7 +156,9 @@ src/phonofix/
 │
 ├── core/                          # Language abstraction layer
 │   ├── phonetic_interface.py      # PhoneticSystem abstract interface
-│   └── tokenizer_interface.py     # Tokenizer abstract interface
+│   ├── tokenizer_interface.py     # Tokenizer abstract interface
+│   ├── fuzzy_generator_interface.py  # BaseFuzzyGenerator abstract interface
+│   └── corrector_interface.py     # BaseCorrector abstract interface (New in 0.3.0)
 │
 ├── router/
 │   └── language_router.py         # Language segment detection and routing
@@ -204,7 +206,7 @@ Backend layer wraps external phonetic libraries and provides caching.
 
 **3. Core Abstraction Layer (src/phonofix/core/)**
 
-Defines language-agnostic interfaces:
+Defines language-agnostic interfaces using ABC (Abstract Base Class):
 
 - `PhoneticSystem` (phonetic_interface.py):
   - `to_phonetic(text)`: Convert text to phonetic representation (Pinyin/IPA/Romaji)
@@ -215,6 +217,12 @@ Defines language-agnostic interfaces:
   - `tokenize(text)`: Split text into tokens
   - `get_token_indices(text)`: Get token positions
   - Handles character-level (Chinese/Japanese) vs word-level (English) tokenization
+
+- `BaseCorrector` (corrector_interface.py): **[New in 0.3.0]**
+  - `correct(text, full_context, silent)`: Execute text correction
+  - `_from_engine(engine, term_dict, **kwargs)`: Factory method for creating corrector instances
+  - Enforces consistent interface across all language correctors
+  - Provides compile-time type checking and IDE support
 
 **4. Language-Specific Implementations (src/phonofix/languages/)**
 
@@ -279,8 +287,16 @@ Each language module implements the core interfaces:
 **Language Abstraction Layer**:
 - `PhoneticSystem` interface unifies different phonetic systems
 - `Tokenizer` interface handles character-level vs word-level tokenization
+- `BaseCorrector` interface enforces consistent corrector implementation **[New in 0.3.0]**
 - `LanguageRouter` handles mixed-language text segmentation
 - Core algorithm (sliding window, context weighting) is completely language-agnostic
+
+**Unified Corrector Interface (0.3.0)**: **[New in 0.3.0]**
+- All correctors inherit from `BaseCorrector(ABC)` for architecture consistency
+- Standardized method signature: `correct(text, full_context, silent)`
+- Compile-time interface checking via ABC (replaces Protocol-only approach)
+- Breaking change: ChineseCorrector parameter renamed from `asr_text` to `text`
+- Benefits: Improved type safety, better IDE support, enforced interface consistency
 
 **IPA-Based Fuzzy Variant Generation (English Module)**:
 - **Three-Stage Workflow**: Term → IPA → Fuzzy IPA → Spellings
