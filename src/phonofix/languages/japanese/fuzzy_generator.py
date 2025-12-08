@@ -8,25 +8,172 @@
 import itertools
 from typing import List, Set, Dict
 
-# 引用你的配置與工具
+from phonofix.core.fuzzy_generator_interface import (
+    BaseFuzzyGenerator,
+    PhoneticVariant,
+    VariantSource,
+)
 from .config import JapanesePhoneticConfig
 from .utils import _get_fugashi, _get_cutlet
+from phonofix.utils.cache import cached_method
 
 
-class JapaneseFuzzyGenerator:
+class JapaneseFuzzyGenerator(BaseFuzzyGenerator):
     """
     日文模糊變體生成器
     """
 
     def __init__(self, config: JapanesePhoneticConfig = None):
+        super().__init__(config)
         self.config = config or JapanesePhoneticConfig()
 
-        # 預先建立羅馬拼音的反向映射 (shi -> si)，用於生成變體
-        self._romaji_reverse_map = {}
-        for k, v in self.config.ROMANIZATION_VARIANTS.items():
-            if v not in self._romaji_reverse_map:
-                self._romaji_reverse_map[v] = []
-            self._romaji_reverse_map[v].append(k)
+    # ========== 實現抽象方法 ==========
+
+    @cached_method(maxsize=1000)
+    def phonetic_transform(self, term: str) -> str:
+        """文字 → Romaji (Task 7.3: 添加 LRU 緩存)"""
+        # 先轉換為平假名
+        hira_list = self._kanji_to_hiragana_list(term)
+        base_hira = "".join(hira_list)
+
+        # 平假名 → Romaji
+        cutlet_katsu = _get_cutlet()
+        try:
+            romaji = cutlet_katsu.romaji(base_hira)
+            return romaji.replace(" ", "")
+        except:
+            return base_hira
+
+    @cached_method(maxsize=1000)
+    def generate_phonetic_variants(self, phonetic_key: str) -> List[str]:
+        """Romaji → 模糊 Romaji 變體 (Task 7.3: 添加 LRU 緩存)"""
+        return list(self._apply_romaji_config_rules(phonetic_key))
+
+    def phonetic_to_text(self, phonetic_key: str) -> str:
+        """Romaji → 假名（直接返回 Romaji）"""
+        return phonetic_key
+
+    def apply_hardcoded_rules(self, term: str) -> List[str]:
+        """應用假名層級的整詞規則"""
+        # 轉為平假名
+        hira_list = self._kanji_to_hiragana_list(term)
+        base_hira = "".join(hira_list)
+
+        # 應用整詞規則
+        variants = self._apply_kana_phrase_rules(base_hira)
+        return list(variants)
+
+    # ========== 向後兼容的 generate_variants ==========
+
+    def generate_variants(self, term, max_variants=30, return_phonetic_variants=False):
+        """
+        生成日文詞彙的模糊變體（Task 7.1: 支持漢字變體）
+
+        支援三種模式：
+        1. return_phonetic_variants=False（舊 API，預設）：
+           返回 List[str]，保持向後兼容
+
+        2. return_phonetic_variants=True（新 API）：
+           返回 List[PhoneticVariant]，包含完整語音資訊和漢字變體
+
+        Args:
+            term: 日文詞彙（漢字/假名/羅馬字）
+            max_variants: 最大變體數量（預設 30）
+            return_phonetic_variants: 是否返回 PhoneticVariant 格式（預設 False）
+
+        Returns:
+            List[str] 或 List[PhoneticVariant]: 變體列表
+        """
+        if return_phonetic_variants:
+            # 使用新的增強流程（包含漢字變體）
+            variants = []
+
+            # ========== 1. 語音維度生成 ==========
+            # 調用父類方法獲取假名/羅馬字變體
+            phonetic_variants = super().generate_variants(
+                term,
+                max_variants=max_variants * 2,  # 多生成一些，後續過濾
+                include_hardcoded=True
+            )
+            variants.extend(phonetic_variants)
+
+            # ========== 2. 漢字變體生成（Task 7.1 新增）==========
+            if self._has_kanji(term):
+                kanji_variants = self._generate_kanji_variants(term)
+                variants.extend(kanji_variants)
+
+            # ========== 3. 去重與排序 ==========
+            # 使用語音 key 去重
+            seen_phonetic_keys = set()
+            unique_variants = []
+
+            for variant in variants:
+                if variant.phonetic_key not in seen_phonetic_keys:
+                    unique_variants.append(variant)
+                    seen_phonetic_keys.add(variant.phonetic_key)
+
+            # 按評分降序、長度升序、文字字典序排序
+            sorted_variants = sorted(
+                unique_variants,
+                key=lambda v: (-v.score, len(v.text), v.text)
+            )
+
+            return sorted_variants[:max_variants]
+
+        # 使用舊邏輯（向後兼容）
+        return self._generate_variants_legacy(term, max_variants)
+
+    def _generate_variants_legacy(self, term: str, max_variants: int = 30) -> List[str]:
+        """
+        舊版變體生成邏輯（向後兼容）
+
+        Args:
+            term: 日文詞彙
+            max_variants: 最大變體數量
+
+        Returns:
+            List[str]: 可能的錯誤拼寫列表
+        """
+        hira_parts = self._kanji_to_hiragana_list(term)
+        base_hira = "".join(hira_parts)
+
+        char_options = [self._get_kana_variations(ch) for ch in base_hira]
+
+        kana_combinations = []
+        for i, combo in enumerate(itertools.product(*char_options)):
+            if i > 50:
+                break
+            kana_combinations.append("".join(combo))
+
+        final_kana_variants = set()
+        for combo in kana_combinations:
+            final_kana_variants.update(self._apply_kana_phrase_rules(combo))
+
+        cutlet_katsu = _get_cutlet()
+        romaji_variants = set()
+
+        for k_var in list(final_kana_variants)[:10]:
+            try:
+                r_base = cutlet_katsu.romaji(k_var)
+                if not r_base:
+                    continue
+                r_clean = r_base.replace(" ", "")
+                romaji_variants.update(self._apply_romaji_config_rules(r_clean))
+            except Exception:
+                continue
+
+        all_variants = final_kana_variants.union(romaji_variants)
+        if term in all_variants:
+            all_variants.remove(term)
+
+        # 收斂同音變體 (只保留發音相同的第一個)
+        variant_list = sorted(list(all_variants), key=lambda x: (len(x), x))
+        filtered_result = self.filter_homophones(variant_list)
+
+        # 只返回保留的變體
+        return filtered_result["kept"][:max_variants]
+
+    # ========== 保留現有方法 ==========
 
     def _kata_to_hira(self, text: str) -> str:
         """片假名轉平假名"""
@@ -134,7 +281,7 @@ class JapaneseFuzzyGenerator:
         """
         取得語音指紋 (用於判斷同音詞)
 
-        對於日文字符：轉為平假名
+        對於日文字符：轉為平假名 + 正規化長音/促音
         對於羅馬字：標準化處理（移除長音、促音差異）
         """
         has_japanese = any(
@@ -144,7 +291,71 @@ class JapaneseFuzzyGenerator:
         if has_japanese:
             # 日文字符：轉為平假名
             hira_list = self._kanji_to_hiragana_list(term)
-            return "".join(hira_list)
+            base_hira = "".join(hira_list)
+
+            # 正規化假名中的長音/促音變體
+            normalized = base_hira
+
+            # 1. 促音去除：っ → (empty)
+            normalized = normalized.replace("っ", "")
+
+            # 2. 片假名長音符號：ー → (empty)
+            normalized = normalized.replace("ー", "")
+
+            # 3. 長音正規化（通用規則）
+            # 策略：あ段+う/お → あ段，い段/え段+い/え → い段/え段
+            # 使用循環處理直到沒有變化
+
+            prev = None
+            max_iterations = 10  # 防止無限循環
+            iteration = 0
+
+            while prev != normalized and iteration < max_iterations:
+                prev = normalized
+                iteration += 1
+
+                # あ段長音：あう/ああ → あ, かう/かー/かあ → か
+                for char in ['あ', 'か', 'が', 'さ', 'ざ', 'た', 'だ', 'な', 'は', 'ば', 'ぱ', 'ま', 'や', 'ら', 'わ']:
+                    normalized = normalized.replace(f"{char}あ", char)
+                    normalized = normalized.replace(f"{char}ー", char)
+
+                # お段長音：おう/おお/おー → お, こう/こお/こー → こ
+                for char in ['お', 'こ', 'ご', 'そ', 'ぞ', 'と', 'ど', 'の', 'ほ', 'ぼ', 'ぽ', 'も', 'よ', 'ろ', 'を']:
+                    normalized = normalized.replace(f"{char}う", char)
+                    normalized = normalized.replace(f"{char}お", char)
+                    normalized = normalized.replace(f"{char}ー", char)
+
+                # 拗音お段長音：きょう/きょお → きょ, しょう → しょ
+                for yoon in ['きゃ', 'きゅ', 'きょ', 'ぎゃ', 'ぎゅ', 'ぎょ',
+                           'しゃ', 'しゅ', 'しょ', 'じゃ', 'じゅ', 'じょ',
+                           'ちゃ', 'ちゅ', 'ちょ', 'にゃ', 'にゅ', 'にょ',
+                           'ひゃ', 'ひゅ', 'ひょ', 'びゃ', 'びゅ', 'びょ', 'ぴゃ', 'ぴゅ', 'ぴょ',
+                           'みゃ', 'みゅ', 'みょ', 'りゃ', 'りゅ', 'りょ']:
+                    if yoon.endswith('ょ'):
+                        normalized = normalized.replace(f"{yoon}う", yoon)
+                        normalized = normalized.replace(f"{yoon}お", yoon)
+                        normalized = normalized.replace(f"{yoon}ー", yoon)
+
+                # い段長音：いい/いー → い, きい/きー → き
+                for char in ['い', 'き', 'ぎ', 'し', 'じ', 'ち', 'に', 'ひ', 'び', 'ぴ', 'み', 'り']:
+                    normalized = normalized.replace(f"{char}い", char)
+                    normalized = normalized.replace(f"{char}ー", char)
+
+                # え段長音：えい/ええ/えー → え, けい/けー → け
+                for char in ['え', 'け', 'げ', 'せ', 'ぜ', 'て', 'で', 'ね', 'へ', 'べ', 'ぺ', 'め', 'れ']:
+                    normalized = normalized.replace(f"{char}い", char)
+                    normalized = normalized.replace(f"{char}え", char)
+                    normalized = normalized.replace(f"{char}ー", char)
+
+                # う段長音：うう/うー → う, くう/くー → く
+                for char in ['う', 'く', 'ぐ', 'す', 'ず', 'つ', 'ぬ', 'ふ', 'ぶ', 'ぷ', 'む', 'ゆ', 'る']:
+                    normalized = normalized.replace(f"{char}う", char)
+                    normalized = normalized.replace(f"{char}ー", char)
+
+            # 4. 撥音標準化：ん 保留（無需正規化）
+            # 未來可擴展：m 音前的ん vs 其他ん的正規化
+
+            return normalized
         else:
             # 羅馬字：標準化處理
             normalized = term.lower().strip().replace(" ", "")
@@ -178,43 +389,98 @@ class JapaneseFuzzyGenerator:
 
         return {"kept": kept, "filtered": filtered}
 
-    def generate_variants(self, term: str, max_variants: int = 30) -> List[str]:
-        """生成日文詞彙的模糊變體"""
-        hira_parts = self._kanji_to_hiragana_list(term)
-        base_hira = "".join(hira_parts)
+    # ========== Task 7.1: 漢字變體生成 ==========
 
-        char_options = [self._get_kana_variations(ch) for ch in base_hira]
+    def _has_kanji(self, text: str) -> bool:
+        """
+        檢查文字是否包含漢字
 
-        kana_combinations = []
-        for i, combo in enumerate(itertools.product(*char_options)):
-            if i > 50:
-                break
-            kana_combinations.append("".join(combo))
+        Args:
+            text: 輸入文字
 
-        final_kana_variants = set()
-        for combo in kana_combinations:
-            final_kana_variants.update(self._apply_kana_phrase_rules(combo))
+        Returns:
+            bool: 是否包含漢字
+        """
+        return any('\u4e00' <= ch <= '\u9fff' for ch in text)
 
-        cutlet_katsu = _get_cutlet()
-        romaji_variants = set()
+    def _generate_kanji_variants(self, term: str) -> List[PhoneticVariant]:
+        """
+        生成漢字變體
 
-        for k_var in list(final_kana_variants)[:10]:
-            try:
-                r_base = cutlet_katsu.romaji(k_var)
-                if not r_base:
-                    continue
-                r_clean = r_base.replace(" ", "")
-                romaji_variants.update(self._apply_romaji_config_rules(r_clean))
-            except Exception:
-                continue
+        策略：
+        1. 保留原詞的漢字形式
+        2. 查找常見同音異字
 
-        all_variants = final_kana_variants.union(romaji_variants)
-        if term in all_variants:
-            all_variants.remove(term)
+        Args:
+            term: 原始詞（包含漢字）
 
-        # 收斂同音變體 (只保留發音相同的第一個)
-        variant_list = sorted(list(all_variants), key=lambda x: (len(x), x))
-        filtered_result = self.filter_homophones(variant_list)
+        Returns:
+            List[PhoneticVariant]: 漢字變體列表
+        """
+        variants = []
 
-        # 只返回保留的變體
-        return filtered_result["kept"][:max_variants]
+        # 1. 保留原詞漢字（最高評分）
+        base_phonetic = self.phonetic_transform(term)
+        variants.append(PhoneticVariant(
+            text=term,
+            phonetic_key=base_phonetic,
+            score=1.0,
+            source=VariantSource.PHONETIC_FUZZY,
+            metadata={"type": "original_kanji"}
+        ))
+
+        # 2. 查找同音異字
+        homophones = self._lookup_homophones_from_dict(term)
+
+        for homophone in homophones:
+            homophone_phonetic = self.phonetic_transform(homophone)
+            # 使用父類的 calculate_score 方法計算相似度
+            score = self.calculate_score(base_phonetic, homophone_phonetic)
+
+            variants.append(PhoneticVariant(
+                text=homophone,
+                phonetic_key=homophone_phonetic,
+                score=score * 0.9,  # 同音異字評分稍低於原詞
+                source=VariantSource.PHONETIC_FUZZY,
+                metadata={"type": "kanji_variant"}
+            ))
+
+        return variants
+
+    def _lookup_homophones_from_dict(self, term: str) -> List[str]:
+        """
+        從預定義字典中查找同音異字
+
+        注意：這是簡化實現，未來可整合 mecab-ipadic 完整字典
+
+        Args:
+            term: 原始詞（漢字）
+
+        Returns:
+            List[str]: 同音異字列表
+        """
+        # 常見同音異字表（可擴展）
+        COMMON_HOMOPHONES = {
+            # 地名
+            "東京": ["凍京", "東經"],
+            "大阪": ["大坂"],
+            "京都": ["教都"],
+
+            # 常用詞
+            "会社": ["會社", "回社"],
+            "社会": ["社會"],
+            "学校": ["學校"],
+            "先生": ["先聲"],
+            "時間": ["時感", "時刊"],
+            "場所": ["場處"],
+            "仕事": ["私事"],
+            "電話": ["電化"],
+            "日本": ["二本", "日本"],
+            "今日": ["教"],
+
+            # 醫藥品（ASR 常見錯誤）
+            "アスピリン": ["明日ピリン"],
+            "ロキソニン": ["六腰人"],
+        }
+
+        return COMMON_HOMOPHONES.get(term, [])

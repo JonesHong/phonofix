@@ -33,15 +33,18 @@ from tools.translation_client import translate_text
 
 # 全域 Engine (單例模式，避免重複初始化)
 engine = EnglishEngine()
+is_translate = False
 
 
 def print_case(title, text, result, explanation):
     """統一的輸出格式"""
     print(f"--- {title} ---")
     print(f"原文 (Original):  {text}")
-    print(f"譯文 (Trans):     {translate_text(text)}")
+    if is_translate:
+        print(f"譯文 (Trans):     {translate_text(text)}")
     print(f"修正 (Corrected): {result}")
-    print(f"譯文 (Trans):     {translate_text(result)}")
+    if is_translate:
+        print(f"譯文 (Trans):     {translate_text(result)}")
     print(f"說明 (Note):      {explanation}")
     print()
 

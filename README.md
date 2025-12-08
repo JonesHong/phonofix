@@ -659,14 +659,57 @@ uv run python examples/realtime_streaming_demo.py
 
 #### English: IPA Phonetic Matching
 
-Uses [phonemizer](https://github.com/bootphon/phonemizer) to convert English to IPA (International Phonetic Alphabet), then calculates Levenshtein edit distance.
+Uses **IPA (International Phonetic Alphabet)** phoneme-based fuzzy variant generation system for accurate phonetic similarity matching.
 
-**Common ASR/LLM Error Types**
+**Core Architecture**:
+1. **Term → IPA**: Convert English words to IPA using [phonemizer](https://github.com/bootphon/phonemizer) (espeak-ng backend)
+2. **IPA → Fuzzy IPA**: Apply phoneme confusion rules to generate phonetic variants
+3. **Fuzzy IPA → Spellings**: Reverse-lookup to generate real spelling variants
+
+**IPA Phoneme Confusion Rules**:
+
+| Confusion Type | Rule | Example |
+|----------------|------|---------|
+| **Voicing** | p/b, t/d, k/g, f/v, s/z, θ/ð, ʃ/ʒ | "Python" [ˈpaɪθɑn] → [ˈbaɪθɑn] → "Bython" |
+| **Similar Phones** | θ/f, θ/s, l/r, v/w, ð/z | "think" [θɪŋk] → [fɪŋk] → "fink" |
+| **Vowel Length** | iː/ɪ, uː/ʊ, ɔː/ɒ, ɑː/ʌ | "beat" [biːt] → [bɪt] → "bit" |
+| **Reduction** | ɪŋ→ɪn, ər→ə | "working" [ˈwɜːkɪŋ] → [ˈwɜːkɪn] |
+
+**Key Advantages**:
+- ✅ **New Word Generalization**: Can generate variants for words not in dictionary (e.g., "Ollama", "Anthropic", "LangChain")
+- ✅ **Phonetically Accurate**: Based on real IPA phoneme system, linguistically sound
+- ✅ **Automatic Deduplication**: Removes phonetically identical variants via IPA phonetic key
+
+**Common ASR/LLM Error Types**:
+
 | Error Type | Example | Description |
 |------------|---------|-------------|
-| Syllable splitting | "TensorFlow" → "Ten so floor" | Speech recognition split error |
-| Homophone | "Python" → "Pyton" | Spelling error |
-| Acronym expansion | "API" → "A P I" | Letter-by-letter pronunciation |
+| **IPA Phoneme Confusion** | "Python" → "Pithon", "Bython" | θ/f confusion, p/b voicing |
+| **Syllable Splitting** | "TensorFlow" → "Ten so floor" | Speech recognition split error |
+| **Acronym Expansion** | "API" → "A P I" | Letter-by-letter pronunciation |
+| **New Word Variants** | "Ollama" → "Olama", "Olema" | IPA-based generalization |
+
+**Example: IPA Variant Generation**
+```python
+from phonofix import EnglishEngine
+
+engine = EnglishEngine()
+
+# Term → IPA → Fuzzy IPA → Spellings workflow
+corrector = engine.create_corrector({
+    "Python": [],  # System auto-generates variants via IPA
+    "Ollama": [],  # Works even for new words not in dictionary
+})
+
+# IPA generates variants like:
+# "Python" [ˈpaɪθɑn] → "pithon", "bython", "piton", "pythom", etc.
+# "Ollama" [əˈlɑːmə] → "olama", "olema", "ollama", etc.
+
+text = "I use Pithon and Olama for AI development"
+result = corrector.correct(text)
+print(result)
+# Output: "I use Python and Ollama for AI development"
+```
 
 ### Keywords and exclude_when Mechanism
 

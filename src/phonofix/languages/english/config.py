@@ -162,3 +162,146 @@ class EnglishPhoneticConfig:
         {"u", "ʊ", "o", "ɔ"}, # 後元音
         {"a", "ɑ", "æ", "ʌ"}, # 低元音/央元音
     ]
+
+    # ========== IPA 音素模糊規則系統（新增用於 Task 5.1）==========
+
+    # 1. 清濁音混淆（Voicing Confusions）
+    # 清音與濁音在某些 ASR 系統中容易混淆
+    IPA_VOICING_CONFUSIONS = [
+        ('p', 'b'),   # pit ↔ bit
+        ('t', 'd'),   # ten ↔ den
+        ('k', 'ɡ'),   # cap ↔ gap / coat ↔ goat
+        ('f', 'v'),   # fan ↔ van / safe ↔ save
+        ('s', 'z'),   # seal ↔ zeal / rice ↔ rise
+        ('θ', 'ð'),   # think ↔ this / ether ↔ either
+        ('ʃ', 'ʒ'),   # mesh ↔ measure / leash ↔ leisure
+        ('tʃ', 'dʒ'), # ch ↔ j / cheap ↔ jeep / batch ↔ badge
+    ]
+
+    # 2. 長短元音混淆（Vowel Length Confusions）
+    # 長元音與短元音在快速語音中容易混淆
+    IPA_VOWEL_LENGTH_CONFUSIONS = [
+        ('iː', 'ɪ'),  # sheep ↔ ship / beat ↔ bit
+        ('uː', 'ʊ'),  # pool ↔ pull / food ↔ foot
+        ('ɔː', 'ɒ'),  # bought ↔ bot (UK accent)
+        ('ɑː', 'æ'),  # bath ↔ bat (UK vs US difference)
+        ('ɜː', 'ə'),  # bird ↔ about (stressed vs unstressed)
+        ('eɪ', 'e'),  # late ↔ let / bait ↔ bet
+        ('oʊ', 'ɔ'),  # boat ↔ bought / coat ↔ caught
+        ('aɪ', 'a'),  # bite ↔ bat / time ↔ tam
+        ('aʊ', 'a'),  # bout ↔ bat / house ↔ has
+    ]
+
+    # 3. 相似音素混淆（Similar Phone Confusions）
+    # 發音位置或方式相似的音素容易混淆
+    IPA_SIMILAR_PHONE_CONFUSIONS = [
+        ('θ', 'f'),   # think → fink / three → free
+        ('ð', 'v'),   # this → vis / breathe → breave
+        ('θ', 's'),   # think → sink / math → mass
+        ('ð', 'z'),   # this → zis / bathe → baze
+        ('r', 'l'),   # rice ↔ lice / right ↔ light (L2 speakers)
+        ('n', 'm'),   # pan ↔ pam / sin ↔ sim
+        ('ŋ', 'n'),   # sing ↔ sin / hang ↔ han
+        ('w', 'v'),   # wine ↔ vine / west ↔ vest (some accents)
+        ('b', 'v'),   # berry ↔ very / boat ↔ vote (some L2)
+        ('p', 'f'),   # peel ↔ feel / pain ↔ fain (rare)
+        ('ʃ', 's'),   # sheep ↔ seep / wash ↔ was
+        ('ʒ', 'z'),   # measure ↔ mezure / vision ↔ vizon
+        ('tʃ', 'ʃ'),  # choose ↔ shoes / church ↔ shurch
+        ('dʒ', 'ʒ'),  # judge ↔ zhuzhe / bridge ↔ brizhe
+        ('j', 'dʒ'),  # year ↔ jeer / yes ↔ jess
+    ]
+
+    # 4. 音節簡化與弱讀規則（Reduction Rules）
+    # 快速語音中常見的音素省略或變化
+    IPA_REDUCTION_RULES = [
+        ('ə', ''),      # schwa deletion / about → bout
+        ('t̬', 'd'),     # flapping / water → wader / better → bedder
+        ('t', ''),      # t-deletion / interest → ineres
+        ('d', ''),      # d-deletion / and → an
+        ('h', ''),      # h-dropping / house → ouse (some accents)
+        ('ŋɡ', 'ŋ'),    # g-dropping / singing → singin
+        ('kw', 'k'),    # simplification / quick → kick
+        ('str', 'sr'),  # cluster reduction / street → sreet
+        ('nt', 'n'),    # cluster reduction / want → wan
+        ('nd', 'n'),    # cluster reduction / and → an
+        ('ld', 'l'),    # cluster reduction / old → ol
+    ]
+
+    # 5. 重音位置變化（Stress Pattern Variations）
+    # 不同重音位置可能導致元音變化
+    IPA_STRESS_VARIATIONS = [
+        ('ˈ', 'ˌ'),  # 主重音 ↔ 次重音
+        ('ˈ', ''),   # 主重音省略
+        ('ˌ', ''),   # 次重音省略
+    ]
+
+    # 6. 常見二合字母發音變體（Digraph Variations）
+    # 這些用於 IPA → 拼寫映射
+    IPA_TO_GRAPHEME_MAP = {
+        # 基本輔音（單字母）
+        'p': ['p'],                     # pen
+        'b': ['b'],                     # bat
+        't': ['t', 'tt'],               # top, butter
+        'd': ['d', 'dd'],               # dog, ladder
+        'k': ['k', 'c', 'ck'],          # kit, cat, back
+        'ɡ': ['g', 'gg'],               # go, egg
+        'f': ['f', 'ff', 'ph'],         # fan, off, phone
+        'v': ['v'],                     # van
+        's': ['s', 'ss', 'c'],          # sun, pass, city
+        'z': ['z', 'zz', 's'],          # zoo, buzz, is
+        'm': ['m', 'mm'],               # man, hammer
+        'n': ['n', 'nn'],               # net, dinner
+        'l': ['l', 'll'],               # leg, bell
+        'r': ['r', 'rr'],               # red, carry
+        'h': ['h'],                     # hat
+
+        # 複雜輔音
+        'θ': ['th'],                    # think
+        'ð': ['th'],                    # this
+        'ʃ': ['sh', 'ti', 'ci', 'ch'],  # ship, station, special, chef
+        'ʒ': ['s', 'si', 'zi', 'g'],    # measure, vision, azure, beige
+        'tʃ': ['ch', 'tch', 't'],       # chip, catch, nature
+        'dʒ': ['j', 'g', 'dge', 'dg'],  # jump, age, badge, judge
+        'ŋ': ['ng', 'n'],               # sing, think
+        'j': ['y', 'i'],                # yes, onion
+        'w': ['w', 'u', 'o'],           # we, quick, one
+
+        # 元音（單元音）
+        'iː': ['ee', 'ea', 'e', 'ie', 'ei', 'i'],  # bee, eat, me, field, receive, ski
+        'ɪ': ['i', 'y', 'e'],                      # bit, gym, pretty
+        'e': ['e', 'ea'],                          # bed, bread
+        'ɛ': ['e', 'ea'],                          # bed, bread (alternative notation)
+        'æ': ['a'],                                # cat
+        'ɑ': ['a', 'o'],                           # father, hot (US)
+        'ɑː': ['a', 'ar', 'ah'],                   # father, car, ah
+        'ɒ': ['o', 'a'],                           # hot, want (UK)
+        'ɔ': ['o', 'aw', 'au'],                    # dog, law, caught
+        'ɔː': ['or', 'aw', 'au', 'al'],            # for, saw, cause, talk
+        'ʊ': ['oo', 'u', 'ou'],                    # book, put, could
+        'uː': ['oo', 'u', 'ue', 'ew', 'o'],        # food, rule, blue, new, do
+        'ʌ': ['u', 'o', 'ou'],                     # but, son, young
+        'ɜː': ['er', 'ir', 'ur', 'or'],            # her, bird, turn, word
+        'ə': ['a', 'e', 'o', 'u', 'i'],            # about, taken, lemon, focus, pencil
+
+        # 雙元音（按頻率排序）
+        'eɪ': ['a', 'ay', 'ai', 'ey', 'ea'],       # make, day, rain, they, great
+        'aɪ': ['y', 'i', 'igh', 'ie'],             # my, time, high, pie
+        'ɔɪ': ['oy', 'oi'],                        # boy, coin
+        'oʊ': ['o', 'ow', 'oa'],                   # go, low, boat
+        'aʊ': ['ou', 'ow'],                        # out, now
+        'ɪə': ['ear', 'eer', 'ere'],               # hear, beer, here
+        'eə': ['are', 'air', 'ear'],               # care, fair, bear
+        'ʊə': ['ure', 'our'],                      # pure, tour
+    }
+
+    # 7. 音素組合優先級（用於生成拼寫時選擇最常見的組合）
+    GRAPHEME_FREQUENCY_WEIGHTS = {
+        'θ': {'th': 1.0},
+        'ð': {'th': 1.0},
+        'ʃ': {'sh': 0.7, 'ti': 0.15, 'ci': 0.1, 'ch': 0.05},
+        'tʃ': {'ch': 0.8, 'tch': 0.15, 't': 0.05},
+        'dʒ': {'j': 0.5, 'g': 0.3, 'dge': 0.15, 'dg': 0.05},
+        'iː': {'ee': 0.4, 'ea': 0.3, 'e': 0.15, 'ie': 0.1, 'ei': 0.03, 'i': 0.02},
+        'eɪ': {'ay': 0.35, 'ai': 0.3, 'a_e': 0.25, 'ey': 0.07, 'ea': 0.03},
+    }

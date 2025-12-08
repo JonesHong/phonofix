@@ -24,15 +24,20 @@ from tools.translation_client import translate_text
 
 # Initialize Engine
 engine = UnifiedEngine()
+is_translate = False
+
 
 def print_case(title, text, result, explanation):
     print(f"--- {title} ---")
     print(f"原文 (Original):  {text}")
-    print(f"譯文 (Trans):     {translate_text(text)}")
+    if is_translate:
+        print(f"譯文 (Trans):     {translate_text(text)}")
     print(f"修正 (Corrected): {result}")
-    print(f"譯文 (Trans):     {translate_text(result)}")
+    if is_translate:
+        print(f"譯文 (Trans):     {translate_text(result)}")
     print(f"說明 (Note):      {explanation}")
     print()
+
 
 # =============================================================================
 # 範例 1: 基礎用法 - 自動生成 Romaji 索引
@@ -47,16 +52,21 @@ def example_1_basic_usage():
     print("=" * 60)
 
     # 只需提供正確的詞彙
-    corrector = engine.create_corrector([
-        "会議",         # kaigi
-        "プロジェクト", # purojekuto
-        "エンジニア",   # enjinia
-        "胃カメラ",     # ikamera
-    ])
+    corrector = engine.create_corrector(
+        [
+            "会議",  # kaigi
+            "プロジェクト",  # purojekuto
+            "エンジニア",  # enjinia
+            "胃カメラ",  # ikamera
+        ]
+    )
 
     test_cases = [
         ("明日のkaigiに参加します", "Romaji -> Kanji (kaigi -> 会議)"),
-        ("新しいpurojekutoが始まります", "Romaji -> Katakana (purojekuto -> プロジェクト)"),
+        (
+            "新しいpurojekutoが始まります",
+            "Romaji -> Katakana (purojekuto -> プロジェクト)",
+        ),
         ("彼は優秀なenjiniaです", "Romaji -> Katakana (enjinia -> エンジニア)"),
         ("ikameraの検査", "Romaji -> Kanji/Katakana (ikamera -> 胃カメラ)"),
     ]
@@ -78,11 +88,13 @@ def example_2_manual_aliases():
     print("範例 2: 手動別名 (Manual Aliases)")
     print("=" * 60)
 
-    corrector = engine.create_corrector({
-        "スマートフォン": ["sumaho", "smapho"],  # Abbreviation: スマホ
-        "パーソナルコンピュータ": ["pasokon"],   # Abbreviation: パソコン
-        "アスピリン": ["asupirin", "asupirinn"], # Common typo
-    })
+    corrector = engine.create_corrector(
+        {
+            "スマートフォン": ["sumaho", "smapho"],  # Abbreviation: スマホ
+            "パーソナルコンピュータ": ["pasokon"],  # Abbreviation: パソコン
+            "アスピリン": ["asupirin", "asupirinn"],  # Common typo
+        }
+    )
 
     test_cases = [
         ("新しいsumahoを買いました", "Abbreviation (sumaho -> スマートフォン)"),
@@ -112,7 +124,7 @@ def example_3_phonetic_variants():
     #     "切手": ["kite"],       # Missing gemination (kitte -> kite)
     #     "こんにちは": ["konnichiwa"], # Particle wa/ha mismatch
     # }
-    term_list= ["通り", "切手", "こんにちは"]
+    term_list = ["通り", "切手", "こんにちは"]
     corrector = engine.create_corrector(term_list)
 
     test_cases = [
@@ -138,23 +150,25 @@ def example_4_context_keywords():
     print("範例 4: 上下文關鍵字 (Context Keywords)")
     print("=" * 60)
 
-    corrector = engine.create_corrector({
-        "箸": {
-            "aliases": ["hashi"],
-            "keywords": ["食べる", "ご飯", "使う", "持つ"],
-            "weight": 0.5
-        },
-        "橋": {
-            "aliases": ["hashi"],
-            "keywords": ["渡る", "川", "長い", "建設"],
-            "weight": 0.5
-        },
-        "端": {
-            "aliases": ["hashi"],
-            "keywords": ["歩く", "道", "隅"],
-            "weight": 0.5
+    corrector = engine.create_corrector(
+        {
+            "箸": {
+                "aliases": ["hashi"],
+                "keywords": ["食べる", "ご飯", "使う", "持つ"],
+                "weight": 0.5,
+            },
+            "橋": {
+                "aliases": ["hashi"],
+                "keywords": ["渡る", "川", "長い", "建設"],
+                "weight": 0.5,
+            },
+            "端": {
+                "aliases": ["hashi"],
+                "keywords": ["歩く", "道", "隅"],
+                "weight": 0.5,
+            },
         }
-    })
+    )
 
     test_cases = [
         ("hashiを使ってご飯を食べる", "Context: 食べる -> 箸 (Chopsticks)"),
@@ -179,16 +193,25 @@ def example_5_exclude_when():
     print("範例 5: 上下文排除 (Context Exclusion)")
     print("=" * 60)
 
-    corrector = engine.create_corrector({
-        "愛": {
-            "aliases": ["ai"],
-            "exclude_when": ["人工知能", "ロボット", "IT"] # Don't correct 'ai' to '愛' in IT context
+    corrector = engine.create_corrector(
+        {
+            "愛": {
+                "aliases": ["ai"],
+                "exclude_when": [
+                    "人工知能",
+                    "ロボット",
+                    "IT",
+                ],  # Don't correct 'ai' to '愛' in IT context
+            }
         }
-    })
+    )
 
     test_cases = [
         ("母のaiを感じる", "No exclusion -> 愛 (Love)"),
-        ("最近のai技術はすごい", "Excluded by '技術' (implied) or just 'ai' stays 'ai'? Wait, 'ai' matches '愛'. If excluded, it stays 'ai'."),
+        (
+            "最近のai技術はすごい",
+            "Excluded by '技術' (implied) or just 'ai' stays 'ai'? Wait, 'ai' matches '愛'. If excluded, it stays 'ai'.",
+        ),
         # Note: In our simple implementation, if excluded, it returns original token.
         ("IT企業のai開発", "Excluded by 'IT' -> ai (Artificial Intelligence)"),
     ]
@@ -210,16 +233,15 @@ def example_6_weight_system():
     print("範例 6: 權重系統 (Weight System)")
     print("=" * 60)
 
-    corrector = engine.create_corrector({
-        "機械": {
-            "aliases": ["kikai"],
-            "weight": 0.8  # Higher priority (Machine)
-        },
-        "機会": {
-            "aliases": ["kikai"],
-            "weight": 0.2  # Lower priority (Opportunity)
+    corrector = engine.create_corrector(
+        {
+            "機械": {"aliases": ["kikai"], "weight": 0.8},  # Higher priority (Machine)
+            "機会": {
+                "aliases": ["kikai"],
+                "weight": 0.2,  # Lower priority (Opportunity)
+            },
         }
-    })
+    )
 
     test_cases = [
         ("新しいkikaiを導入する", "High weight -> 機械 (Machine)"),
@@ -229,7 +251,6 @@ def example_6_weight_system():
     for text, explanation in test_cases:
         result = corrector.correct(text)
         print_case("Weight", text, result, explanation)
-
 
 
 # =============================================================================
@@ -245,6 +266,7 @@ def example_7_phonetic_variants():
     print("=" * 60)
 
     from phonofix.languages.japanese.fuzzy_generator import JapaneseFuzzyGenerator
+
     generator = JapaneseFuzzyGenerator()
 
     terms = [
@@ -265,6 +287,7 @@ def example_7_phonetic_variants():
         print(f"說明: 展示自動生成的 ASR 誤聽拼寫變體")
         print()
 
+
 # =============================================================================
 # 範例 8: 混合格式 (Mixed Format)
 # =============================================================================
@@ -277,15 +300,17 @@ def example_8_mixed_format():
     print("範例 8: 混合格式 (Mixed Format)")
     print("=" * 60)
 
-    corrector = engine.create_corrector({
-        "東京": ["tokyo"],  # Simple list
-        "大阪": {},         # Empty dict (Auto-generate)
-        "京都": {           # Full config
-            "aliases": ["kyoto"],
-            "keywords": ["寺", "観光"],
-            "weight": 0.5
+    corrector = engine.create_corrector(
+        {
+            "東京": ["tokyo"],  # Simple list
+            "大阪": {},  # Empty dict (Auto-generate)
+            "京都": {  # Full config
+                "aliases": ["kyoto"],
+                "keywords": ["寺", "観光"],
+                "weight": 0.5,
+            },
         }
-    })
+    )
 
     test_cases = [
         ("tokyoに行きたい", "Simple list -> 東京"),
@@ -317,9 +342,9 @@ def example_8_long_article():
         "技術": ["gijutsu"],
         "社会": ["shakai"],
         "変革": ["henkaku"],
-        "ロボット": ["robotto"]
+        "ロボット": ["robotto"],
     }
-    
+
     corrector = engine.create_corrector(terms)
 
     article = (
@@ -333,9 +358,9 @@ def example_8_long_article():
     print(article)
     print(f"譯文: {translate_text(article)}")
     print("-" * 40)
-    
+
     result = corrector.correct(article)
-    
+
     print("修正後 (Corrected):")
     print(result)
     print(f"譯文: {translate_text(result)}")
@@ -368,6 +393,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ 範例執行失敗: {e}")
             import traceback
+
             traceback.print_exc()
         print()
 
