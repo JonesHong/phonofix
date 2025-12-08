@@ -194,13 +194,14 @@ class JapaneseCorrector:
                 return True
         return False
 
-    def correct(self, text: str, full_context: str = None) -> str:
+    def correct(self, text: str, full_context: str = None, silent: bool = False) -> str:
         """
         修正日文文本
 
         Args:
             text: 輸入文本
             full_context: 完整上下文 (用於關鍵字判斷)
+            silent: 是否靜默模式 (不輸出修正日誌)
 
         Returns:
             str: 修正後的文本
@@ -211,7 +212,7 @@ class JapaneseCorrector:
         with TimingContext("JapaneseCorrector.correct", self._logger, logging.DEBUG):
             candidates = self._find_candidates(text, full_context)
             final_candidates = self._resolve_conflicts(candidates)
-            return self._apply_replacements(text, final_candidates)
+            return self._apply_replacements(text, final_candidates, silent=silent)
 
     def correct_streaming(
         self,
@@ -243,7 +244,7 @@ class JapaneseCorrector:
                     on_correction(cand)
                 yield cand
         
-        result = self._apply_replacements(text, final_candidates)
+        result = self._apply_replacements(text, final_candidates, silent=True)
         yield result
 
     def _find_candidates(self, text: str, full_context: str = None) -> List[Dict]:
@@ -337,8 +338,8 @@ class JapaneseCorrector:
                 
         return final_candidates
 
-    def _apply_replacements(self, text: str, candidates: List[Dict]) -> str:
-        """應用修正"""
+    def _apply_replacements(self, text: str, candidates: List[Dict], silent: bool = False) -> str:
+        """應用修正並輸出日誌"""
         candidates.sort(key=lambda x: x["start"])
         
         result = []
@@ -347,9 +348,16 @@ class JapaneseCorrector:
             # 如果原文與替換文相同，則不進行替換操作，但它佔用了位置防止錯誤修正
             if cand["original"] == cand["replacement"]:
                 continue
-                
+            
             result.append(text[last_pos : cand["start"]])
             result.append(cand["replacement"])
+            
+            # 輸出修正日誌 (用戶可見的修正反饋)
+            if not silent:
+                tag = "[上下文命中]" if cand.get("has_context") else "[發音修正]"
+                print(
+                    f"{tag} '{cand['original']}' -> '{cand['replacement']}' (Score: {cand['score']:.3f})"
+                )
             
             self._logger.debug(
                 f"  [Match] '{cand['original']}' -> '{cand['replacement']}' "

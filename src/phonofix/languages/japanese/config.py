@@ -17,6 +17,7 @@ class JapanesePhoneticConfig:
                                      預設為 False，統一轉為羅馬拼音以利比對。
         system (str): 拼音系統，預設為 'hepburn' (赫本式)。
     """
+
     use_foreign_spelling: bool = False
     system: str = "hepburn"
 
@@ -33,13 +34,27 @@ class JapanesePhoneticConfig:
         "zi": "ji",
         "di": "ji",  # ぢ (di/ji)
         "du": "zu",  # づ (du/zu)
-        "sya": "sha", "syu": "shu", "syo": "sho",
-        "tya": "cha", "tyu": "chu", "tyo": "cho",
-        "zya": "ja", "zyu": "ju", "zyo": "jo",
-        "cya": "cha", "cyu": "chu", "cyo": "cho",
-        "jya": "ja", "jyu": "ju", "jyo": "jo",
+        "sya": "sha",
+        "syu": "shu",
+        "syo": "sho",
+        "tya": "cha",
+        "tyu": "chu",
+        "tyo": "cho",
+        "zya": "ja",
+        "zyu": "ju",
+        "zyo": "jo",
+        "cya": "cha",
+        "cyu": "chu",
+        "cyo": "cho",
+        "jya": "ja",
+        "jyu": "ju",
+        "jyo": "jo",
         # L/R 混淆 (日文不分 L/R，ASR 可能混用)
-        "la": "ra", "li": "ri", "lu": "ru", "le": "re", "lo": "ro",
+        "la": "ra",
+        "li": "ri",
+        "lu": "ru",
+        "le": "re",
+        "lo": "ro",
     }
 
     # =========================================================================
@@ -63,7 +78,7 @@ class JapanesePhoneticConfig:
     # 處理助詞發音與書寫差異 (wa/ha, o/wo, e/he)
     # 注意：這通常需要上下文判斷，但在模糊比對時可視為變體
     FUZZY_PARTICLES = {
-        "ha": "wa", # は (ha) 作為助詞讀作 wa
+        "ha": "wa",  # は (ha) 作為助詞讀作 wa
         "wo": "o",  # を (wo) 讀作 o
         "he": "e",  # へ (he) 作為助詞讀作 e
     }
@@ -78,13 +93,13 @@ class JapanesePhoneticConfig:
         "tt": "t",
         "pp": "p",
         "ss": "s",
-        "shsh": "sh", # zasshi -> zashi
+        "shsh": "sh",  # zasshi -> zashi
         "tch": "ch",  # matchi -> machi
         "dd": "d",
         "gg": "g",
         "bb": "b",
     }
-    
+
     # =========================================================================
     # 5. 鼻音模糊規則 (Fuzzy Nasals)
     # =========================================================================
@@ -94,4 +109,64 @@ class JapanesePhoneticConfig:
         "mb": "nb",
         "mp": "np",
         "mm": "nm",
+    }
+
+    # =========================================================================
+    # 6. 假名層級混淆規則 (Kana-level Confusions)
+    # =========================================================================
+
+    # 6.1 助詞混淆映射 (雙向)
+    # 處理助詞的發音與書寫差異
+    PARTICLE_CONFUSIONS = {
+        "は": "わ",
+        "わ": "は",  # ha/wa
+        "を": "お",
+        "お": "を",  # wo/o
+        "へ": "え",
+        "え": "へ",  # he/e
+    }
+
+    # 6.2 清濁音映射 (清音 -> 濁音)
+    # ASR 常混淆清音與濁音
+    VOICED_CONSONANT_MAP = {
+        "か": "が",
+        "き": "ぎ",
+        "く": "ぐ",
+        "け": "げ",
+        "こ": "ご",
+        "さ": "ざ",
+        "し": "じ",
+        "す": "ず",
+        "せ": "ぜ",
+        "そ": "ぞ",
+        "た": "だ",
+        "ち": "ぢ",
+        "つ": "づ",
+        "て": "で",
+        "と": "ど",
+        "は": "ば",
+        "ひ": "び",
+        "ふ": "ぶ",
+        "へ": "べ",
+        "ほ": "ぼ",
+    }
+
+    # 6.3 半濁音映射 (清音 -> 半濁音)
+    # 處理 p 音混淆
+    SEMI_VOICED_MAP = {
+        "は": "ぱ",
+        "ひ": "ぴ",
+        "ふ": "ぷ",
+        "へ": "ぺ",
+        "ほ": "ぽ",
+    }
+
+    # 6.4 近音混淆映射
+    # 處理發音相似的假名混淆
+    SIMILAR_SOUND_CONFUSIONS = {
+        "し": ["ち"],
+        "ち": ["し"],
+        "つ": ["す"],
+        "す": ["つ"],
+        "ん": ["む"],
     }
