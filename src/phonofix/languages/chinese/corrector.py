@@ -536,6 +536,7 @@ class ChineseCorrector:
             if cand["original"] != cand["replacement"]:
                 if not silent:
                     tag = "[上下文命中]" if cand.get("has_context") else "[發音修正]"
+                    # 用戶可見的修正反饋
                     print(
                         f"{tag} '{cand['original']}' -> '{cand['replacement']}' (Score: {cand['score']:.3f})"
                     )

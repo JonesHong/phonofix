@@ -7,7 +7,7 @@
 僅在實際使用中文功能時才會載入 pypinyin。
 
 安裝中文支援:
-    pip install "phonofix[chinese]"
+    pip install "phonofix[ch]"
 """
 
 import re
