@@ -35,10 +35,11 @@
 
 import logging
 import re
-from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 
 from phonofix.router.language_router import LanguageRouter
 from phonofix.correction.protocol import CorrectorProtocol
+from phonofix.core import BaseCorrector
 from phonofix.utils.logger import get_logger, TimingContext
 
 if TYPE_CHECKING:
@@ -56,9 +57,13 @@ class UnifiedCorrector:
     - 合併修正後的結果
 
     設計:
-    - 使用 Dict[str, CorrectorProtocol] 儲存各語言修正器
+    - 使用 Dict[str, Union[BaseCorrector, CorrectorProtocol]] 儲存各語言修正器
     - 語言代碼與 LanguageRouter 的分割結果對應
     - 新增語言無需修改此類別
+
+    版本更新 (0.3.0):
+        - 更新類型註解以支援 BaseCorrector ABC
+        - 保持與 CorrectorProtocol 的向後兼容性
 
     建立方式:
         # 透過 UnifiedEngine（推薦）
@@ -74,7 +79,7 @@ class UnifiedCorrector:
 
     def __init__(
         self,
-        correctors: Dict[str, CorrectorProtocol],
+        correctors: Dict[str, Union[BaseCorrector, CorrectorProtocol]],
         router: LanguageRouter,
     ):
         """
@@ -83,6 +88,7 @@ class UnifiedCorrector:
         Args:
             correctors: 語言代碼到修正器的映射
                 例如 {'zh': ChineseCorrector, 'en': EnglishCorrector}
+                支援 BaseCorrector 或 CorrectorProtocol
             router: 語言路由器，負責分割混合語言文本
         """
         self._correctors = correctors
@@ -100,7 +106,7 @@ class UnifiedCorrector:
     def _from_engine(
         cls,
         engine: "UnifiedEngine",
-        correctors: Dict[str, CorrectorProtocol],
+        correctors: Dict[str, Union[BaseCorrector, CorrectorProtocol]],
     ) -> "UnifiedCorrector":
         """
         由 UnifiedEngine 調用的內部工廠方法
@@ -109,7 +115,7 @@ class UnifiedCorrector:
 
         Args:
             engine: UnifiedEngine 實例
-            correctors: 語言代碼到修正器的映射
+            correctors: 語言代碼到修正器的映射（支援 BaseCorrector 或 CorrectorProtocol）
 
         Returns:
             UnifiedCorrector: 輕量實例
@@ -128,7 +134,7 @@ class UnifiedCorrector:
         return instance
 
     @property
-    def correctors(self) -> Dict[str, CorrectorProtocol]:
+    def correctors(self) -> Dict[str, Union[BaseCorrector, CorrectorProtocol]]:
         """取得所有語言修正器"""
         return self._correctors
 
@@ -363,18 +369,18 @@ class UnifiedCorrector:
 
             return result
 
-    def add_corrector(self, lang: str, corrector: CorrectorProtocol) -> None:
+    def add_corrector(self, lang: str, corrector: Union[BaseCorrector, CorrectorProtocol]) -> None:
         """
         動態新增語言修正器
 
         Args:
             lang: 語言代碼 (如 'zh', 'en', 'ja', 'ko')
-            corrector: 符合 CorrectorProtocol 的修正器實例
+            corrector: BaseCorrector 或 CorrectorProtocol 的修正器實例
         """
         self._correctors[lang] = corrector
         self._logger.info(f"Added corrector for language: {lang}")
 
-    def remove_corrector(self, lang: str) -> Optional[CorrectorProtocol]:
+    def remove_corrector(self, lang: str) -> Optional[Union[BaseCorrector, CorrectorProtocol]]:
         """
         移除語言修正器
 
@@ -382,7 +388,7 @@ class UnifiedCorrector:
             lang: 語言代碼
 
         Returns:
-            移除的修正器實例，若不存在則返回 None
+            移除的修正器實例（BaseCorrector 或 CorrectorProtocol），若不存在則返回 None
         """
         corrector = self._correctors.pop(lang, None)
         if corrector:
