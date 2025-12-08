@@ -34,6 +34,7 @@ from typing import List, Optional
 import Levenshtein
 
 from phonofix.core.phonetic_interface import PhoneticSystem
+from phonofix.utils.logger import get_logger
 from .config import EnglishPhoneticConfig
 
 
@@ -43,6 +44,7 @@ from .config import EnglishPhoneticConfig
 
 _espeak_initialized = False
 _init_lock = threading.Lock()
+_warmup_logger = get_logger("phonetic.english.warmup")
 
 
 # =============================================================================
@@ -207,11 +209,11 @@ def warmup_ipa_cache(verbose: bool = False, mode: str = "init"):
     if mode == "init":
         if _espeak_initialized:
             if verbose:
-                print("espeak-ng 已初始化，跳過")
+                _warmup_logger.info("espeak-ng 已初始化，跳過")
             return 1
         
         if verbose:
-            print("正在初始化 espeak-ng...")
+            _warmup_logger.info("正在初始化 espeak-ng...")
         
         try:
             # 只呼叫一次來觸發 espeak-ng 載入
@@ -219,11 +221,11 @@ def warmup_ipa_cache(verbose: bool = False, mode: str = "init"):
             with _init_lock:
                 _espeak_initialized = True
             if verbose:
-                print("espeak-ng 初始化完成")
+                _warmup_logger.info("espeak-ng 初始化完成")
             return 1
         except Exception as e:
             if verbose:
-                print(f"espeak-ng 初始化失敗: {e}")
+                _warmup_logger.warning(f"espeak-ng 初始化失敗: {e}")
             return 0
     
     if mode == "lazy":
@@ -240,12 +242,12 @@ def warmup_ipa_cache(verbose: bool = False, mode: str = "init"):
             thread = threading.Thread(target=_background_init, daemon=True)
             thread.start()
             if verbose:
-                print("espeak-ng 正在背景初始化...")
+                _warmup_logger.info("espeak-ng 正在背景初始化...")
         return 1
     
     # 未知模式
     if verbose:
-        print(f"警告: 未知的暖機模式 '{mode}'，使用 'init' 模式")
+        _warmup_logger.warning(f"未知的暖機模式 '{mode}'，使用 'init' 模式")
     return warmup_ipa_cache(verbose=verbose, mode="init")
 
 

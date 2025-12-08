@@ -213,13 +213,14 @@ class EnglishCorrector:
                 return True
         return False
 
-    def correct(self, text: str, full_context: str = None) -> str:
+    def correct(self, text: str, full_context: str = None, silent: bool = False) -> str:
         """
         執行英文文本修正
 
         Args:
             text: 待修正的英文文本
             full_context: 完整的原始句子 (用於 keyword 和 exclude_when 檢查)
+            silent: 是否靜默模式 (不輸出修正日誌)
 
         Returns:
             str: 修正後的文本
@@ -227,7 +228,7 @@ class EnglishCorrector:
         with TimingContext("EnglishCorrector.correct", self._logger, logging.DEBUG):
             candidates = self._find_candidates(text, full_context)
             final_candidates = self._resolve_conflicts(candidates)
-            return self._apply_replacements(text, final_candidates)
+            return self._apply_replacements(text, final_candidates, silent=silent)
 
     def correct_streaming(
         self,
@@ -259,7 +260,7 @@ class EnglishCorrector:
                     on_correction(cand)
                 yield cand
         
-        result = self._apply_replacements(text, final_candidates)
+        result = self._apply_replacements(text, final_candidates, silent=True)
         yield result
 
     def _find_candidates(self, text: str, full_context: str = None) -> List[Dict]:
@@ -357,8 +358,8 @@ class EnglishCorrector:
                 
         return final_candidates
 
-    def _apply_replacements(self, text: str, candidates: List[Dict]) -> str:
-        """應用修正"""
+    def _apply_replacements(self, text: str, candidates: List[Dict], silent: bool = False) -> str:
+        """應用修正並輸出日誌"""
         # 按位置從後往前替換，避免索引偏移 (或者重建字串)
         # 這裡使用重建字串的方式
         candidates.sort(key=lambda x: x["start"])
@@ -370,6 +371,13 @@ class EnglishCorrector:
             result.append(text[last_pos : cand["start"]])
             # 加入修正詞
             result.append(cand["replacement"])
+            
+            # 輸出修正日誌 (用戶可見的修正反饋)
+            if not silent and cand["original"] != cand["replacement"]:
+                tag = "[上下文命中]" if cand.get("has_context") else "[發音修正]"
+                print(
+                    f"{tag} '{cand['original']}' -> '{cand['replacement']}' (Score: {cand['score']:.3f})"
+                )
             
             self._logger.debug(
                 f"  [Match] '{cand['original']}' -> '{cand['replacement']}' "
