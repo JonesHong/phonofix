@@ -253,16 +253,50 @@ def example_6_weight_system():
         print_case("Weight", text, result, explanation)
 
 
+
 # =============================================================================
-# 範例 7: 混合格式 (Mixed Format)
+# 範例 7: 發音變體展示 (Phonetic Variants)
 # =============================================================================
-def example_7_mixed_format():
+def example_7_phonetic_variants():
+    """
+    展示 EnglishFuzzyGenerator 生成的發音變體。
+    Show generated phonetic variants for given terms.
+    """
+    print("=" * 60)
+    print("範例 7: 發音變體展示 (Phonetic Variants)")
+    print("=" * 60)
+
+    from phonofix.languages.english.fuzzy_generator import EnglishFuzzyGenerator
+    generator = EnglishFuzzyGenerator()
+
+    terms = [
+        "TensorFlow",
+        "Kubernetes",
+        "PostgreSQL",
+        "Django",
+        "algorithm",
+        "scikit-learn",
+        "Matplotlib",
+    ]
+
+    for term in terms:
+        variants = generator.generate_variants(term)
+        print(f"目標詞: {term}")
+        print(f"生成的變體數: {len(variants)}")
+        print(f"前10個變體: {variants[:10]}")
+        print(f"說明: 展示自動生成的 ASR 誤聽拼寫變體")
+        print()
+
+# =============================================================================
+# 範例 8: 混合格式 (Mixed Format)
+# =============================================================================
+def example_8_mixed_format():
     """
     混合使用列表和字典配置。
     展示不同配置方式的靈活性。
     """
     print("=" * 60)
-    print("範例 7: 混合格式 (Mixed Format)")
+    print("範例 8: 混合格式 (Mixed Format)")
     print("=" * 60)
 
     corrector = engine.create_corrector({
@@ -352,7 +386,8 @@ if __name__ == "__main__":
         example_4_context_keywords,
         example_5_exclude_when,
         example_6_weight_system,
-        example_7_mixed_format,
+        example_7_phonetic_variants,
+        example_8_mixed_format,
         example_8_long_article,
     ]
 
