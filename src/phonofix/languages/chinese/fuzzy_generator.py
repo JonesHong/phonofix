@@ -42,35 +42,39 @@ _imports_checked = False
 def _get_pinyin2hanzi():
     """延遲載入 Pinyin2Hanzi 模組"""
     global _pinyin2hanzi_dag, _pinyin2hanzi_params_class, _imports_checked
-    
+
     if _imports_checked and _pinyin2hanzi_dag is not None:
         return _pinyin2hanzi_params_class, _pinyin2hanzi_dag
-    
+
     try:
         from Pinyin2Hanzi import DefaultDagParams, dag
+
         _pinyin2hanzi_params_class = DefaultDagParams
         _pinyin2hanzi_dag = dag
         _imports_checked = True
         return _pinyin2hanzi_params_class, _pinyin2hanzi_dag
     except ImportError:
         from phonofix.utils.lazy_imports import CHINESE_INSTALL_HINT
+
         raise ImportError(CHINESE_INSTALL_HINT)
 
 
 def _get_hanziconv():
     """延遲載入 hanziconv 模組"""
     global _hanziconv, _imports_checked
-    
+
     if _imports_checked and _hanziconv is not None:
         return _hanziconv
-    
+
     try:
         from hanziconv import HanziConv
+
         _hanziconv = HanziConv
         _imports_checked = True
         return _hanziconv
     except ImportError:
         from phonofix.utils.lazy_imports import CHINESE_INSTALL_HINT
+
         raise ImportError(CHINESE_INSTALL_HINT)
 
 
@@ -150,8 +154,7 @@ class ChineseFuzzyGenerator(BaseFuzzyGenerator):
             ['zhong', 'zong', 'zhung', 'zung']  # z/zh, o/u 混淆
         """
         return self.utils.generate_fuzzy_pinyin_variants(
-            phonetic_key,
-            bidirectional=True
+            phonetic_key, bidirectional=True
         )
 
     def phonetic_to_text(self, phonetic_key: str) -> str:
@@ -208,7 +211,7 @@ class ChineseFuzzyGenerator(BaseFuzzyGenerator):
         將拼音轉換為可能的漢字 (同音字反查)
 
         使用 Pinyin2Hanzi 庫的 DAG (有向無環圖) 演算法找出最可能的漢字。
-        
+
         Args:
             pinyin_str: 拼音字串 (如 "zhong")
             max_chars: 最多返回幾個候選字
@@ -220,7 +223,7 @@ class ChineseFuzzyGenerator(BaseFuzzyGenerator):
         # 延遲載入
         _, dag = _get_pinyin2hanzi()
         HanziConv = _get_hanziconv()
-        
+
         # 使用 DAG 演算法查詢拼音對應的漢字路徑
         result = dag(self.dag_params, [pinyin_str], path_num=max_chars)
         chars = []
@@ -229,260 +232,231 @@ class ChineseFuzzyGenerator(BaseFuzzyGenerator):
                 # 將簡體結果轉換為繁體
                 # item.path[0] 是最可能的單字
                 chars.append(HanziConv.toTraditional(item.path[0]))
-        # 若查無結果，返回原始拼音
         return chars if chars else [pinyin_str]
 
     def _get_char_variations(self, char):
         """
         取得單個漢字的所有模糊音變體
 
-        流程:
-        1. 取得漢字的標準拼音
-        2. 生成該拼音的所有模糊變體 (如 z -> zh, in -> ing)
-        3. 將模糊拼音反查回代表性漢字
-
-        Args:
-            char: 輸入漢字 (如 "中")
-
-        Returns:
-            List[Dict]: 變體列表，每個元素包含 {"pinyin": 拼音, "char": 代表字}
-            範例: "中" (zhong) -> 
-            [
-                {"pinyin": "zhong", "char": "中"}, 
-                {"pinyin": "zong", "char": "宗"}  (假設 z/zh 模糊)
-            ]
+        保證返回列表的第一個元素是原始字元。
         """
         base_pinyin = self.utils.get_pinyin_string(char)
-        # 非中文字符直接返回原樣
-        if not base_pinyin or not ('\u4e00' <= char <= '\u9fff'):
+        if not base_pinyin or not ("\u4e00" <= char <= "\u9fff"):
             return [{"pinyin": char, "char": char}]
+
+        # 準備結果列表，預先加入原始字元
+        options = [{"pinyin": base_pinyin, "char": char}]
+        seen = {(base_pinyin, char)}
 
         # 生成所有可能的模糊拼音
         potential_pinyins = self.utils.generate_fuzzy_pinyin_variants(
             base_pinyin, bidirectional=True
         )
 
-        options = []
         for p in potential_pinyins:
-            if p == base_pinyin:
-                # 原始拼音對應原始字符
-                options.append({"pinyin": p, "char": char})
-            else:
-                # 模糊拼音需要反查一個代表字，以便後續組合成詞
-                # 這裡只取第一個最可能的字作為代表
-                candidate_chars = self._pinyin_to_chars(p)
-                repr_char = candidate_chars[0]
-                if '\u4e00' <= repr_char <= '\u9fff':
-                    options.append({"pinyin": p, "char": repr_char})
+            candidate_chars = self._pinyin_to_chars(p, max_chars=3)
+
+            for c in candidate_chars:
+                if "\u4e00" <= c <= "\u9fff":
+                    if (p, c) not in seen:
+                        options.append({"pinyin": p, "char": c})
+                        seen.add((p, c))
+
         return options
 
     def _generate_char_combinations(self, char_options_list):
         """
-        生成所有字符變體的排列組合（優化版：提前去重+動態上限）
-
-        Args:
-            char_options_list: 每個位置的字符變體列表
-            範例: [
-                [{"char": "台", "pinyin": "tai"}],
-                [{"char": "積", "pinyin": "ji"}, {"char": "基", "pinyin": "ji"}]
-            ]
-
-        Returns:
-            List[str]: 組合後的詞彙列表
-            範例: ["台積", "台基"]
+        生成所有字符變體的排列組合 (優先生成變更較少的組合)
         """
-        seen_pinyins = set()
+        # 使用 dict 計算拼音出現次數，允許保留少量同音詞 (如: 台北車站 vs 太北車站)
+        # 這樣可以確保 "保留一拼音不同的" 需求，即保留至少一個同音變體
+        seen_pinyins = {}
         combinations = []
 
-        # 動態設定上限（根據詞長）
         word_len = len(char_options_list)
-        MAX_COMBOS = min(300, 100 * word_len)
+        MAX_COMBOS = 1000
 
-        # 使用 itertools.product 進行笛卡兒積組合
-        for i, combo in enumerate(itertools.product(*char_options_list)):
-            # 達到上限時截斷
-            if i >= MAX_COMBOS:
-                self._logger.warning(
-                    f"達到組合上限 {MAX_COMBOS}（詞長 {word_len}），截斷變體生成"
-                )
+        indices_list = [list(range(len(opts))) for opts in char_options_list]
+
+        for diff_count in range(word_len + 1):
+            if len(combinations) >= MAX_COMBOS:
                 break
 
-            # 提前計算拼音並去重（優化：避免無效組合）
-            pinyin = "".join([item["pinyin"] for item in combo])
-            if pinyin in seen_pinyins:
-                continue
+            for positions_to_change in itertools.combinations(
+                range(word_len), diff_count
+            ):
+                if len(combinations) >= MAX_COMBOS:
+                    break
 
-            word = "".join([item["char"] for item in combo])
-            combinations.append(word)
-            seen_pinyins.add(pinyin)
+                current_iterables = []
+                valid_combo = True
+                for i in range(word_len):
+                    if i in positions_to_change:
+                        if len(indices_list[i]) > 1:
+                            current_iterables.append(indices_list[i][1:])
+                        else:
+                            valid_combo = False
+                            break
+                    else:
+                        current_iterables.append([0])
+
+                if not valid_combo:
+                    continue
+
+                for indices in itertools.product(*current_iterables):
+                    if len(combinations) >= MAX_COMBOS:
+                        break
+
+                    current_combo = []
+                    current_pinyin_parts = []
+
+                    for i, idx in enumerate(indices):
+                        item = char_options_list[i][idx]
+                        current_combo.append(item["char"])
+                        current_pinyin_parts.append(item["pinyin"])
+
+                    pinyin = "".join(current_pinyin_parts)
+
+                    # 檢查該拼音是否已達到保留上限 (例如保留 2 個: 1 個原詞 + 1 個變體)
+                    count = seen_pinyins.get(pinyin, 0)
+                    if count >= 2:
+                        continue
+
+                    word = "".join(current_combo)
+                    combinations.append(word)
+                    seen_pinyins[pinyin] = count + 1
 
         return combinations
 
-    def _add_sticky_phrase_aliases(self, term, aliases):
+    def generate_variants(self, term, max_variants=None, include_hardcoded=True):
         """
-        添加黏音/懶音短語別名
+        為輸入詞彙生成模糊變體列表 (覆寫父類方法)
 
-        整句對整句的特例，處理如 "不知道" -> "不道" 這種非單字對應的變體。
-
-        Args:
-            term: 原始詞彙
-            aliases: 當前別名列表 (會被直接修改)
-
-        Returns:
-            None
-        """
-        if term in self.config.STICKY_PHRASE_MAP:
-            # 取得目前已有的變體文字，避免重複
-            alias_texts = [a if isinstance(a, str) else a.get("text", "") for a in aliases]
-            
-            for sticky in self.config.STICKY_PHRASE_MAP[term]:
-                if sticky not in alias_texts:
-                    # 黏音通常沒有標準拼音對應，或拼音不重要，故只存文字
-                    # 若 aliases 是字串列表，直接 append
-                    # 若 aliases 是 dict 列表 (舊版邏輯)，則 append dict
-                    # 這裡配合 generate_fuzzy_variants 返回字串列表的邏輯
-                    aliases.append(sticky)
-
-    def _prepare_final_alias_list(self, term, aliases):
-        """
-        準備最終的別名列表
-
-        去重、排序,並將原詞放在第一位
-
-        Args:
-            term: 原始詞彙
-            aliases: 別名列表 (字串列表)
-
-        Returns:
-            list: 最終的別名列表 (原詞在首位)
-        """
-        # 移除原詞 (稍後加回第一位) 並去重
-        unique_aliases = set(aliases)
-        if term in unique_aliases:
-            unique_aliases.remove(term)
-            
-        sorted_aliases = sorted(list(unique_aliases))
-
-        # 原詞放在第一位
-        return [term] + sorted_aliases
-
-    def generate_variants(self, term, max_variants=None, return_phonetic_variants=False):
-        """
-        為輸入詞彙生成模糊變體列表（重構版 - 向後兼容）
-
-        支援三種輸入模式:
-        1. 單一詞彙 (str): 返回該詞彙的變體列表 (List[str])
-        2. 詞彙列表 (List[str]): 返回詞典 (Dict[str, List[str]])
-        3. 單一詞彙 + return_phonetic_variants=True: 返回 PhoneticVariant 列表
-
-        重構說明：
-        - 現在可以使用父類的統一流程（通過 super().generate_variants）
-        - 也保留了舊的字級組合邏輯（通過 _generate_variants_legacy）
-        - 默認使用舊邏輯以保持向後兼容
+        中文特化實作：
+        採用「逐字變體組合」策略，而非整詞拼音變換。
+        1. 將詞彙拆解為單字
+        2. 生成每個單字的同音/近音字
+        3. 排列組合生成候選詞
+        4.轉換為 PhoneticVariant 物件並評分
 
         Args:
             term: 輸入詞彙 (str) 或 詞彙列表 (List[str])
-            max_variants: 最大變體數量（None 表示不限制）
-            return_phonetic_variants: 是否返回 PhoneticVariant 列表（新格式）
+            max_variants: 最大變體數量（None 表示不限制，默認 100）
+            include_hardcoded: 是否包含硬編碼規則（默認 True）
 
         Returns:
-            List[str] or Dict[str, List[str]] or List[PhoneticVariant]: 視參數而定
+            List[PhoneticVariant] or Dict[str, List[PhoneticVariant]]: 視輸入類型而定
         """
-        # 模式 2: 處理詞彙列表
+        # 處理詞彙列表輸入
         if isinstance(term, list):
             result = {}
             for t in term:
                 result[t] = self.generate_variants(
-                    t,
-                    max_variants=max_variants,
-                    return_phonetic_variants=return_phonetic_variants
+                    t, max_variants=max_variants, include_hardcoded=include_hardcoded
                 )
             return result
 
-        # 模式 3: 使用新的父類統一流程（返回 PhoneticVariant）
-        if return_phonetic_variants:
-            return super().generate_variants(
-                term,
-                max_variants=max_variants or 100,
-                include_hardcoded=True
-            )
+        # 單一詞彙處理
+        max_v = max_variants or 100
+        variants = self._process_single_term(term, max_v, include_hardcoded)
 
-        # 模式 1: 使用舊邏輯（向後兼容，返回 List[str]）
-        final_variants = self._generate_variants_legacy(term)
+        return variants
 
-        # 應用 max_variants 限制
-        if max_variants is not None and len(final_variants) > max_variants:
-            # 保留原詞（在第一位）+ 限制數量的變體
-            if final_variants[0] == term:
-                final_variants = [term] + final_variants[1:max_variants+1]
-            else:
-                final_variants = final_variants[:max_variants]
+    def _process_single_term(self, term, max_variants, include_hardcoded):
+        """處理單一詞彙的變體生成"""
+        variants = []
+        base_phonetic = self.phonetic_transform(term)
 
-        return final_variants
-
-    def _generate_variants_legacy(self, term):
-        """
-        舊版變體生成邏輯（保留以維持向後兼容）
-
-        工作流程：
-        1. 字級變體生成
-        2. 字符組合
-        3. 黏音/懶音規則
-        4. 去重與排序
-
-        Args:
-            term: 輸入詞彙
-
-        Returns:
-            List[str]: 變體列表（原詞在首位）
-        """
-        # 1. 對詞彙中的每個字，生成其模糊音變體 (字級別)
+        # 1. 逐字生成選項
         char_options_list = []
         for char in term:
-            char_options_list.append(self._get_char_variations(char))
+            options = self._get_char_variations(char)
+            char_options_list.append(options)
 
-        # 2. 組合所有字的變體，產生新的詞彙 (詞級別)
-        variants = self._generate_char_combinations(char_options_list)
+        # 2. 排列組合生成候選詞文字 (List[str])
+        candidate_words = self._generate_char_combinations(char_options_list)
 
-        # 3. 處理黏音/懶音 (整詞特例)
-        self._add_sticky_phrase_aliases(term, variants)
+        # 3. 轉換為 PhoneticVariant 物件並評分
+        for word in candidate_words:
+            # 略過原詞 (稍後過濾或評分時處理)
+            if word == term:
+                continue
 
-        # 4. 最終整理 (去重、排序、原詞置頂)
-        final_variants = self._prepare_final_alias_list(term, variants)
+            # 計算該變體的拼音 (用於去重和評分)
+            variant_phonetic = self.phonetic_transform(word)
 
-        return final_variants
+            # 計算分數
+            score = self.calculate_score(base_phonetic, variant_phonetic)
+
+            variants.append(
+                PhoneticVariant(
+                    text=word,
+                    phonetic_key=variant_phonetic,
+                    score=score,
+                    source=VariantSource.PHONETIC_FUZZY,
+                    metadata={"base_phonetic": base_phonetic},
+                )
+            )
+
+        # 4. 加入硬編碼規則 (如果有)
+        if include_hardcoded:
+            hardcoded_texts = self.apply_hardcoded_rules(term)
+            for ht in hardcoded_texts:
+                try:
+                    p_key = self.phonetic_transform(ht)
+                    variants.append(
+                        PhoneticVariant(
+                            text=ht,
+                            phonetic_key=p_key,
+                            score=0.85,  # 硬編碼給予高分
+                            source=VariantSource.HARDCODED_PATTERN,
+                        )
+                    )
+                except:
+                    pass
+
+        # 5. 去重 (Phonetic key based)
+        unique_variants = self._deduplicate_by_phonetic(variants)
+
+        # 6. 排序 (分數高 -> 低)
+        sorted_variants = sorted(
+            unique_variants, key=lambda v: (-v.score, len(v.text), v.text)
+        )
+
+        return sorted_variants[:max_variants]
 
     def filter_homophones(self, term_list):
         """
         過濾同音詞
 
         輸入一個詞彙列表,將「去聲調拼音」完全相同的詞進行過濾
-        只保留第一個出現的詞。這在處理大量相似詞彙時很有用，
-        可以避免詞典過度膨脹。
+        保留每個拼音的前 2 個出現詞 (原詞 + 1 個變體)。
+        滿足「保留一拼音不同的」需求。
 
         Args:
             term_list: 詞彙列表 (如 ["測試", "側試", "策試"])
 
         Returns:
             dict: {
-                "kept": [...],      # 保留的詞 (如 ["測試"])
-                "filtered": [...]   # 過濾掉的同音詞 (如 ["側試", "策試"])
+                "kept": [...],      # 保留的詞 (如 ["測試", "側試"])
+                "filtered": [...]   # 過濾掉的同音詞 (如 ["策試"])
             }
         """
         kept = []
         filtered = []
-        seen_pinyins = set()
+        seen_pinyins = {}
 
         for term in term_list:
-            # 取得去聲調拼音 (如 "測試" -> "ceshi")
+            # 取得去聲調拼音
             pinyin_str = self.utils.get_pinyin_string(term)
 
-            if pinyin_str in seen_pinyins:
-                # 拼音已存在,歸類為過濾掉的
+            count = seen_pinyins.get(pinyin_str, 0)
+            if count >= 2:
+                # 拼音已存在超過保留上限, 過濾
                 filtered.append(term)
             else:
-                # 新拼音,保留
+                # 保留
                 kept.append(term)
-                seen_pinyins.add(pinyin_str)
+                seen_pinyins[pinyin_str] = count + 1
 
         return {"kept": kept, "filtered": filtered}

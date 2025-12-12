@@ -37,7 +37,7 @@
 from dataclasses import dataclass
 from typing import Any
 
-from phonofix.correction.protocol import CorrectorProtocol
+from phonofix.core.corrector_interface import BaseCorrector
 from phonofix.utils.logger import get_logger
 
 
@@ -187,7 +187,7 @@ class StreamingCorrector:
     
     def __init__(
         self,
-        corrector: CorrectorProtocol,
+        corrector: BaseCorrector,
         overlap_size: int | None = None,
         min_confirm_size: int | None = None,
         auto_overlap: bool = True,
@@ -347,7 +347,7 @@ class ChunkStreamingCorrector:
     
     def __init__(
         self,
-        corrector: CorrectorProtocol,
+        corrector: BaseCorrector,
         overlap_size: int | None = None,
         min_confirm_size: int | None = None,
         auto_overlap: bool = True,
@@ -444,7 +444,7 @@ class ChunkStreamingCorrector:
 # =============================================================================
 
 def create_streaming_corrector(
-    corrector: CorrectorProtocol,
+    corrector: BaseCorrector,
     mode: str = "accumulated",
     **kwargs
 ) -> StreamingCorrector | ChunkStreamingCorrector:

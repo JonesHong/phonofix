@@ -66,39 +66,11 @@ class TestChineseFuzzyGeneratorRefactored:
         # 應該返回列表（可能為空）
         assert isinstance(hardcoded, list)
 
-    def test_backward_compatibility_simple(self):
-        """測試向後兼容性 - 簡單模式"""
-        # 舊 API：返回 List[str]
-        variants = self.generator.generate_variants("台北")
-
-        # 應該返回字串列表
-        assert isinstance(variants, list)
-        assert all(isinstance(v, str) for v in variants)
-
-        # 第一個應該是原詞
-        assert variants[0] == "台北"
-
-    def test_backward_compatibility_list(self):
-        """測試向後兼容性 - 列表模式"""
-        # 舊 API：輸入列表，返回 Dict
-        result = self.generator.generate_variants(["台北", "測試"])
-
-        # 應該返回字典
-        assert isinstance(result, dict)
-
-        # 每個鍵應該對應一個列表
-        assert "台北" in result
-        assert "測試" in result
-        assert isinstance(result["台北"], list)
-        assert isinstance(result["測試"], list)
-
-    def test_new_phonetic_variant_mode(self):
-        """測試新的 PhoneticVariant 模式"""
-        # 新 API：return_phonetic_variants=True
+    def test_basic_variant_generation(self):
+        """測試基本的變體生成"""
         variants = self.generator.generate_variants(
             "台北",
-            max_variants=10,
-            return_phonetic_variants=True
+            max_variants=10
         )
 
         # 應該返回 PhoneticVariant 列表
@@ -112,6 +84,26 @@ class TestChineseFuzzyGeneratorRefactored:
             assert hasattr(v, 'score')
             assert hasattr(v, 'source')
 
+    def test_list_input_mode(self):
+        """測試列表輸入模式"""
+        # 輸入列表，返回 Dict[str, List[PhoneticVariant]]
+        result = self.generator.generate_variants(["台北", "測試"])
+
+        # 應該返回字典
+        assert isinstance(result, dict)
+
+        # 每個鍵應該對應一個 PhoneticVariant 列表
+        assert "台北" in result
+        assert "測試" in result
+        assert isinstance(result["台北"], list)
+        assert isinstance(result["測試"], list)
+
+        # 驗證列表元素類型
+        if len(result["台北"]) > 0:
+            assert all(isinstance(v, PhoneticVariant) for v in result["台北"])
+        if len(result["測試"]) > 0:
+            assert all(isinstance(v, PhoneticVariant) for v in result["測試"])
+
     def test_max_variants_limit(self):
         """測試 max_variants 參數"""
         # 限制變體數量
@@ -124,8 +116,7 @@ class TestChineseFuzzyGeneratorRefactored:
         """測試變體來源類型"""
         variants = self.generator.generate_variants(
             "台北",
-            max_variants=20,
-            return_phonetic_variants=True
+            max_variants=20
         )
 
         # 應該有語音模糊變體
@@ -136,8 +127,7 @@ class TestChineseFuzzyGeneratorRefactored:
         """測試評分計算"""
         variants = self.generator.generate_variants(
             "台北",
-            max_variants=10,
-            return_phonetic_variants=True
+            max_variants=10
         )
 
         # 所有評分應該在 0.0-1.0 之間
@@ -166,9 +156,14 @@ class TestChineseFuzzyGeneratorEdgeCases:
         """測試單字符"""
         variants = self.generator.generate_variants("中")
 
-        # 應該返回包含原字的列表
+        # 應該返回 PhoneticVariant 列表
         assert isinstance(variants, list)
-        assert "中" in variants
+        # 應該生成語音相似的變體（不一定包含原字，因為這是變體列表）
+        assert len(variants) > 0
+        # 驗證每個變體都有必要的屬性
+        for v in variants:
+            assert hasattr(v, 'text')
+            assert hasattr(v, 'phonetic_key')
 
     def test_mixed_content(self):
         """測試混合內容（中文+英文）"""
@@ -183,8 +178,7 @@ class TestChineseFuzzyGeneratorEdgeCases:
         if "不知道" in self.generator.config.STICKY_PHRASE_MAP:
             variants = self.generator.generate_variants(
                 "不知道",
-                max_variants=20,
-                return_phonetic_variants=True
+                max_variants=20
             )
 
             # 應該包含硬編碼變體
@@ -213,20 +207,23 @@ class TestChineseFuzzyGeneratorCompatibility:
         assert isinstance(result["kept"], list)
         assert isinstance(result["filtered"], list)
 
-    def test_old_api_still_works(self):
-        """測試舊 API 仍然正常工作"""
-        # 這是舊代碼可能使用的方式
+    def test_api_basic_usage(self):
+        """測試基本 API 使用"""
         generator = ChineseFuzzyGenerator()
 
-        # 單一詞彙
+        # 單一詞彙 - 返回 List[PhoneticVariant]
         variants1 = generator.generate_variants("台北")
         assert isinstance(variants1, list)
-        assert variants1[0] == "台北"
+        assert all(isinstance(v, PhoneticVariant) for v in variants1)
 
-        # 詞彙列表
+        # 詞彙列表 - 返回 Dict[str, List[PhoneticVariant]]
         variants2 = generator.generate_variants(["台北", "測試"])
         assert isinstance(variants2, dict)
         assert "台北" in variants2
+        assert "測試" in variants2
+        # 驗證每個值都是 PhoneticVariant 列表
+        if len(variants2["台北"]) > 0:
+            assert all(isinstance(v, PhoneticVariant) for v in variants2["台北"])
 
 
 if __name__ == "__main__":

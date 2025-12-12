@@ -63,115 +63,58 @@ class JapaneseFuzzyGenerator(BaseFuzzyGenerator):
         variants = self._apply_kana_phrase_rules(base_hira)
         return list(variants)
 
-    # ========== 向後兼容的 generate_variants ==========
+    # ========== 覆寫 generate_variants 以支援漢字變體 ==========
 
-    def generate_variants(self, term, max_variants=30, return_phonetic_variants=False):
+    def generate_variants(self, term, max_variants=30, include_hardcoded=True):
         """
         生成日文詞彙的模糊變體（Task 7.1: 支持漢字變體）
 
-        支援三種模式：
-        1. return_phonetic_variants=False（舊 API，預設）：
-           返回 List[str]，保持向後兼容
-
-        2. return_phonetic_variants=True（新 API）：
-           返回 List[PhoneticVariant]，包含完整語音資訊和漢字變體
+        增強流程：
+        1. 語音維度生成：調用父類方法獲取假名/羅馬字變體
+        2. 漢字變體生成：為含有漢字的詞彙生成漢字替換變體
+        3. 去重與排序：使用語音 key 去重，按評分和長度排序
 
         Args:
             term: 日文詞彙（漢字/假名/羅馬字）
             max_variants: 最大變體數量（預設 30）
-            return_phonetic_variants: 是否返回 PhoneticVariant 格式（預設 False）
+            include_hardcoded: 是否包含硬編碼規則（預設 True）
 
         Returns:
-            List[str] 或 List[PhoneticVariant]: 變體列表
+            List[PhoneticVariant]: 變體列表，包含完整語音資訊和漢字變體
         """
-        if return_phonetic_variants:
-            # 使用新的增強流程（包含漢字變體）
-            variants = []
+        variants = []
 
-            # ========== 1. 語音維度生成 ==========
-            # 調用父類方法獲取假名/羅馬字變體
-            phonetic_variants = super().generate_variants(
-                term,
-                max_variants=max_variants * 2,  # 多生成一些，後續過濾
-                include_hardcoded=True
-            )
-            variants.extend(phonetic_variants)
+        # ========== 1. 語音維度生成 ==========
+        # 調用父類方法獲取假名/羅馬字變體
+        phonetic_variants = super().generate_variants(
+            term,
+            max_variants=max_variants * 2,  # 多生成一些，後續過濾
+            include_hardcoded=include_hardcoded
+        )
+        variants.extend(phonetic_variants)
 
-            # ========== 2. 漢字變體生成（Task 7.1 新增）==========
-            if self._has_kanji(term):
-                kanji_variants = self._generate_kanji_variants(term)
-                variants.extend(kanji_variants)
+        # ========== 2. 漢字變體生成（Task 7.1 新增）==========
+        if self._has_kanji(term):
+            kanji_variants = self._generate_kanji_variants(term)
+            variants.extend(kanji_variants)
 
-            # ========== 3. 去重與排序 ==========
-            # 使用語音 key 去重
-            seen_phonetic_keys = set()
-            unique_variants = []
+        # ========== 3. 去重與排序 ==========
+        # 使用語音 key 去重
+        seen_phonetic_keys = set()
+        unique_variants = []
 
-            for variant in variants:
-                if variant.phonetic_key not in seen_phonetic_keys:
-                    unique_variants.append(variant)
-                    seen_phonetic_keys.add(variant.phonetic_key)
+        for variant in variants:
+            if variant.phonetic_key not in seen_phonetic_keys:
+                unique_variants.append(variant)
+                seen_phonetic_keys.add(variant.phonetic_key)
 
-            # 按評分降序、長度升序、文字字典序排序
-            sorted_variants = sorted(
-                unique_variants,
-                key=lambda v: (-v.score, len(v.text), v.text)
-            )
+        # 按評分降序、長度升序、文字字典序排序
+        sorted_variants = sorted(
+            unique_variants,
+            key=lambda v: (-v.score, len(v.text), v.text)
+        )
 
-            return sorted_variants[:max_variants]
-
-        # 使用舊邏輯（向後兼容）
-        return self._generate_variants_legacy(term, max_variants)
-
-    def _generate_variants_legacy(self, term: str, max_variants: int = 30) -> List[str]:
-        """
-        舊版變體生成邏輯（向後兼容）
-
-        Args:
-            term: 日文詞彙
-            max_variants: 最大變體數量
-
-        Returns:
-            List[str]: 可能的錯誤拼寫列表
-        """
-        hira_parts = self._kanji_to_hiragana_list(term)
-        base_hira = "".join(hira_parts)
-
-        char_options = [self._get_kana_variations(ch) for ch in base_hira]
-
-        kana_combinations = []
-        for i, combo in enumerate(itertools.product(*char_options)):
-            if i > 50:
-                break
-            kana_combinations.append("".join(combo))
-
-        final_kana_variants = set()
-        for combo in kana_combinations:
-            final_kana_variants.update(self._apply_kana_phrase_rules(combo))
-
-        cutlet_katsu = _get_cutlet()
-        romaji_variants = set()
-
-        for k_var in list(final_kana_variants)[:10]:
-            try:
-                r_base = cutlet_katsu.romaji(k_var)
-                if not r_base:
-                    continue
-                r_clean = r_base.replace(" ", "")
-                romaji_variants.update(self._apply_romaji_config_rules(r_clean))
-            except Exception:
-                continue
-
-        all_variants = final_kana_variants.union(romaji_variants)
-        if term in all_variants:
-            all_variants.remove(term)
-
-        # 收斂同音變體 (只保留發音相同的第一個)
-        variant_list = sorted(list(all_variants), key=lambda x: (len(x), x))
-        filtered_result = self.filter_homophones(variant_list)
-
-        # 只返回保留的變體
-        return filtered_result["kept"][:max_variants]
+        return sorted_variants[:max_variants]
 
     # ========== 保留現有方法 ==========
 

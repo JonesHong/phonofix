@@ -78,22 +78,11 @@ class TestEnglishFuzzyGeneratorRefactored:
         # 應該返回列表
         assert isinstance(hardcoded, list)
 
-    def test_backward_compatibility_simple(self):
-        """測試向後兼容性 - 簡單模式"""
-        # 舊 API：返回 List[str]
-        variants = self.generator.generate_variants("Python")
-
-        # 應該返回字串列表
-        assert isinstance(variants, list)
-        assert all(isinstance(v, str) for v in variants)
-
-    def test_new_phonetic_variant_mode(self):
-        """測試新的 PhoneticVariant 模式"""
-        # 新 API：return_phonetic_variants=True
+    def test_basic_variant_generation(self):
+        """測試基本的變體生成"""
         variants = self.generator.generate_variants(
             "Python",
-            max_variants=10,
-            return_phonetic_variants=True
+            max_variants=10
         )
 
         # 應該返回 PhoneticVariant 列表
@@ -120,8 +109,7 @@ class TestEnglishFuzzyGeneratorRefactored:
         """測試變體來源類型"""
         variants = self.generator.generate_variants(
             "Python",
-            max_variants=20,
-            return_phonetic_variants=True
+            max_variants=20
         )
 
         if len(variants) > 0:
@@ -136,8 +124,7 @@ class TestEnglishFuzzyGeneratorRefactored:
         """測試評分計算"""
         variants = self.generator.generate_variants(
             "Python",
-            max_variants=10,
-            return_phonetic_variants=True
+            max_variants=10
         )
 
         if len(variants) > 0:

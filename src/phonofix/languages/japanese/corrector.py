@@ -15,7 +15,6 @@
 from typing import Dict, List, Optional, Any, Tuple, Generator, Callable, TYPE_CHECKING
 import logging
 
-from phonofix.correction.protocol import CorrectorProtocol
 from phonofix.core import BaseCorrector
 from .phonetic_impl import JapanesePhoneticSystem
 from .tokenizer import JapaneseTokenizer

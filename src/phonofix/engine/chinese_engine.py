@@ -219,7 +219,8 @@ class ChineseEngine(CorrectorEngine):
         if not value.get("aliases"):
             with self._log_timing(f"generate_variants({term})"):
                 fuzzy_result = self._fuzzy_generator.generate_variants(term)
-            auto_aliases = [alias for alias in fuzzy_result if alias != term]
+            # fuzzy_result 現在是 List[PhoneticVariant]，提取 text
+            auto_aliases = [variant.text for variant in fuzzy_result if variant.text != term]
             auto_aliases = self._filter_aliases_by_pinyin(auto_aliases)
             value["aliases"] = auto_aliases
             

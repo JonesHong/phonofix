@@ -262,9 +262,12 @@ def example_7_homophone_filtering():
 
     generator = ChineseFuzzyGenerator()
 
-    # 生成變體
+    # 生成變體 (返回 List[PhoneticVariant])
     term = "台北車站"
-    all_variants = generator.generate_variants(term)
+    phonetic_variants = generator.generate_variants(term)
+
+    # 提取變體文字
+    all_variants = [v.text for v in phonetic_variants]
 
     # filter_homophones 接受一個列表，過濾同音詞
     filter_result = generator.filter_homophones([term] + all_variants)

@@ -210,14 +210,16 @@ class EnglishEngine(CorrectorEngine):
         
         if should_auto_generate:
             with self._log_timing(f"generate_variants({term})"):
-                auto_variants = self._fuzzy_generator.generate_variants(term)
-            
-            # 合併別名，避免重複
+                phonetic_variants = self._fuzzy_generator.generate_variants(term)
+
+            # 合併別名，避免重複 (phonetic_variants 現在是 List[PhoneticVariant])
             current_aliases = set(value["aliases"])
-            for variant in auto_variants:
-                if variant != term and variant not in current_aliases:
-                    value["aliases"].append(variant)
-            
+            auto_variants = []
+            for variant in phonetic_variants:
+                if variant.text != term and variant.text not in current_aliases:
+                    value["aliases"].append(variant.text)
+                    auto_variants.append(variant.text)
+
             # 日誌輸出變體詳情
             if auto_variants:
                 self._logger.debug(f"  [Variants] {term} -> {auto_variants[:5]}{'...' if len(auto_variants) > 5 else ''}")

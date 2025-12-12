@@ -192,8 +192,7 @@ class TestGenerateVariantsWithKanji:
         """測試新 API 返回 PhoneticVariant"""
         variants = self.generator.generate_variants(
             "東京",
-            max_variants=20,
-            return_phonetic_variants=True
+            max_variants=20
         )
 
         assert isinstance(variants, list)
@@ -203,8 +202,7 @@ class TestGenerateVariantsWithKanji:
         """測試漢字詞彙包含漢字變體"""
         variants = self.generator.generate_variants(
             "東京",
-            max_variants=30,
-            return_phonetic_variants=True
+            max_variants=30
         )
 
         # 應該包含原詞
@@ -222,8 +220,7 @@ class TestGenerateVariantsWithKanji:
         """測試假名詞彙不生成漢字變體"""
         variants = self.generator.generate_variants(
             "ひらがな",
-            max_variants=20,
-            return_phonetic_variants=True
+            max_variants=20
         )
 
         # 不應該包含 kanji_variant 類型的變體
@@ -237,8 +234,7 @@ class TestGenerateVariantsWithKanji:
         """測試語音變體和漢字變體同時存在"""
         variants = self.generator.generate_variants(
             "会社",
-            max_variants=30,
-            return_phonetic_variants=True
+            max_variants=30
         )
 
         # 應該有語音模糊變體
@@ -260,8 +256,7 @@ class TestGenerateVariantsWithKanji:
         """測試語音 key 去重"""
         variants = self.generator.generate_variants(
             "東京",
-            max_variants=30,
-            return_phonetic_variants=True
+            max_variants=30
         )
 
         # 檢查是否有重複的語音 key
@@ -273,8 +268,7 @@ class TestGenerateVariantsWithKanji:
         """測試按評分排序"""
         variants = self.generator.generate_variants(
             "東京",
-            max_variants=30,
-            return_phonetic_variants=True
+            max_variants=30
         )
 
         # 評分應該按降序排列
@@ -288,8 +282,7 @@ class TestGenerateVariantsWithKanji:
         max_limit = 10
         variants = self.generator.generate_variants(
             "東京",
-            max_variants=max_limit,
-            return_phonetic_variants=True
+            max_variants=max_limit
         )
 
         # 不應該超過限制
@@ -307,8 +300,7 @@ class TestAcceptanceCriteria:
         """驗收標準 1: 保留原詞漢字形式"""
         variants = self.generator.generate_variants(
             "東京",
-            max_variants=30,
-            return_phonetic_variants=True
+            max_variants=30
         )
 
         # 原詞應該存在且評分最高
@@ -328,8 +320,7 @@ class TestAcceptanceCriteria:
         """驗收標準 3: 評分機制合理"""
         variants = self.generator.generate_variants(
             "東京",
-            max_variants=30,
-            return_phonetic_variants=True
+            max_variants=30
         )
 
         # 所有評分應該在 0.0-1.0 之間

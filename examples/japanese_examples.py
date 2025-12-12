@@ -280,7 +280,10 @@ def example_7_phonetic_variants():
     ]
 
     for term in terms:
-        variants = generator.generate_variants(term)
+        # 生成變體 (返回 List[PhoneticVariant])
+        phonetic_variants = generator.generate_variants(term)
+        # 提取變體文字
+        variants = [v.text for v in phonetic_variants]
         print(f"目標詞: {term}")
         print(f"生成的變體數: {len(variants)}")
         print(f"前10個變體: {variants[:10]}")

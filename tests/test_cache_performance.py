@@ -83,14 +83,14 @@ class TestCachingPerformance:
         # === 測試無緩存性能（第一次調用）===
         start_time = time.perf_counter()
         for term in test_terms:
-            generator.generate_variants(term, max_variants=20, return_phonetic_variants=True)
+            generator.generate_variants(term, max_variants=20)
         first_run_time = time.perf_counter() - start_time
 
         # === 測試有緩存性能（重複調用）===
         start_time = time.perf_counter()
         for _ in range(10):
             for term in test_terms:
-                generator.generate_variants(term, max_variants=20, return_phonetic_variants=True)
+                generator.generate_variants(term, max_variants=20)
         repeated_run_time = time.perf_counter() - start_time
 
         # 計算平均單次調用時間

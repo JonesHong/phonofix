@@ -98,8 +98,7 @@ class TestReturnTypeConsistency:
         for gen, term in test_cases:
             variants = gen.generate_variants(
                 term,
-                max_variants=5,
-                return_phonetic_variants=True
+                max_variants=5
             )
 
             # 應返回列表
@@ -152,8 +151,7 @@ class TestScoringConsistency:
         for gen, term in test_cases:
             variants = gen.generate_variants(
                 term,
-                max_variants=10,
-                return_phonetic_variants=True
+                max_variants=10
             )
 
             for variant in variants:
@@ -170,8 +168,7 @@ class TestScoringConsistency:
         for gen, term in test_cases:
             variants = gen.generate_variants(
                 term,
-                max_variants=10,
-                return_phonetic_variants=True
+                max_variants=10
             )
 
             if len(variants) > 1:
@@ -193,8 +190,7 @@ class TestVariantSourceTypes:
         for gen, term in test_cases:
             variants = gen.generate_variants(
                 term,
-                max_variants=10,
-                return_phonetic_variants=True
+                max_variants=10
             )
 
             for variant in variants:
@@ -222,8 +218,7 @@ class TestMaxVariantsLimit:
             # PhoneticVariant 模式
             variants_new = gen.generate_variants(
                 term,
-                max_variants=max_limit,
-                return_phonetic_variants=True
+                max_variants=max_limit
             )
             assert len(variants_new) <= max_limit
 
