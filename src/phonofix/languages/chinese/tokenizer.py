@@ -7,6 +7,7 @@
 from typing import List, Tuple
 from phonofix.core.tokenizer_interface import Tokenizer
 
+
 class ChineseTokenizer(Tokenizer):
     """
     中文分詞器

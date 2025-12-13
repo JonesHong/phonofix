@@ -14,15 +14,12 @@
         is_english_available,
     )
 
-安裝指引:
-    預設安裝 (全部): pip install phonofix
-    僅中文支援: pip install "phonofix[ch]"
-    僅英文支援: pip install "phonofix[en]"
-    完整安裝: pip install "phonofix[all]"
 """
 
 from typing import Optional, Callable, Any, Tuple
 
+from phonofix.languages.chinese import CHINESE_INSTALL_HINT
+from phonofix.languages.english import ENGLISH_INSTALL_HINT
 
 # =============================================================================
 # 全域狀態 - 中文依賴
@@ -37,29 +34,6 @@ _pinyin2hanzi_params = None
 
 _hanziconv_available: Optional[bool] = None
 _hanziconv_module = None
-
-
-# =============================================================================
-# 安裝提示訊息
-# =============================================================================
-
-CHINESE_INSTALL_HINT = (
-    "缺少中文依賴。請執行:\n"
-    "  pip install \"phonofix[ch]\"\n"
-    "或安裝完整版本:\n"
-    "  pip install phonofix"
-)
-
-ENGLISH_INSTALL_HINT = (
-    "缺少英文依賴。請執行:\n"
-    "  pip install \"phonofix[en]\"\n"
-    "或安裝完整版本:\n"
-    "  pip install phonofix\n\n"
-    "注意: 英文支援還需要安裝 espeak-ng 系統套件:\n"
-    "  Windows: https://github.com/espeak-ng/espeak-ng/releases\n"
-    "  macOS: brew install espeak-ng\n"
-    "  Linux: apt install espeak-ng"
-)
 
 
 # =============================================================================

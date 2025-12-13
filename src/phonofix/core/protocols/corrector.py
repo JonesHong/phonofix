@@ -26,15 +26,10 @@ class CorrectorProtocol(Protocol):
 
 
 @runtime_checkable
-class ContextAwareCorrectorProtocol(Protocol):
+class ContextAwareCorrectorProtocol(CorrectorProtocol, Protocol):
     """
     上下文感知修正器協議
 
     用於支援傳入完整上下文，以進行更準確的判斷（例如 keywords / exclude_when）。
     """
-
-    def correct(
-        self, text: str, full_context: str | None = None, silent: bool = False
-    ) -> str:
-        """修正文本（可選完整上下文/靜默模式）"""
-        ...
+    pass

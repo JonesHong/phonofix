@@ -98,6 +98,8 @@ class ChinesePhoneticSystem(PhoneticSystem):
         Returns:
             float: 容錯率數值
         """
-        if length == 2: return 0.20
-        elif length == 3: return 0.30
+        if length == 2:
+            return 0.20
+        if length == 3:
+            return 0.30
         return 0.40

@@ -11,9 +11,7 @@ Supports **Code-Switching** (mixed Chinese-English) scenarios via manual chainin
 
 The core mechanism of this package is to uniformly map text from different languages into a **phonetic vector space** (composed of Pinyin and IPA phonetic symbols).
 
-Whether it's spelling errors from ASR (Automatic Speech Recognition), LLM (Large Language Models), or other scenarios—typically caused by rare proper nouns leading to incorrect character selection—this tool converts them to the **Pinyin/IPA dimension**.
-
-The system then compares these converted phonetic features with **user-provided proper nouns** (plus system-generated fuzzy phonetic variants) to calculate probability and precisely replace spelling errors.
+Spelling errors can come from ASR, LLMs, or manual typing. Instead of overfitting to any single source, this tool converts text into the **Pinyin/IPA dimension**, then uses **fuzzy phonetic variants** to map misspellings back to the user-defined canonical proper nouns.
 
 > ⚠️ **Note**: This is not a full-text spell checker, but focuses on "phonetic similarity substitution for proper nouns."
 
@@ -24,7 +22,7 @@ Users must provide their own proper noun dictionary. This tool will:
 2. **Intelligent vocabulary substitution**: Automatically identify language segments and replace phonetically similar words with your specified standard proper nouns
 
 **Use Cases**:
-- **ASR Post-Processing**: Correct proper noun errors from speech-to-text (including mixed Chinese-English)
+- **Spelling-Error Post-Processing**: Restore proper nouns in noisy text (ASR/LLM/manual typing; including mixed Chinese-English)
 - **LLM Output Post-Processing**: Correct homophone/near-homophone errors when LLMs choose wrong characters for rare proper nouns
 - **Proper Noun Standardization**: Restore colloquial/misspelled terms to their formal names
 - **Regional Vocabulary Conversion**: Mainland China terms ↔ Taiwan terms
@@ -49,7 +47,7 @@ Users must provide their own proper noun dictionary. This tool will:
   - n/l confusion (Taiwanese Mandarin)
   - r/l confusion, f/h confusion
   - Final vowel confusion (in/ing, en/eng, ue/ie, etc.)
-- **English**: Automatically generates common ASR/LLM error variants
+- **English**: Automatically generates common phonetic-variant spellings (ASR/LLM/typing)
   - Syllable split variants ("TensorFlow" → "Ten so floor")
   - Acronym expansion variants ("AWS" → "A W S")
 
@@ -195,9 +193,9 @@ def correct(text: str) -> str:
     text = ch_corrector.correct(text, full_context=text)
     return text
 
-# ASR output post-processing
-asr_text = "我在胎北車站用Pyton寫Ten so floor的code"
-print(correct(asr_text))
+# Text post-processing (ASR/LLM/manual typos)
+noisy_text = "我在胎北車站用Pyton寫Ten so floor的code"
+print(correct(noisy_text))
 # Output: "我在台北車站用Python寫TensorFlow的code"
 
 # LLM output post-processing (LLM may choose wrong homophones for rare words)
@@ -434,7 +432,7 @@ phonofix/
 
 The following examples demonstrate how to create your own proper noun dictionary for different business scenarios:
 
-### 1. ASR Post-Processing
+### 1. Text Post-Processing
 
 **Problem**: Speech recognition often mishears proper nouns as phonetically similar common words
 
@@ -447,9 +445,9 @@ en_corrector = EnglishEngine().create_corrector({
     "Kubernetes": ["koo ber netes"],
 })
 
-# ASR output: proper nouns misheard
-asr_output = "我買了流奶，蘭後用Ten so floor訓練模型"
-result = ch_corrector.correct(en_corrector.correct(asr_output, full_context=asr_output), full_context=asr_output)
+# Noisy input: proper nouns misheard/misspelled
+noisy_input = "我買了流奶，蘭後用Ten so floor訓練模型"
+result = ch_corrector.correct(en_corrector.correct(noisy_input, full_context=noisy_input), full_context=noisy_input)
 # Result: "我買了牛奶，然後用TensorFlow訓練模型"
 ```
 
@@ -561,7 +559,7 @@ uv run python examples/realtime_streaming_examples.py
 |-------|----------|-------------|
 | Retroflex | z ⇄ zh, c ⇄ ch, s ⇄ sh | Common in Taiwanese Mandarin |
 | n/l confusion | n ⇄ l | Taiwanese Mandarin characteristic |
-| r/l confusion | r ⇄ l | Common ASR error |
+| r/l confusion | r ⇄ l | Common in ASR/typing |
 | f/h confusion | f ⇄ h | Dialect influence |
 
 **Final Vowel Fuzzy Mapping**
@@ -579,7 +577,7 @@ uv run python examples/realtime_streaming_examples.py
 
 Uses [phonemizer](https://github.com/bootphon/phonemizer) to convert English to IPA (International Phonetic Alphabet), then calculates Levenshtein edit distance.
 
-**Common ASR/LLM Error Types**
+**Common Error Patterns**
 | Error Type | Example | Description |
 |------------|---------|-------------|
 | Syllable splitting | "TensorFlow" → "Ten so floor" | Speech recognition split error |

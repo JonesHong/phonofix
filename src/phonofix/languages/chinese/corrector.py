@@ -1,7 +1,7 @@
 """
 中文修正器模組
 
-實作針對中文語音識別 (ASR) 錯誤的修正邏輯。
+實作針對中文拼寫錯誤的修正邏輯（常見來源包含 ASR/LLM/手動輸入）。
 核心演算法基於拼音相似度 (Pinyin Similarity) 與編輯距離 (Levenshtein Distance)。
 
 使用方式:
@@ -13,9 +13,6 @@
 
 注意：此模組使用延遲導入 (Lazy Import) 機制，
 僅在實際使用中文功能時才會載入 pypinyin。
-
-安裝中文支援:
-    pip install "phonofix[ch]"
 """
 
 import Levenshtein
@@ -25,6 +22,7 @@ from functools import lru_cache
 from typing import Generator, Optional, Callable, Dict, List, Any, TYPE_CHECKING, Union
 from .config import ChinesePhoneticConfig
 from .utils import ChinesePhoneticUtils, _get_pypinyin
+from phonofix.core.protocols.corrector import ContextAwareCorrectorProtocol
 from phonofix.utils.logger import get_logger, TimingContext
 
 if TYPE_CHECKING:
@@ -51,7 +49,7 @@ def cached_get_initials(text: str) -> tuple:
     return tuple(pypinyin.lazy_pinyin(text, style=pypinyin.INITIALS, strict=False))
 
 
-class ChineseCorrector:
+class ChineseCorrector(ContextAwareCorrectorProtocol):
     """
     中文修正器
 
@@ -59,7 +57,7 @@ class ChineseCorrector:
     - 載入專有名詞庫並建立搜尋索引
     - 針對輸入文本進行滑動視窗掃描
     - 結合拼音模糊比對與上下文關鍵字驗證
-    - 修正 ASR 產生的同音異字或近音字錯誤
+    - 修正同音異字或近音字造成的拼寫錯誤
     
     建立方式:
         使用 ChineseEngine.create_corrector() 建立實例
@@ -88,6 +86,8 @@ class ChineseCorrector:
         instance = cls.__new__(cls)
         instance._engine = engine
         instance._logger = get_logger("corrector.chinese")
+        instance.phonetic = engine.phonetic
+        instance.tokenizer = engine.tokenizer
         instance.config = engine.config
         instance.utils = engine.utils
         instance.use_canonical = True
@@ -225,12 +225,12 @@ class ChineseCorrector:
             return True, min_distance
         return False, None
 
-    def _build_protection_mask(self, asr_text):
+    def _build_protection_mask(self, text: str) -> set[int]:
         """建立保護遮罩，標記不應被修正的區域 (受保護的詞彙)"""
         protected_indices = set()
         if self.protected_terms:
             for protected_term in self.protected_terms:
-                for match in re.finditer(re.escape(protected_term), asr_text):
+                for match in re.finditer(re.escape(protected_term), text):
                     for idx in range(match.start(), match.end()):
                         protected_indices.add(idx)
         return protected_indices
@@ -396,22 +396,20 @@ class ChineseCorrector:
             "has_context": has_context,
         }
 
-    def _process_exact_match(self, asr_text, start_idx, original_segment, item):
+    def _process_exact_match(self, text: str, start_idx: int, original_segment: str, item: Dict[str, Any]):
         """處理完全匹配的情況 (別名精確匹配)"""
         if original_segment != item["term"]:
             return None
         
         # 檢查關鍵字必要條件：如果有定義 keywords 但沒命中，則跳過
-        if not self._has_required_keyword(asr_text, item["keywords"]):
+        if not self._has_required_keyword(text, item["keywords"]):
             return None
         
         # 檢查上下文排除條件：如果有定義 exclude_when 且命中，則跳過
-        if self._should_exclude_by_context(asr_text, item["exclude_when"]):
+        if self._should_exclude_by_context(text, item["exclude_when"]):
             return None
         
-        has_context, context_distance = self._check_context_bonus(
-            asr_text, start_idx, start_idx + item["len"], item["keywords"]
-        )
+        has_context, context_distance = self._check_context_bonus(text, start_idx, start_idx + item["len"], item["keywords"])
         final_score = self._calculate_final_score(
             0.0, item, has_context, context_distance
         )
@@ -419,7 +417,7 @@ class ChineseCorrector:
             start_idx, item["len"], original_segment, item, final_score, has_context
         )
 
-    def _process_fuzzy_match(self, asr_text, start_idx, original_segment, item):
+    def _process_fuzzy_match(self, text: str, start_idx: int, original_segment: str, item: Dict[str, Any]):
         """
         處理模糊匹配
 
@@ -435,11 +433,11 @@ class ChineseCorrector:
         word_len = item["len"]
         
         # 檢查關鍵字必要條件：如果有定義 keywords 但沒命中，則跳過
-        if not self._has_required_keyword(asr_text, item["keywords"]):
+        if not self._has_required_keyword(text, item["keywords"]):
             return None
         
         # 檢查上下文排除條件：如果有定義 exclude_when 且命中，則跳過
-        if self._should_exclude_by_context(asr_text, item["exclude_when"]):
+        if self._should_exclude_by_context(text, item["exclude_when"]):
             return None
         
         threshold = self._get_dynamic_threshold(word_len, item["is_mixed"])
@@ -452,9 +450,7 @@ class ChineseCorrector:
             return None
         if not self._check_initials_match(original_segment, item):
             return None
-        has_context, context_distance = self._check_context_bonus(
-            asr_text, start_idx, start_idx + word_len, item["keywords"]
-        )
+        has_context, context_distance = self._check_context_bonus(text, start_idx, start_idx + word_len, item["keywords"])
         final_score = self._calculate_final_score(
             error_ratio, item, has_context, context_distance
         )
@@ -465,13 +461,13 @@ class ChineseCorrector:
             start_idx, word_len, original_segment, item, final_score, has_context
         )
 
-    def _find_candidates(self, asr_text, protected_indices):
+    def _find_candidates(self, text: str, protected_indices: set[int]) -> list[Dict[str, Any]]:
         """
         搜尋所有可能的修正候選
 
         遍歷所有索引項目，在文本中進行滑動視窗比對。
         """
-        text_len = len(asr_text)
+        text_len = len(text)
         candidates = []
         for item in self.search_index:
             word_len = item["len"]
@@ -480,13 +476,13 @@ class ChineseCorrector:
             for i in range(text_len - word_len + 1):
                 if self._is_segment_protected(i, word_len, protected_indices):
                     continue
-                original_segment = asr_text[i : i + word_len]
+                original_segment = text[i : i + word_len]
                 if not self._is_valid_segment(original_segment):
                     continue
                 if original_segment in self.protected_terms:
                     continue
                 candidate = self._process_exact_match(
-                    asr_text, i, original_segment, item
+                    text, i, original_segment, item
                 )
                 if candidate:
                     # 匹配詳情日誌
@@ -497,7 +493,7 @@ class ChineseCorrector:
                     candidates.append(candidate)
                     continue
                 candidate = self._process_fuzzy_match(
-                    asr_text, i, original_segment, item
+                    text, i, original_segment, item
                 )
                 if candidate:
                     # 匹配詳情日誌
@@ -528,10 +524,10 @@ class ChineseCorrector:
                 final_candidates.append(cand)
         return final_candidates
 
-    def _apply_replacements(self, asr_text, final_candidates, silent=False):
+    def _apply_replacements(self, text: str, final_candidates: list[Dict[str, Any]], silent: bool = False) -> str:
         """應用修正並輸出日誌"""
         final_candidates.sort(key=lambda x: x["start"], reverse=True)
-        final_text_list = list(asr_text)
+        final_text_list = list(text)
         for cand in final_candidates:
             if cand["original"] != cand["replacement"]:
                 if not silent:
@@ -550,7 +546,7 @@ class ChineseCorrector:
         執行修正流程
 
         Args:
-            text: 輸入的 ASR 文本
+            text: 輸入文本
             full_context: 完整上下文（中文目前不使用，保留介面一致性）
             silent: 是否靜默模式 (不輸出修正日誌)
 

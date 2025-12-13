@@ -1,7 +1,9 @@
 """
 英文模糊音配置模組
 
-集中管理英文 ASR 錯誤的模式與規則。
+集中管理英文常見的語音相似/拼寫錯誤模式與規則。
+
+注意：英文語音功能依賴系統套件 espeak-ng（詳見 README）。
 """
 
 
@@ -47,14 +49,14 @@ class EnglishPhoneticConfig:
         (r'er$', 'a'),               # docker -> docka
         (r'er$', 'er'),              # 保留原形
         (r'or$', 'er'),              # tensor -> tenser
-                (r'le$', 'el'),              # google -> googel
+        (r'le$', 'el'),              # google -> googel
 
         (r'que$', 'k'),              # technique -> technik
     ]
     
-    # 常見 ASR 分詞模式
-    # 格式: 原始詞根 -> [可能的 ASR 錯誤分詞]
-    # 擴展: 涵蓋更多常見技術詞彙的 ASR 錯誤
+    # 常見分詞模式（常見來源包含 ASR/語音輸入）
+    # 格式: 原始詞根 -> [可能的錯誤分詞]
+    # 擴展: 涵蓋更多常見技術詞彙的錯誤分詞
     ASR_SPLIT_PATTERNS = {
         # 基礎模式
         'tensor': ['ten so', 'ten sor', 'tense or', 'ten sir'],

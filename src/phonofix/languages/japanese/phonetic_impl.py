@@ -4,6 +4,8 @@
 實作基於 Cutlet (Romaji) 的日文發音轉換。
 """
 
+from __future__ import annotations
+
 from typing import Tuple
 from phonofix.core.phonetic_interface import PhoneticSystem
 from .utils import _get_cutlet
@@ -77,11 +79,7 @@ class JapanesePhoneticSystem(PhoneticSystem):
             
         ratio = dist / max_len
         
-        # 3. 判斷是否匹配
-        # 容錯率：短詞較嚴格，長詞較寬鬆
-        tolerance = 0.25 if max_len > 5 else 0.15
-        
-        return ratio, ratio <= tolerance
+        return ratio, ratio <= self.get_tolerance(max_len)
 
     def _normalize_phonetic(self, phonetic: str) -> str:
         """
@@ -113,46 +111,28 @@ class JapanesePhoneticSystem(PhoneticSystem):
             
         return normalized
 
-    def are_fuzzy_similar(self, phonetic1: str, phonetic2: str, tolerance: int = 1) -> bool:
+    def are_fuzzy_similar(self, phonetic1: str, phonetic2: str) -> bool:
         """
         判斷兩個羅馬拼音是否模糊相似
 
         Args:
             phonetic1: 拼音字串 1
             phonetic2: 拼音字串 2
-            tolerance: 容許的編輯距離
 
         Returns:
             bool: 是否相似
         """
-        import Levenshtein
-        
-        # 1. 直接比對原始拼音
-        dist_raw = Levenshtein.distance(phonetic1, phonetic2)
-        if dist_raw <= tolerance:
-            return True
-            
-        # 2. 比對正規化後的拼音 (處理長音、促音等模糊音)
-        norm1 = self._normalize_phonetic(phonetic1)
-        norm2 = self._normalize_phonetic(phonetic2)
-        
-        dist_norm = Levenshtein.distance(norm1, norm2)
-        return dist_norm <= tolerance
+        _, is_match = self.calculate_similarity_score(phonetic1, phonetic2)
+        return is_match
 
-    def get_tolerance(self, text_len: int) -> int:
+    def get_tolerance(self, length: int) -> float:
         """
         根據文本長度決定容錯率
 
         Args:
-            text_len: 文本長度
+            length: 發音字串長度
 
         Returns:
-            int: 容許的編輯距離
+            float: 容錯率閾值（0.0 ~ 1.0，越低越嚴格）
         """
-        if text_len <= 3:
-            return 0
-        elif text_len <= 6:
-            return 1
-        else:
-            return 2
-
+        return 0.25 if length > 5 else 0.15

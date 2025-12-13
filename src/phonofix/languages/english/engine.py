@@ -67,8 +67,14 @@ class EnglishEngine(CorrectorEngine):
     def get_backend_stats(self) -> Dict[str, Any]:
         return self._backend.get_cache_stats()
 
-    def create_corrector(self, term_dict: TermDictInput, **kwargs) -> EnglishCorrector:
+    def create_corrector(
+        self,
+        term_dict: TermDictInput,
+        protected_terms: Optional[list[str]] = None,
+        **kwargs,
+    ) -> EnglishCorrector:
         with self._log_timing("EnglishEngine.create_corrector"):
+            _ = protected_terms
             normalized_input = normalize_term_dict(term_dict)
 
             normalized_dict = {}

@@ -11,9 +11,7 @@
 
 此套件的核心機制是將不同語言的文本統一映射到**語音向量空間**（由拼音、IPA 音標組成）。
 
-無論是 ASR（語音識別）、LLM（大型語言模型）或其他場景出現的拼寫錯誤——通常是因為專有名詞罕見導致選字錯誤——本工具都會將其轉換到**拼音/音標維度**。
-
-接著，系統會將這些轉換後的語音特徵，與**使用者提供的專有名詞**（加上系統自動生成的模糊音變體）進行比對，計算可能性，進而精準替換拼寫錯誤。
+拼寫錯誤不只來自 ASR，也可能來自 LLM 或使用者手動輸入。與其過度強調某一種來源，本工具會先將文本轉到**拼音/音標維度**，再透過**模糊音變體**把錯寫/聽寫回到使用者定義的 canonical 專有名詞。
 
 > ⚠️ **注意**：這不是全文糾錯工具，而是專注於「專有名詞的語音相似替換」。
 
@@ -24,7 +22,7 @@
 2. **智能詞彙替換**：自動識別語言片段，將語音相似的詞彙替換為您指定的標準專有名詞
 
 **適用場景**：
-- **ASR 語音識別後處理**：修正語音轉文字產生的專有名詞錯誤（含中英夾雜）
+- **拼寫錯誤後處理**：修正噪聲文本中的專有名詞錯誤（ASR/LLM/手動輸入；含中英夾雜）
 - **LLM 輸出後處理**：修正大型語言模型因專有名詞罕見而選錯的同音字/近音字
 - **專有名詞標準化**：將口語/誤寫的術語還原為正式名稱
 - **地域詞彙轉換**：中國慣用詞 ↔ 台灣慣用詞
@@ -49,7 +47,7 @@
   - n/l 不分 (台灣國語)
   - r/l 混淆、f/h 混淆
   - 韻母模糊 (in/ing, en/eng, ue/ie 等)
-- **英文**：自動產生 ASR/LLM 常見錯誤變體
+- **英文**：自動產生常見的語音型錯寫變體（ASR/LLM/輸入）
   - 音節分割變體 ("TensorFlow" → "Ten so floor")
   - 縮寫展開變體 ("AWS" → "A W S")
 
@@ -195,9 +193,9 @@ def correct(text: str) -> str:
     text = ch_corrector.correct(text, full_context=text)
     return text
 
-# ASR 輸出後處理
-asr_text = "我在胎北車站用Pyton寫Ten so floor的code"
-print(correct(asr_text))
+# 文本後處理（ASR/LLM/手動輸入錯字）
+noisy_text = "我在胎北車站用Pyton寫Ten so floor的code"
+print(correct(noisy_text))
 # 輸出: "我在台北車站用Python寫TensorFlow的code"
 
 # LLM 輸出後處理 (LLM 可能因罕見詞而選錯同音字)
@@ -434,7 +432,7 @@ phonofix/
 
 以下範例展示不同業務場景下，如何建立您自己的專有名詞字典：
 
-### 1. ASR 語音識別後處理
+### 1. 文本後處理
 
 **問題**：語音識別常將專有名詞聽錯成發音相近的一般詞彙
 
@@ -447,9 +445,9 @@ en_corrector = EnglishEngine().create_corrector({
     "Kubernetes": ["koo ber netes"],
 })
 
-# ASR 輸出：專有名詞被聽錯
-asr_output = "我買了流奶，蘭後用Ten so floor訓練模型"
-result = ch_corrector.correct(en_corrector.correct(asr_output, full_context=asr_output), full_context=asr_output)
+# 噪聲文本：專有名詞被聽錯/打錯
+noisy_input = "我買了流奶，蘭後用Ten so floor訓練模型"
+result = ch_corrector.correct(en_corrector.correct(noisy_input, full_context=noisy_input), full_context=noisy_input)
 # 結果: "我買了牛奶，然後用TensorFlow訓練模型"
 ```
 
@@ -561,7 +559,7 @@ uv run python examples/realtime_streaming_examples.py
 |------|------|------|
 | 捲舌音 | z ⇄ zh, c ⇄ ch, s ⇄ sh | 台灣國語常見 |
 | n/l 不分 | n ⇄ l | 台灣國語特色 |
-| r/l 混淆 | r ⇄ l | ASR 常見錯誤 |
+| r/l 混淆 | r ⇄ l | 常見於 ASR/輸入 |
 | f/h 混淆 | f ⇄ h | 方言影響 |
 
 **韻母模糊對應**
@@ -579,7 +577,7 @@ uv run python examples/realtime_streaming_examples.py
 
 使用 [phonemizer](https://github.com/bootphon/phonemizer) 將英文轉換為 IPA (國際音標)，再計算 Levenshtein 編輯距離。
 
-**常見 ASR/LLM 錯誤類型**
+**常見錯誤模式**
 | 錯誤類型 | 範例 | 說明 |
 |----------|------|------|
 | 音節分割 | "TensorFlow" → "Ten so floor" | 語音辨識分割錯誤 |

@@ -1,7 +1,7 @@
 ﻿"""
 英文模糊變體生成器
 
-從專有名詞的 IPA 音標反推可能的 ASR 錯誤拼寫變體。
+從專有名詞的 IPA 音標反推可能的拼寫錯誤變體。
 """
 
 # eng_to_ipa 已移除，改用 phonemizer (見 phonetic_impl.py)
@@ -9,14 +9,15 @@ import re
 from itertools import product
 from typing import List, Set
 from .config import EnglishPhoneticConfig
+from phonofix.core.protocols.fuzzy import FuzzyGeneratorProtocol
 
 
-class EnglishFuzzyGenerator:
+class EnglishFuzzyGenerator(FuzzyGeneratorProtocol):
     """
     英文模糊變體生成器
     
     策略:
-    1. 常見 ASR 分詞錯誤 (TensorFlow -> Ten so floor)
+    1. 常見分詞錯誤 (TensorFlow -> Ten so floor)
     2. 字母發音錯誤 (API -> a p i)
     3. 數字/字母混淆 (EKG -> 1 kg, B2B -> b to b)
     4. 常見拼寫錯誤模式 (Python -> Pyton)
@@ -28,7 +29,7 @@ class EnglishFuzzyGenerator:
     
     def generate_variants(self, term: str, max_variants: int = 30) -> List[str]:
         """
-        為專有名詞生成可能的 ASR 錯誤變體
+        為專有名詞生成可能的拼寫錯誤變體
         
         Args:
             term: 正確的專有名詞 (如 "Python", "TensorFlow")
@@ -40,7 +41,7 @@ class EnglishFuzzyGenerator:
         variants: Set[str] = set()
         term_lower = term.lower()
         
-        # 0. 先檢查完整詞彙是否有預定義的 ASR 變體
+        # 0. 先檢查完整詞彙是否有預定義的常見變體
         variants.update(self._generate_full_word_variants(term))
         
         # 1. 處理縮寫 (全大寫詞)
@@ -54,7 +55,7 @@ class EnglishFuzzyGenerator:
         # 3. 應用拼寫錯誤模式
         variants.update(self._apply_spelling_patterns(term))
         
-        # 4. 檢查已知的 ASR 分詞模式 (針對詞的部分)
+        # 4. 檢查已知的分詞模式 (針對詞的部分)
         for key, splits in self.config.ASR_SPLIT_PATTERNS.items():
             if key in term_lower:
                 for split in splits:
@@ -73,7 +74,7 @@ class EnglishFuzzyGenerator:
     
     def _generate_full_word_variants(self, term: str) -> Set[str]:
         """
-        為完整詞彙生成預定義的 ASR 變體
+        為完整詞彙生成預定義的常見變體
         
         這是最高優先級的變體來源，直接使用 config 中定義的模式
         """
@@ -115,7 +116,7 @@ class EnglishFuzzyGenerator:
         """
         variants = set()
         
-        # 字母分開版本 (最常見的 ASR 錯誤)
+        # 字母分開版本 (常見錯誤)
         spaced = ' '.join(list(acronym.lower()))
         variants.add(spaced)
         
@@ -163,7 +164,7 @@ class EnglishFuzzyGenerator:
             # 基本分割版本
             variants.add(' '.join(parts).lower())
             
-            # 對每個部分應用 ASR 分詞模式
+            # 對每個部分應用分詞模式
             for i, part in enumerate(parts):
                 part_lower = part.lower()
                 if part_lower in self.config.ASR_SPLIT_PATTERNS:
@@ -200,7 +201,7 @@ class EnglishFuzzyGenerator:
                 continue
             
             # 保留有空格差異的變體 (如 "a p i" vs "api")
-            # 這是 ASR 常見的分詞錯誤
+            # 這是常見的分詞錯誤
             if ' ' in variant and variant.replace(' ', '').lower() == original_lower:
                 filtered.append(variant)
                 continue
@@ -218,7 +219,7 @@ class EnglishFuzzyGenerator:
 # 便捷函數
 def generate_english_variants(term: str, max_variants: int = 20) -> List[str]:
     """
-    為英文專有名詞生成 ASR 錯誤變體
+    為英文專有名詞生成常見拼寫/分詞變體
     
     Args:
         term: 正確的專有名詞

@@ -8,6 +8,7 @@ import re
 from typing import List, Tuple
 from phonofix.core.tokenizer_interface import Tokenizer
 
+
 class EnglishTokenizer(Tokenizer):
     """
     英文分詞器

@@ -4,11 +4,10 @@
 提供日文處理相關的輔助函式，包含延遲載入 (Lazy Loading) 機制。
 """
 
-import importlib
-import logging
 from typing import Any, Optional
 
 from phonofix.utils.logger import get_logger
+from . import JAPANESE_INSTALL_HINT
 
 logger = get_logger(__name__)
 
@@ -35,10 +34,8 @@ def _get_cutlet() -> Any:
             _cutlet_instance = cutlet.Cutlet()
             _cutlet_instance.use_foreign_spelling = False 
         except ImportError as e:
-            logger.error("無法載入 cutlet，請確認是否已安裝 'phonofix[ja]'")
-            raise ImportError(
-                "Missing Japanese dependencies. Please install with: pip install 'phonofix[ja]'"
-            ) from e
+            logger.error("無法載入 cutlet，請確認是否已安裝日文依賴")
+            raise ImportError(JAPANESE_INSTALL_HINT) from e
     return _cutlet_instance
 
 
@@ -57,10 +54,8 @@ def _get_fugashi() -> Any:
             import fugashi
             _fugashi_tagger = fugashi.Tagger()
         except ImportError as e:
-            logger.error("無法載入 fugashi，請確認是否已安裝 'phonofix[ja]'")
-            raise ImportError(
-                "Missing Japanese dependencies. Please install with: pip install 'phonofix[ja]'"
-            ) from e
+            logger.error("無法載入 fugashi，請確認是否已安裝日文依賴")
+            raise ImportError(JAPANESE_INSTALL_HINT) from e
     return _fugashi_tagger
 
 

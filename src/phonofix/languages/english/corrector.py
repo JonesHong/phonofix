@@ -16,13 +16,14 @@ import logging
 from typing import List, Dict, Union, Optional, Set, TYPE_CHECKING, Any, Generator, Callable
 from .phonetic_impl import EnglishPhoneticSystem
 from .tokenizer import EnglishTokenizer
+from phonofix.core.protocols.corrector import ContextAwareCorrectorProtocol
 from phonofix.utils.logger import get_logger, TimingContext
 
 if TYPE_CHECKING:
     from phonofix.languages.english.engine import EnglishEngine
 
 
-class EnglishCorrector:
+class EnglishCorrector(ContextAwareCorrectorProtocol):
     """
     英文修正器
 
@@ -30,7 +31,7 @@ class EnglishCorrector:
     - 針對英文文本進行專有名詞修正
     - 使用滑動視窗掃描文本
     - 結合 IPA 發音相似度進行模糊比對
-    - 支援自動生成 ASR 錯誤變體
+    - 支援自動生成常見分割/聽寫變體
     - 支援 keywords 條件過濾 (需要上下文關鍵字才替換)
     - 支援 exclude_when 上下文排除 (看到排除詞時不替換)
     

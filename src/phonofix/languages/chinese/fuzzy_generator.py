@@ -1,18 +1,16 @@
 """
 中文模糊變體生成器
 
-負責為專有名詞自動生成可能的 ASR 錯誤變體 (同音字/近音字)。
+負責為專有名詞自動生成可能的拼寫錯誤變體（同音字/近音字）。
 
 注意：此模組使用延遲導入 (Lazy Import) 機制，
 僅在實際使用中文功能時才會載入 Pinyin2Hanzi 和 hanziconv。
-
-安裝中文支援:
-    pip install "phonofix[ch]"
 """
 
 import itertools
 from .config import ChinesePhoneticConfig
 from .utils import ChinesePhoneticUtils
+from phonofix.core.protocols.fuzzy import FuzzyGeneratorProtocol
 
 
 # =============================================================================
@@ -38,7 +36,7 @@ def _get_pinyin2hanzi():
         _pinyin2hanzi_dag = dag
         return _pinyin2hanzi_params_class, _pinyin2hanzi_dag
     except ImportError:
-        from phonofix.utils.lazy_imports import CHINESE_INSTALL_HINT
+        from phonofix.languages.chinese import CHINESE_INSTALL_HINT
         raise ImportError(CHINESE_INSTALL_HINT)
 
 
@@ -55,11 +53,11 @@ def _get_hanziconv():
         _imports_checked = True
         return _hanziconv
     except ImportError:
-        from phonofix.utils.lazy_imports import CHINESE_INSTALL_HINT
+        from phonofix.languages.chinese import CHINESE_INSTALL_HINT
         raise ImportError(CHINESE_INSTALL_HINT)
 
 
-class ChineseFuzzyGenerator:
+class ChineseFuzzyGenerator(FuzzyGeneratorProtocol):
     """
     中文模糊變體生成器
 

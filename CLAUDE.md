@@ -20,7 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **混合文本**：自動語言片段識別與分段處理
 
 **適用場景**:
-- **ASR 語音識別後處理**：修正語音轉文字產生的專有名詞錯誤（含中英混合）
+- **拼寫錯誤後處理**：修正噪聲文本中的專有名詞錯誤（ASR/LLM/手動輸入；含中英混合）
 - **LLM 輸出後處理**：修正大型語言模型因專有名詞罕見而選錯的同音字
 - **專有名詞標準化**：技術術語、品牌名稱、人名地名的統一
 - **地域詞彙轉換**：中國 ↔ 台灣慣用詞
@@ -121,7 +121,7 @@ multi_language_corrector/
 
 **6. EnglishPhoneticSystem** (`languages/english/phonetic_impl.py`)
 - IPA (國際音標) 語音相似度計算
-- 解決 ASR 專有名詞錯誤（如 "1kg" → "EKG"）
+- 修正專有名詞的拼寫/聽寫錯誤（常見於 ASR/輸入；如 "1kg" → "EKG"）
 - 使用 `eng_to_ipa` 或 `epitran` 進行文字轉 IPA
 - 容錯率：4字詞 0.35 → 長詞 0.45
 
@@ -160,7 +160,7 @@ multi_language_corrector/
    - 100% 轉換，不需上下文判斷
    - 範例：土豆 ↔ 馬鈴薯、視頻 ↔ 影片
 
-2. **ASR 錯誤/錯別字** (`weight > 0`)
+2. **拼寫錯誤/錯別字** (`weight > 0`)
    - 單向修正（錯誤 → 正確）
    - 需要上下文判斷和拼音模糊匹配
    - 範例：流奶 → 牛奶、花揮 → 發揮

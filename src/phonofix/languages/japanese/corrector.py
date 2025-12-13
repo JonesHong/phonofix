@@ -1,7 +1,7 @@
 """
 日文修正器模組
 
-實作針對日文語音識別 (ASR) 錯誤的修正邏輯。
+實作針對日文拼寫錯誤的修正邏輯（常見來源包含 ASR/LLM/手動輸入）。
 核心演算法基於羅馬拼音 (Romaji) 的相似度比對與滑動視窗掃描。
 
 使用方式:
@@ -15,7 +15,7 @@
 from typing import Dict, List, Optional, Any, Tuple, Generator, Callable, TYPE_CHECKING
 import logging
 
-from phonofix.core.protocols.corrector import CorrectorProtocol
+from phonofix.core.protocols.corrector import ContextAwareCorrectorProtocol
 from .phonetic_impl import JapanesePhoneticSystem
 from .tokenizer import JapaneseTokenizer
 from .config import JapanesePhoneticConfig
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from phonofix.languages.japanese.engine import JapaneseEngine
 
 
-class JapaneseCorrector:
+class JapaneseCorrector(ContextAwareCorrectorProtocol):
     """
     日文修正器
 
@@ -59,7 +59,7 @@ class JapaneseCorrector:
         instance = cls.__new__(cls)
         instance._engine = engine
         instance._logger = get_logger("corrector.japanese")
-        instance.phonetic_system = engine.phonetic
+        instance.phonetic = engine.phonetic
         instance.tokenizer = engine.tokenizer
         
         # 建立搜尋索引
@@ -87,7 +87,7 @@ class JapaneseCorrector:
             
             for alias in targets:
                 # 計算別名的拼音
-                phonetic = self.phonetic_system.to_phonetic(alias)
+                phonetic = self.phonetic.to_phonetic(alias)
                 if not phonetic:
                     continue
                     
@@ -230,7 +230,7 @@ class JapaneseCorrector:
             return []
             
         # 預先計算每個 token 的拼音
-        token_phonetics = [self.phonetic_system.to_phonetic(t) for t in tokens]
+        token_phonetics = [self.phonetic.to_phonetic(t) for t in tokens]
         
         candidates = []
         n = len(tokens)
@@ -238,7 +238,7 @@ class JapaneseCorrector:
         # 2. 滑動視窗掃描
         for item in self.search_index:
             target_len = item["token_count"]
-            # 允許視窗大小彈性 +/- 2 (處理 ASR 分割錯誤)
+        # 允許視窗大小彈性 +/- 2（處理常見的分割錯誤）
             min_len = max(1, target_len - 2)
             max_len = min(n, target_len + 2)
             
@@ -252,9 +252,7 @@ class JapaneseCorrector:
                         continue
                         
                     # 模糊比對
-                    error_ratio, is_match = self.phonetic_system.calculate_similarity_score(
-                        window_phonetic, item["phonetic"]
-                    )
+                    error_ratio, is_match = self.phonetic.calculate_similarity_score(window_phonetic, item["phonetic"])
                     
                     if is_match:
                         # 檢查上下文排除

@@ -5,9 +5,6 @@
 
 注意：此模組使用延遲導入 (Lazy Import) 機制，
 僅在實際使用中文功能時才會載入 pypinyin。
-
-安裝中文支援:
-    pip install "phonofix[ch]"
 """
 
 import re
@@ -30,7 +27,7 @@ def _get_pypinyin():
         if _pypinyin is not None:
             return _pypinyin
         else:
-            from phonofix.utils.lazy_imports import CHINESE_INSTALL_HINT
+            from phonofix.languages.chinese import CHINESE_INSTALL_HINT
             raise ImportError(CHINESE_INSTALL_HINT)
     
     try:
@@ -40,7 +37,7 @@ def _get_pypinyin():
         return _pypinyin
     except ImportError:
         _pypinyin_checked = True
-        from phonofix.utils.lazy_imports import CHINESE_INSTALL_HINT
+        from phonofix.languages.chinese import CHINESE_INSTALL_HINT
         raise ImportError(CHINESE_INSTALL_HINT)
 
 

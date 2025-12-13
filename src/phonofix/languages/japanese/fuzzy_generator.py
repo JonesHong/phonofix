@@ -3,6 +3,8 @@
 
 整合 config.py 規則，針對日文 ASR 常見的長音、清濁音、助詞混淆、
 以及羅馬拼音系統差異 (Hepburn vs Kunrei) 進行變體生成。
+整合 config.py 規則，針對日文常見的長音、清濁音、助詞混淆、
+以及羅馬拼音系統差異 (Hepburn vs Kunrei) 進行變體生成。
 """
 
 import itertools
@@ -11,9 +13,10 @@ from typing import List, Set, Dict
 # 引用你的配置與工具
 from .config import JapanesePhoneticConfig
 from .utils import _get_fugashi, _get_cutlet
+from phonofix.core.protocols.fuzzy import FuzzyGeneratorProtocol
 
 
-class JapaneseFuzzyGenerator:
+class JapaneseFuzzyGenerator(FuzzyGeneratorProtocol):
     """
     日文模糊變體生成器
     """
