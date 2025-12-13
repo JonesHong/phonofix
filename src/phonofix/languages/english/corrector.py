@@ -19,7 +19,7 @@ from .tokenizer import EnglishTokenizer
 from phonofix.utils.logger import get_logger, TimingContext
 
 if TYPE_CHECKING:
-    from phonofix.engine.english_engine import EnglishEngine
+    from phonofix.languages.english.engine import EnglishEngine
 
 
 class EnglishCorrector:
@@ -59,6 +59,13 @@ class EnglishCorrector:
         instance._logger = get_logger("corrector.english")
         instance.phonetic = engine.phonetic
         instance.tokenizer = engine.tokenizer
+
+        # 供測試/除錯使用：alias -> canonical 的映射
+        instance.term_mapping = {
+            alias: canonical
+            for canonical, config in term_mapping.items()
+            for alias in config.get("aliases", [])
+        }
         
         # 建立搜尋索引
         instance.search_index = instance._build_search_index(term_mapping)
@@ -213,7 +220,9 @@ class EnglishCorrector:
                 return True
         return False
 
-    def correct(self, text: str, full_context: str = None, silent: bool = False) -> str:
+    def correct(
+        self, text: str, full_context: str | None = None, silent: bool = False
+    ) -> str:
         """
         執行英文文本修正
 
@@ -230,38 +239,7 @@ class EnglishCorrector:
             final_candidates = self._resolve_conflicts(candidates)
             return self._apply_replacements(text, final_candidates, silent=silent)
 
-    def correct_streaming(
-        self,
-        text: str,
-        on_correction: Optional[Callable[[Dict[str, Any]], None]] = None
-    ) -> Generator[Dict[str, Any], None, str]:
-        """
-        串流式修正 - 邊處理邊回報進度
-
-        Args:
-            text: 輸入文本
-            on_correction: 找到有效修正時的回調函數
-
-        Yields:
-            Dict: 每個有效的修正候選
-        
-        Returns:
-            str: 最終修正後的文本
-        """
-        candidates = self._find_candidates(text, text)
-        final_candidates = self._resolve_conflicts(candidates)
-        
-        # 按位置排序
-        final_candidates.sort(key=lambda x: x["start"])
-        
-        for cand in final_candidates:
-            if cand["original"] != cand["replacement"]:
-                if on_correction:
-                    on_correction(cand)
-                yield cand
-        
-        result = self._apply_replacements(text, final_candidates, silent=True)
-        yield result
+    # 串流 API 已移除（Phase 6：精簡對外介面，改由上層自行分段/多次呼叫 correct()）
 
     def _find_candidates(self, text: str, full_context: str = None) -> List[Dict]:
         """搜尋所有可能的修正候選"""

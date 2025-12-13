@@ -1,26 +1,26 @@
 ﻿"""
 混合語言校正範例
 
-本檔案展示 UnifiedEngine 的混合語言校正功能：
+本檔案展示「手動串接多個 corrector」的混合語言校正功能：
 1. 中英文混合文本的校正
 2. 英文拼寫錯誤修正 (IPA 音標比對)
 3. 英文詞彙的 keywords/exclude_when 支援
 4. 跨語言上下文判斷
 
 架構說明：
-- UnifiedCorrector 自動偵測語言區塊
-- 中文區塊使用 ChineseCorrector (拼音比對)
-- 英文區塊使用 EnglishCorrector (IPA 音標比對)
+- 建立 ChineseCorrector（拼音比對）與 EnglishCorrector（IPA 比對）
+- 以 pipeline 順序套用（本範例使用：英文 → 中文）
 """
 
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from phonofix import UnifiedEngine
+from phonofix import ChineseEngine, EnglishEngine
 
-# 全域 Engine (單例模式，避免重複初始化)
-engine = UnifiedEngine()
+# 全域 Engine（避免重複初始化）
+ch_engine = ChineseEngine()
+en_engine = EnglishEngine()
 
 
 # =============================================================================
@@ -34,15 +34,22 @@ def example_1_basic_mixed():
     print("範例 1: 基礎混合語言校正")
     print("=" * 60)
 
-    corrector = engine.create_corrector({
+    ch_corrector = ch_engine.create_corrector({
         # 中文詞彙 (使用簡稱作為別名)
         "台北車站": ["北車"],
-        
+    })
+
+    en_corrector = en_engine.create_corrector({
         # 英文詞彙 (常見拼寫錯誤)
         "Python": ["Pyton", "Pyson", "Phython"],
         "JavaScript": ["java script", "Java Script"],
         "TensorFlow": ["Ten so floor", "Tensor flow", "tensor flow"],
     })
+
+    def correct_text(text: str) -> str:
+        text = en_corrector.correct(text, full_context=text)
+        text = ch_corrector.correct(text, full_context=text)
+        return text
 
     test_cases = [
         ("我在北車用Pyton寫code", "中文+英文同時修正"),
@@ -51,7 +58,7 @@ def example_1_basic_mixed():
     ]
 
     for text, explanation in test_cases:
-        result = corrector.correct(text)
+        result = correct_text(text)
         print(f"原句: {text}")
         print(f"結果: {result}")
         print(f"說明: {explanation}")
@@ -71,7 +78,7 @@ def example_2_english_keywords_exclude_when():
     print("範例 2: 英文 Keywords 和 exclude_when")
     print("=" * 60)
 
-    corrector = engine.create_corrector({
+    corrector = en_engine.create_corrector({
         "EKG": {
             "aliases": ["1 kg", "1kg", "one kg"],
             "keywords": ["設備", "心電圖", "檢查", "device", "heart", "medical"],
@@ -117,7 +124,7 @@ def example_3_technical_terms():
     print("範例 3: 專業術語校正")
     print("=" * 60)
 
-    corrector = engine.create_corrector({
+    corrector = en_engine.create_corrector({
         # 程式語言
         "Python": ["Pyton", "python", "pie thon"],
         "JavaScript": ["java script", "Java Script"],
@@ -166,7 +173,7 @@ def example_4_exclude_when_priority():
     print("範例 4: exclude_when 優先級")
     print("=" * 60)
 
-    corrector = engine.create_corrector({
+    corrector = en_engine.create_corrector({
         "EKG": {
             "aliases": ["1kg", "1 kg"],
             "keywords": ["設備", "device", "醫療", "medical"],
@@ -200,8 +207,8 @@ def example_5_full_test():
     print("範例 5: 完整測試案例")
     print("=" * 60)
 
-    corrector = engine.create_corrector({
-        "台北車站": ["北車"],
+    ch_corrector = ch_engine.create_corrector({"台北車站": ["北車"]})
+    en_corrector = en_engine.create_corrector({
         "Python": ["Pyton", "Pyson"],
         "TensorFlow": ["Ten so floor", "Tensor flow"],
         "EKG": {
@@ -210,6 +217,11 @@ def example_5_full_test():
             "exclude_when": ["水", "公斤", "重"],
         },
     })
+
+    def correct_text(text: str) -> str:
+        text = en_corrector.correct(text, full_context=text)
+        text = ch_corrector.correct(text, full_context=text)
+        return text
 
     test_cases = [
         # 基本中文修正
@@ -241,7 +253,7 @@ def example_5_full_test():
     failed = 0
     
     for input_text, expected in test_cases:
-        result = corrector.correct(input_text)
+        result = correct_text(input_text)
         status = "✅" if result == expected else "❌"
         if result == expected:
             passed += 1

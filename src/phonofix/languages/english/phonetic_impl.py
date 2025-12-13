@@ -93,7 +93,7 @@ _phonemize_func = None
 # 安裝提示訊息
 ENGLISH_INSTALL_HINT = (
     "缺少英文依賴。請執行:\n"
-    "  pip install \"phonofix[english]\"\n"
+    "  pip install \"phonofix[en]\"\n"
     "或安裝完整版本:\n"
     "  pip install \"phonofix[all]\"\n\n"
     "注意: 英文支援還需要安裝 espeak-ng 系統套件:\n"

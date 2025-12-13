@@ -3,7 +3,7 @@
 # Phonetic Substitution Engine (多語言語音相似替換引擎)
 
 基於語音相似度的多語言專有名詞替換工具。支援 ASR/LLM 後處理、地域慣用詞轉換、縮寫擴展等多種應用場景。
-特別針對 **中英混合 (Code-Switching)** 場景進行了優化。
+支援 **中英混合 (Code-Switching)**，可手動串接多個 corrector 進行處理。
 
 ## 💡 核心理念
 
@@ -32,7 +32,7 @@
 ## 📚 功能特色
 
 ### 1. 多語言支援
-- **Unified Corrector**: 統一入口，自動處理中英日混合文本
+- **語言引擎**：依語言使用 `ChineseEngine` / `EnglishEngine` / `JapaneseEngine`（混合語言輸入可手動串接多個 corrector）
 - **英文語音替換**: 
     - 使用 IPA (International Phonetic Alphabet) 進行語音相似度比對
     - 支援 Acronyms (縮寫) 的語音還原
@@ -58,13 +58,9 @@
 - 上下文關鍵字加權機制
 - 動態容錯率調整
 
-### 4. 串流處理支援 (ASR/LLM Streaming)
-- **累積模式** (`StreamingCorrector`)：適用於 Realtime ASR
-  - 支援累積文本持續更新
-  - 自動偵測新段落並重置快取
-- **Chunk 模式** (`ChunkStreamingCorrector`)：適用於 LLM Streaming
-  - 增量輸入，即時輸出已確認的修正
-  - 保留重疊區域防止詞彙被切斷
+### 4. 串流處理（已移除）
+
+串流 API（`StreamingCorrector`, `ChunkStreamingCorrector`）已在 `v0.2.0` 的語言模組重構中移除。
 
 ## 📦 安裝
 
@@ -180,34 +176,33 @@ uv run mypy src/phonofix
 
 ## 🚀 快速開始
 
-### 1. 混合語言替換 (Unified Corrector)
+### 1. 混合語言替換（手動串接）
 
 ```python
-from phonofix import UnifiedEngine
+from phonofix import ChineseEngine, EnglishEngine
 
-# 定義您的專有名詞字典
-terms = [
-    "台北車站",      # 中文詞
-    "TensorFlow",   # 英文專有名詞
-    "Python"
-]
+ch_engine = ChineseEngine()
+en_engine = EnglishEngine()
 
-# 初始化引擎 (單例模式，建議全域只初始化一次)
-engine = UnifiedEngine()
+ch_corrector = ch_engine.create_corrector(["台北車站", "牛奶", "然後"])
+en_corrector = en_engine.create_corrector({
+    "TensorFlow": ["Ten so floor"],
+    "Python": ["Pyton"],
+})
 
-# 建立替換器
-corrector = engine.create_corrector(terms)
+def correct(text: str) -> str:
+    text = en_corrector.correct(text, full_context=text)
+    text = ch_corrector.correct(text, full_context=text)
+    return text
 
 # ASR 輸出後處理
-asr_text = "我在北車用Pyton寫Ten so floor的code"
-result = corrector.correct(asr_text)
-print(result)
+asr_text = "我在胎北車站用Pyton寫Ten so floor的code"
+print(correct(asr_text))
 # 輸出: "我在台北車站用Python寫TensorFlow的code"
 
 # LLM 輸出後處理 (LLM 可能因罕見詞而選錯同音字)
-llm_text = "我在北車用派森寫code"  # LLM 把 Python 音譯成「派森」
-result = corrector.correct(llm_text)
-print(result)
+llm_text = "我在胎北車站用派森寫code"  # LLM 把 Python 音譯成「派森」
+print(correct(llm_text))
 # 輸出: "我在台北車站用Python寫code"
 ```
 
@@ -216,9 +211,9 @@ print(result)
 日文支援使用 Romaji (赫本式羅馬拼音) 進行語音比對。
 
 ```python
-from phonofix import UnifiedEngine
+from phonofix import JapaneseEngine
 
-engine = UnifiedEngine()
+engine = JapaneseEngine()
 corrector = engine.create_corrector({
     "アスピリン": ["asupirin"],  # Aspirin
     "ロキソニン": ["rokisonin"], # Loxonin
@@ -249,14 +244,14 @@ my_terms = ["台北車站", "牛奶", "發揮"]
 
 # 步驟 2: 初始化引擎並建立替換器
 # 工具會自動生成所有可能的模糊音變體
-# 例如："台北車站" → 自動生成 "北車"、"臺北車站" 等變體
+# 例如："台北車站" → 自動生成發音相近變體（如 "胎北車站"）
 engine = ChineseEngine()
 corrector = engine.create_corrector(my_terms)
 
 # 步驟 3: 自動將接近音的詞轉換為正確的專有名詞
-result = corrector.correct("我在北車買了流奶,他花揮了才能")
+result = corrector.correct("我在胎北車站買了流奶,他花揮了才能")
 # 結果: '我在台北車站買了牛奶,他發揮了才能'
-# 說明: "北車" → "台北車站", "流奶" → "牛奶", "花揮" → "發揮"
+# 說明: "胎北車站" → "台北車站", "流奶" → "牛奶", "花揮" → "發揮"
 ```
 
 #### 完整格式 - 別名 + 關鍵字 + 權重
@@ -363,93 +358,9 @@ result = corrector.correct("I use Pyton to write Ten so floor code")
 # 輸出: "I use Python to write TensorFlow code"
 ```
 
-### 5. 串流處理 (ASR/LLM Streaming)
+### 5. 增量輸入（無串流 API）
 
-#### Realtime ASR 串流
-
-適用於語音識別的即時字幕場景，每次傳入累積的完整識別結果：
-
-```python
-from phonofix import ChineseEngine, StreamingCorrector
-
-engine = ChineseEngine()
-corrector = engine.create_corrector(["台北車站", "牛奶"])
-
-# 建立串流處理器
-streamer = StreamingCorrector(corrector, overlap_size=8)
-
-# 模擬 ASR 累積輸入
-asr_outputs = [
-    "我在胎北",
-    "我在胎北車站",
-    "我在胎北車站買了流",
-    "我在胎北車站買了流奶",
-]
-
-for text in asr_outputs:
-    result = streamer.feed(text)
-    print(f"已確認: {result.confirmed} | 待確認: {result.pending}")
-
-# 結束時取得完整結果
-final = streamer.finalize()
-print(f"最終: {final}")
-# 最終: 我在台北車站買了牛奶
-```
-
-#### LLM Streaming 輸出
-
-適用於 LLM 串流輸出，每次傳入新的 chunk：
-
-```python
-from phonofix import ChineseEngine, ChunkStreamingCorrector
-
-engine = ChineseEngine()
-corrector = engine.create_corrector(["聖靈", "聖經", "恩典"])
-
-# 建立 chunk 模式串流處理器
-streamer = ChunkStreamingCorrector(corrector, overlap_size=6)
-
-# 模擬 LLM 串流輸出
-llm_chunks = ["聖林", "借著默氏", "寫了這本", "生經，", "是安點。"]
-
-for chunk in llm_chunks:
-    result = streamer.feed_chunk(chunk)
-    if result.confirmed:
-        print(result.confirmed, end="", flush=True)  # 即時輸出
-
-# 結束時輸出剩餘部分
-remaining = streamer.finalize()
-print(remaining)
-# 輸出: 聖靈借著默氏寫了這本聖經，是恩典。
-```
-
-#### WebSocket 實際應用
-
-```python
-from phonofix import ChineseEngine, StreamingCorrector
-import json
-
-engine = ChineseEngine()
-corrector = engine.create_corrector(my_terms)
-
-async def handle_asr_websocket(websocket):
-    streamer = StreamingCorrector(corrector, overlap_size=10)
-    
-    async for message in websocket:
-        data = json.loads(message)
-        
-        if data["type"] == "partial":
-            result = streamer.feed(data["text"])
-            await websocket.send(json.dumps({
-                "confirmed": result.confirmed,
-                "pending": result.pending,
-            }))
-            
-        elif data["type"] == "final":
-            final = streamer.finalize()
-            await websocket.send(json.dumps({"final": final}))
-            streamer.reset()  # 重置，準備下一段
-```
+串流 API 已在 `v0.2.0` 移除；若要處理 ASR/LLM 的增量輸入，可參考 `examples/realtime_streaming_examples.py`（以「累積全文再重跑 correct」的方式處理）。
 
 ## 📁 專案結構
 
@@ -457,40 +368,40 @@ async def handle_asr_websocket(websocket):
 phonofix/
 ├── src/
 │   └── phonofix/                      # 主套件 (src layout)
-│       ├── __init__.py                # 主入口，匯出 UnifiedEngine, ChineseEngine 等
-│       ├── config.py                  # 全域配置
+│       ├── __init__.py                # 主入口，匯出 ChineseEngine/EnglishEngine/JapaneseEngine 等
 │       │
-│       ├── engine/                    # 引擎層 (單例模式入口)
-│       │   ├── base.py                # BaseEngine 抽象類別
-│       │   ├── unified_engine.py      # UnifiedEngine - 混合語言
-│       │   ├── chinese_engine.py      # ChineseEngine - 中文專用
-│       │   └── english_engine.py      # EnglishEngine - 英文專用
+│       ├── core/                      # 跨模組共用的契約/工具
+│       │   ├── protocols/             # Protocols（Corrector/Fuzzy）
+│       │   ├── term_config.py         # term dict 正規化
+│       │   └── engine_interface.py    # CorrectorEngine 抽象基類
 │       │
 │       ├── backend/                   # 語音後端 (phonemizer/pypinyin 封裝)
 │       │   ├── base.py                # PhoneticBackend 抽象類別
 │       │   ├── chinese_backend.py     # 中文拼音後端
 │       │   └── english_backend.py     # 英文 IPA 後端
 │       │
-│       ├── correction/                # 修正器層
-│       │   ├── unified_corrector.py   # 混合語言修正器
-│       │   └── streaming_corrector.py # 串流修正器 (ASR/LLM)
-│       │
 │       ├── languages/                 # 語言特定實作
 │       │   ├── chinese/               # 中文模組
 │       │   │   ├── config.py          # 拼音配置 (聲母/韻母/模糊音)
 │       │   │   ├── corrector.py       # 中文校正器
+│       │   │   ├── engine.py          # ChineseEngine
 │       │   │   ├── fuzzy_generator.py # 模糊音變體生成
 │       │   │   ├── number_variants.py # 數字變體處理
 │       │   │   └── tokenizer.py       # 中文分詞器
 │       │   │
-│       │   └── english/               # 英文模組
-│       │       ├── config.py          # IPA 配置
-│       │       ├── corrector.py       # 英文校正器
-│       │       ├── fuzzy_generator.py # 音節分割變體生成
-│       │       └── tokenizer.py       # 英文分詞器
-│       │
-│       ├── router/                    # 語言路由
-│       │   └── language_router.py     # 自動偵測中英文區塊
+│       │   ├── english/               # 英文模組
+│       │   │   ├── config.py          # IPA 配置
+│       │   │   ├── corrector.py       # 英文校正器
+│       │   │   ├── engine.py          # EnglishEngine
+│       │   │   ├── fuzzy_generator.py # 音節分割變體生成
+│       │   │   └── tokenizer.py       # 英文分詞器
+│       │   │
+│       │   └── japanese/              # 日文模組
+│       │       ├── config.py
+│       │       ├── corrector.py
+│       │       ├── engine.py          # JapaneseEngine
+│       │       ├── fuzzy_generator.py
+│       │       └── tokenizer.py
 │       │
 │       └── utils/                     # 工具模組
 │           ├── lazy_imports.py        # 延遲導入 (可選依賴管理)
@@ -504,14 +415,15 @@ phonofix/
 ├── examples/                          # 使用範例
 │   ├── chinese_examples.py            # 中文校正範例
 │   ├── english_examples.py            # 英文校正範例
-│   ├── mixed_language_examples.py     # 混合語言範例
-│   ├── streaming_demo.py              # 串流處理範例
-│   └── timing_demo.py                 # 效能計時範例
+│   ├── japanese_examples.py           # 日文校正範例
+│   ├── mixed_language_examples.py     # 混合語言（手動串接）範例
+│   └── realtime_streaming_examples.py # 增量輸入示範（無串流 API）
 │
 ├── tests/                             # 單元測試
 │   ├── test_chinese_corrector.py
 │   ├── test_english_corrector.py
-│   └── test_unified_corrector.py
+│   ├── test_japanese_corrector.py
+│   └── test_language_contracts.py
 │
 ├── pyproject.toml                     # 專案配置 (phonofix)
 ├── requirements.txt                   # 依賴清單
@@ -527,15 +439,17 @@ phonofix/
 **問題**：語音識別常將專有名詞聽錯成發音相近的一般詞彙
 
 ```python
-# 您的專有名詞字典
-terms = ["牛奶", "發揮", "然後", "TensorFlow", "Kubernetes"]
+from phonofix import ChineseEngine, EnglishEngine
 
-engine = UnifiedEngine()
-corrector = engine.create_corrector(terms)
+ch_corrector = ChineseEngine().create_corrector(["牛奶", "發揮", "然後"])
+en_corrector = EnglishEngine().create_corrector({
+    "TensorFlow": ["Ten so floor"],
+    "Kubernetes": ["koo ber netes"],
+})
 
 # ASR 輸出：專有名詞被聽錯
 asr_output = "我買了流奶，蘭後用Ten so floor訓練模型"
-result = corrector.correct(asr_output)
+result = ch_corrector.correct(en_corrector.correct(asr_output, full_context=asr_output), full_context=asr_output)
 # 結果: "我買了牛奶，然後用TensorFlow訓練模型"
 ```
 
@@ -544,15 +458,17 @@ result = corrector.correct(asr_output)
 **問題**：LLM 可能因專有名詞罕見而選擇發音相近的常用字
 
 ```python
-# 您的專有名詞字典
-terms = ["耶穌", "恩典", "PyTorch", "NumPy"]
+from phonofix import ChineseEngine, EnglishEngine
 
-engine = UnifiedEngine()
-corrector = engine.create_corrector(terms)
+ch_corrector = ChineseEngine().create_corrector(["耶穌", "恩典"])
+en_corrector = EnglishEngine().create_corrector({
+    "PyTorch": ["pie torch"],
+    "NumPy": ["num pie"],
+})
 
 # LLM 輸出：罕見專有名詞被替換成同音常用字
 llm_output = "耶穌的恩點很大，我用排炬和南派做機器學習"
-result = corrector.correct(llm_output)
+result = ch_corrector.correct(en_corrector.correct(llm_output, full_context=llm_output), full_context=llm_output)
 # 結果: "耶穌的恩典很大，我用PyTorch和NumPy做機器學習"
 ```
 
@@ -616,10 +532,9 @@ result = corrector.correct("醫生開了二四批林給我")
 |------|------|
 | `chinese_examples.py` | 中文語音替換範例 |
 | `english_examples.py` | 英文語音替換範例 |
-| `mixed_language_examples.py` | 中英混合替換範例 |
-| `streaming_demo.py` | 基礎串流處理範例 |
-| `realtime_streaming_demo.py` | ASR/LLM 即時串流範例 |
-| `timing_demo.py` | 效能計時範例 |
+| `japanese_examples.py` | 日文語音替換範例 |
+| `mixed_language_examples.py` | 中英混合替換範例（手動串接） |
+| `realtime_streaming_examples.py` | 增量輸入示範（無串流 API） |
 
 ```bash
 # 執行中文範例
@@ -628,8 +543,11 @@ uv run python examples/chinese_examples.py
 # 執行英文範例 (需安裝 espeak-ng)
 uv run python examples/english_examples.py
 
-# 執行串流範例
-uv run python examples/realtime_streaming_demo.py
+# 執行日文範例 (需安裝 cutlet/fugashi/unidic-lite)
+uv run python examples/japanese_examples.py
+
+# 執行增量輸入範例 (無串流 API)
+uv run python examples/realtime_streaming_examples.py
 ```
 
 ## 🔧 技術細節
@@ -724,9 +642,9 @@ uv run python examples/realtime_streaming_demo.py
     │
     ▼
 ┌─────────────────────────────────────┐
-│ 2. 語言區塊偵測 (UnifiedCorrector)   │
-│    中文區塊 → ChineseCorrector       │
-│    英文區塊 → EnglishCorrector       │
+│ 2. 選擇 Corrector                    │
+│    單語言：使用對應語言 corrector     │
+│    混合：手動串接多個 corrector       │
 └─────────────────────────────────────┘
     │
     ▼

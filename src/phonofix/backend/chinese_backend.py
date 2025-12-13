@@ -9,7 +9,7 @@
 如果未安裝中文依賴，將在首次使用時拋出清楚的 ImportError。
 
 安裝中文支援:
-    pip install "phonofix[chinese]"
+    pip install "phonofix[ch]"
 """
 
 import threading

@@ -17,6 +17,7 @@
 - get_english_cache_stats: 取得快取統計
 """
 
+from .engine import EnglishEngine
 from .corrector import EnglishCorrector
 from .fuzzy_generator import EnglishFuzzyGenerator
 from .phonetic_impl import (
@@ -30,6 +31,7 @@ from .config import EnglishPhoneticConfig
 from .tokenizer import EnglishTokenizer
 
 __all__ = [
+    "EnglishEngine",
     "EnglishCorrector",
     "EnglishFuzzyGenerator",
     "EnglishPhoneticSystem",

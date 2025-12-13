@@ -1,7 +1,7 @@
 """
 日文語音辨識校正範例 (Japanese ASR Correction Examples)
 
-本檔案展示 UnifiedEngine (Japanese) 的所有核心功能：
+本檔案展示 JapaneseEngine 的所有核心功能：
 1. 基礎用法 - 自動生成 Romaji 索引
 2. 手動別名 - 指定常見錯誤拼寫
 3. 發音變體 - 長音、促音、助詞錯誤
@@ -19,11 +19,11 @@ root_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(root_dir))
 sys.path.insert(0, str(root_dir / "src"))
 
-from phonofix import UnifiedEngine
+from phonofix import JapaneseEngine
 from tools.translation_client import translate_text
 
 # Initialize Engine
-engine = UnifiedEngine()
+engine = JapaneseEngine()
 
 def print_case(title, text, result, explanation):
     print(f"--- {title} ---")

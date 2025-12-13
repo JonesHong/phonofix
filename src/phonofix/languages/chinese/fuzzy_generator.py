@@ -7,7 +7,7 @@
 僅在實際使用中文功能時才會載入 Pinyin2Hanzi 和 hanziconv。
 
 安裝中文支援:
-    pip install "phonofix[chinese]"
+    pip install "phonofix[ch]"
 """
 
 import itertools
@@ -210,51 +210,20 @@ class ChineseFuzzyGenerator:
                     # 這裡配合 generate_fuzzy_variants 返回字串列表的邏輯
                     aliases.append(sticky)
 
-    def _prepare_final_alias_list(self, term, aliases):
-        """
-        準備最終的別名列表
-
-        去重、排序,並將原詞放在第一位
-
-        Args:
-            term: 原始詞彙
-            aliases: 別名列表 (字串列表)
-
-        Returns:
-            list: 最終的別名列表 (原詞在首位)
-        """
-        # 移除原詞 (稍後加回第一位) 並去重
-        unique_aliases = set(aliases)
-        if term in unique_aliases:
-            unique_aliases.remove(term)
-            
-        sorted_aliases = sorted(list(unique_aliases))
-
-        # 原詞放在第一位
-        return [term] + sorted_aliases
-
-    def generate_variants(self, term):
+    def generate_variants(self, term: str, max_variants: int = 30):
         """
         為輸入詞彙生成模糊變體列表
 
-        支援兩種輸入模式:
-        1. 單一詞彙 (str): 返回該詞彙的變體列表 (List[str])
-        2. 詞彙列表 (List[str]): 返回詞典 (Dict[str, List[str]])
-
         Args:
-            term: 輸入詞彙 (str) 或 詞彙列表 (List[str])
+            term: 輸入詞彙 (canonical)
+            max_variants: 最多返回幾個變體（不包含原詞）
 
         Returns:
-            List[str] or Dict[str, List[str]]: 視輸入型別而定
+            List[str]: 變體列表（不包含原詞）
         """
-        # 模式 2: 處理詞彙列表
-        if isinstance(term, list):
-            result = {}
-            for t in term:
-                result[t] = self.generate_variants(t)
-            return result
+        if not term:
+            return []
 
-        # 模式 1: 處理單一詞彙
         # 1. 對詞彙中的每個字，生成其模糊音變體 (字級別)
         char_options_list = []
         for char in term:
@@ -265,11 +234,10 @@ class ChineseFuzzyGenerator:
         
         # 3. 處理黏音/懶音 (整詞特例)
         self._add_sticky_phrase_aliases(term, variants)
-        
-        # 4. 最終整理 (去重、排序、原詞置頂)
-        final_variants = self._prepare_final_alias_list(term, variants)
-            
-        return final_variants
+
+        # 4. 最終整理（去重、排序、移除原詞）
+        unique_aliases = {a for a in variants if isinstance(a, str) and a and a != term}
+        return sorted(unique_aliases)[:max_variants]
 
     def filter_homophones(self, term_list):
         """

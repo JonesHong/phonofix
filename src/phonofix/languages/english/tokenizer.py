@@ -22,8 +22,9 @@ class EnglishTokenizer(Tokenizer):
         r"""
         將英文文本分割為單字列表
 
-        使用正規表達式 `\b\w+\b` 提取所有單字。
-        這會忽略標點符號，例如 "Hello, world!" -> ["Hello", "world"]
+        使用 ASCII 正規表達式 `[A-Za-z0-9]+` 提取所有單字。
+        這會忽略標點符號與非英文字符，且更適合在混合語言文本中只提取英文片段。
+        例如 "Hello, world!" -> ["Hello", "world"]
 
         Args:
             text: 輸入英文文本
@@ -31,8 +32,7 @@ class EnglishTokenizer(Tokenizer):
         Returns:
             List[str]: 單字列表
         """
-        # 使用正規表達式尋找所有單字邊界內的單字字符序列
-        return re.findall(r'\b\w+\b', text)
+        return re.findall(r"[A-Za-z0-9]+", text)
 
     def get_token_indices(self, text: str) -> List[Tuple[int, int]]:
         """
@@ -46,6 +46,6 @@ class EnglishTokenizer(Tokenizer):
         """
         indices = []
         # 使用 finditer 迭代所有匹配項，並獲取其 span (start, end)
-        for match in re.finditer(r'\b\w+\b', text):
+        for match in re.finditer(r"[A-Za-z0-9]+", text):
             indices.append(match.span())
         return indices

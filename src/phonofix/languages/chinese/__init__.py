@@ -14,6 +14,7 @@
 - cached_get_initials: 快取版聲母計算
 """
 
+from .engine import ChineseEngine
 from .corrector import (
     ChineseCorrector,
     cached_get_pinyin_string,
@@ -24,6 +25,7 @@ from .config import ChinesePhoneticConfig
 from .utils import ChinesePhoneticUtils
 
 __all__ = [
+    "ChineseEngine",
     "ChineseCorrector",
     "ChineseFuzzyGenerator",
     "ChinesePhoneticConfig",

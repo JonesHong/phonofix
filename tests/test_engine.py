@@ -13,7 +13,7 @@ class TestEnglishEngine:
 
     def test_engine_initialization(self):
         """測試引擎初始化"""
-        from phonofix.engine import EnglishEngine
+        from phonofix import EnglishEngine
         
         engine = EnglishEngine()
         assert engine.is_initialized()
@@ -23,7 +23,7 @@ class TestEnglishEngine:
     
     def test_create_corrector(self):
         """測試建立修正器"""
-        from phonofix.engine import EnglishEngine
+        from phonofix import EnglishEngine
         
         engine = EnglishEngine()
         corrector = engine.create_corrector({'Python': ['Pyton', 'Pyson']})
@@ -34,7 +34,7 @@ class TestEnglishEngine:
     
     def test_cache_sharing(self):
         """測試快取共享"""
-        from phonofix.engine import EnglishEngine
+        from phonofix import EnglishEngine
         
         engine = EnglishEngine()
         
@@ -51,7 +51,7 @@ class TestEnglishEngine:
     
     def test_correction_functionality(self):
         """測試修正功能"""
-        from phonofix.engine import EnglishEngine
+        from phonofix import EnglishEngine
         
         engine = EnglishEngine()
         corrector = engine.create_corrector({'Python': ['Pyton', 'Pyson']})
@@ -65,7 +65,7 @@ class TestChineseEngine:
 
     def test_engine_initialization(self):
         """測試引擎初始化"""
-        from phonofix.engine import ChineseEngine
+        from phonofix import ChineseEngine
         
         engine = ChineseEngine()
         assert engine.is_initialized()
@@ -75,7 +75,7 @@ class TestChineseEngine:
     
     def test_create_corrector(self):
         """測試建立修正器"""
-        from phonofix.engine import ChineseEngine
+        from phonofix import ChineseEngine
         
         engine = ChineseEngine()
         corrector = engine.create_corrector({'台北車站': ['北車', '台北站']})
@@ -85,74 +85,13 @@ class TestChineseEngine:
     
     def test_correction_functionality(self):
         """測試修正功能"""
-        from phonofix.engine import ChineseEngine
+        from phonofix import ChineseEngine
         
         engine = ChineseEngine()
         corrector = engine.create_corrector({'台北車站': ['北車', '台北站']})
         
         result = corrector.correct('我在北車等你')
         assert '台北車站' in result
-
-
-class TestUnifiedEngine:
-    """統一引擎測試"""
-
-    def test_engine_initialization(self):
-        """測試引擎初始化"""
-        from phonofix.engine import UnifiedEngine
-        
-        engine = UnifiedEngine()
-        assert engine.is_initialized()
-        assert engine.english_engine is not None
-        assert engine.chinese_engine is not None
-    
-    def test_create_corrector_mixed_terms(self):
-        """測試建立混合語言修正器"""
-        from phonofix.engine import UnifiedEngine
-        
-        engine = UnifiedEngine()
-        corrector = engine.create_corrector({
-            '台北車站': ['北車'],
-            'Python': ['Pyton'],
-        })
-        
-        assert corrector._engine is engine
-        assert 'zh' in corrector.correctors
-        assert 'en' in corrector.correctors
-    
-    def test_create_corrector_chinese_only(self):
-        """測試建立純中文修正器"""
-        from phonofix.engine import UnifiedEngine
-        
-        engine = UnifiedEngine()
-        corrector = engine.create_corrector({'台北車站': ['北車']})
-        
-        assert 'zh' in corrector.correctors
-        assert 'en' not in corrector.correctors
-    
-    def test_create_corrector_english_only(self):
-        """測試建立純英文修正器"""
-        from phonofix.engine import UnifiedEngine
-        
-        engine = UnifiedEngine()
-        corrector = engine.create_corrector({'Python': ['Pyton']})
-        
-        assert 'zh' not in corrector.correctors
-        assert 'en' in corrector.correctors
-    
-    def test_mixed_correction(self):
-        """測試混合語言修正"""
-        from phonofix.engine import UnifiedEngine
-        
-        engine = UnifiedEngine()
-        corrector = engine.create_corrector({
-            '台北車站': ['北車'],
-            'Python': ['Pyton'],
-        })
-        
-        result = corrector.correct('我在北車學習Pyton')
-        assert '台北車站' in result
-        assert 'Python' in result
 
 
 class TestBackendSingleton:
@@ -193,3 +132,36 @@ class TestBackendSingleton:
         stats2 = backend.get_cache_stats()
         
         assert stats2['hits'] > stats1['hits']
+
+
+# =============================================================================
+# Japanese Engine (optional dependencies)
+# =============================================================================
+
+try:
+    import cutlet  # noqa: F401
+
+    HAS_JAPANESE_DEPS = True
+except ImportError:
+    HAS_JAPANESE_DEPS = False
+
+
+@pytest.mark.skipif(not HAS_JAPANESE_DEPS, reason="需要安裝 phonofix[ja]")
+class TestJapaneseEngine:
+    """日文引擎測試"""
+
+    def test_engine_initialization(self):
+        from phonofix import JapaneseEngine
+
+        engine = JapaneseEngine()
+        assert engine.is_initialized()
+        assert engine.phonetic is not None
+        assert engine.tokenizer is not None
+
+    def test_create_corrector_and_correction(self):
+        from phonofix import JapaneseEngine
+
+        engine = JapaneseEngine()
+        corrector = engine.create_corrector({"アスピリン": ["asupirin"]})
+        assert corrector._engine is engine
+        assert corrector.correct("asupirin") == "アスピリン"

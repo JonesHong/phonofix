@@ -15,7 +15,7 @@
 僅在實際使用中文功能時才會載入 pypinyin。
 
 安裝中文支援:
-    pip install "phonofix[chinese]"
+    pip install "phonofix[ch]"
 """
 
 import Levenshtein
@@ -28,7 +28,7 @@ from .utils import ChinesePhoneticUtils, _get_pypinyin
 from phonofix.utils.logger import get_logger, TimingContext
 
 if TYPE_CHECKING:
-    from phonofix.engine.chinese_engine import ChineseEngine
+    from phonofix.languages.chinese.engine import ChineseEngine
 
 
 # =============================================================================
@@ -545,71 +545,22 @@ class ChineseCorrector:
             )
         return "".join(final_text_list)
 
-    def correct(self, asr_text: str, silent: bool = False) -> str:
+    def correct(self, text: str, full_context: str | None = None, silent: bool = False) -> str:
         """
         執行修正流程
 
         Args:
-            asr_text: 輸入的 ASR 文本
+            text: 輸入的 ASR 文本
+            full_context: 完整上下文（中文目前不使用，保留介面一致性）
             silent: 是否靜默模式 (不輸出修正日誌)
 
         Returns:
             修正後的文本
         """
         with TimingContext("ChineseCorrector.correct", self._logger, logging.DEBUG):
-            protected_indices = self._build_protection_mask(asr_text)
-            candidates = self._find_candidates(asr_text, protected_indices)
+            protected_indices = self._build_protection_mask(text)
+            candidates = self._find_candidates(text, protected_indices)
             final_candidates = self._resolve_conflicts(candidates)
-            return self._apply_replacements(asr_text, final_candidates, silent=silent)
+            return self._apply_replacements(text, final_candidates, silent=silent)
 
-    def correct_streaming(
-        self,
-        asr_text: str,
-        on_correction: Optional[Callable[[Dict[str, Any]], None]] = None
-    ) -> Generator[Dict[str, Any], None, str]:
-        """
-        串流式修正 - 邊處理邊回報進度
-
-        這個方法會在找到每個有效修正時立即通知，
-        讓使用者可以看到即時進度，減少等待感。
-
-        Args:
-            asr_text: 輸入的 ASR 文本
-            on_correction: 找到有效修正時的回調函數
-
-        Yields:
-            Dict: 每個有效的修正候選 (在衝突解決後)
-        
-        Returns:
-            str: 最終修正後的文本 (透過 generator.send() 無法取得，
-                 需要使用 return value 或最後一個 yield)
-
-        Usage:
-            # 方法 1: 使用 callback
-            def on_fix(correction):
-                print(f"找到修正: {correction['original']} -> {correction['replacement']}")
-            
-            result = None
-            for correction in corrector.correct_streaming(text, on_correction=on_fix):
-                result = correction  # 最後一個是結果字串
-            
-            # 方法 2: 收集所有修正
-            corrections = list(corrector.correct_streaming(text))
-            final_text = corrections[-1] if corrections else text
-        """
-        protected_indices = self._build_protection_mask(asr_text)
-        candidates = self._find_candidates(asr_text, protected_indices)
-        final_candidates = self._resolve_conflicts(candidates)
-        
-        # 按位置排序，從前到後報告
-        final_candidates_sorted = sorted(final_candidates, key=lambda x: x["start"])
-        
-        for cand in final_candidates_sorted:
-            if cand["original"] != cand["replacement"]:
-                if on_correction:
-                    on_correction(cand)
-                yield cand
-        
-        # 最後 yield 結果字串
-        result = self._apply_replacements(asr_text, final_candidates, silent=True)
-        yield result
+    # 串流 API 已移除（Phase 6：精簡對外介面，改由上層自行分段/多次呼叫 correct()）

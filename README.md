@@ -3,7 +3,7 @@
 # Phonetic Substitution Engine
 
 A multi-language phonetic similarity-based proper noun substitution tool. Supports ASR/LLM post-processing, regional vocabulary conversion, abbreviation expansion, and various other use cases.
-Specially optimized for **Code-Switching** (mixed Chinese-English) scenarios.
+Supports **Code-Switching** (mixed Chinese-English) scenarios via manual chaining of correctors.
 
 ## 💡 Core Philosophy
 
@@ -32,7 +32,7 @@ Users must provide their own proper noun dictionary. This tool will:
 ## 📚 Features
 
 ### 1. Multi-Language Support
-- **Unified Corrector**: Single entry point, automatically handles mixed Chinese-English-Japanese text
+- **Language Engines**: Use `ChineseEngine` / `EnglishEngine` / `JapaneseEngine` per language (for mixed-language inputs, chain multiple correctors manually)
 - **English Phonetic Substitution**: 
     - Uses IPA (International Phonetic Alphabet) for phonetic similarity matching
     - Supports phonetic restoration of acronyms
@@ -58,13 +58,9 @@ Users must provide their own proper noun dictionary. This tool will:
 - Context keyword weighting mechanism
 - Dynamic tolerance rate adjustment
 
-### 4. Streaming Support (ASR/LLM Streaming)
-- **Accumulated Mode** (`StreamingCorrector`): For Realtime ASR
-  - Supports continuous updates of accumulated text
-  - Automatically detects new paragraphs and resets cache
-- **Chunk Mode** (`ChunkStreamingCorrector`): For LLM Streaming
-  - Incremental input, real-time output of confirmed corrections
-  - Preserves overlap region to prevent word truncation
+### 4. Streaming (Removed)
+
+Streaming APIs (`StreamingCorrector`, `ChunkStreamingCorrector`) were removed in `v0.2.0` during the language-module refactor.
 
 ## 📦 Installation
 
@@ -180,34 +176,33 @@ uv run mypy src/phonofix
 
 ## 🚀 Quick Start
 
-### 1. Mixed Language Substitution (Unified Corrector)
+### 1. Mixed Language Substitution (Manual Pipeline)
 
 ```python
-from phonofix import UnifiedEngine
+from phonofix import ChineseEngine, EnglishEngine
 
-# Define your proper noun dictionary
-terms = [
-    "台北車站",      # Chinese word
-    "TensorFlow",   # English proper noun
-    "Python"
-]
+ch_engine = ChineseEngine()
+en_engine = EnglishEngine()
 
-# Initialize engine (singleton pattern, recommended to initialize only once globally)
-engine = UnifiedEngine()
+ch_corrector = ch_engine.create_corrector(["台北車站", "牛奶", "然後"])
+en_corrector = en_engine.create_corrector({
+    "TensorFlow": ["Ten so floor"],
+    "Python": ["Pyton"],
+})
 
-# Create corrector
-corrector = engine.create_corrector(terms)
+def correct(text: str) -> str:
+    text = en_corrector.correct(text, full_context=text)
+    text = ch_corrector.correct(text, full_context=text)
+    return text
 
 # ASR output post-processing
-asr_text = "我在北車用Pyton寫Ten so floor的code"
-result = corrector.correct(asr_text)
-print(result)
+asr_text = "我在胎北車站用Pyton寫Ten so floor的code"
+print(correct(asr_text))
 # Output: "我在台北車站用Python寫TensorFlow的code"
 
 # LLM output post-processing (LLM may choose wrong homophones for rare words)
-llm_text = "我在北車用派森寫code"  # LLM transliterated Python as "派森"
-result = corrector.correct(llm_text)
-print(result)
+llm_text = "我在胎北車站用派森寫code"  # LLM transliterated Python as "派森"
+print(correct(llm_text))
 # Output: "我在台北車站用Python寫code"
 ```
 
@@ -216,9 +211,9 @@ print(result)
 Japanese support uses Romaji (Hepburn) for phonetic matching.
 
 ```python
-from phonofix import UnifiedEngine
+from phonofix import JapaneseEngine
 
-engine = UnifiedEngine()
+engine = JapaneseEngine()
 corrector = engine.create_corrector({
     "アスピリン": ["asupirin"],  # Aspirin
     "ロキソニン": ["rokisonin"], # Loxonin
@@ -249,14 +244,14 @@ my_terms = ["台北車站", "牛奶", "發揮"]
 
 # Step 2: Initialize engine and create corrector
 # The tool will automatically generate all possible fuzzy phonetic variants
-# For example: "台北車站" → automatically generates "北車", "臺北車站", etc.
+# For example: "台北車站" → automatically generates phonetically similar variants (e.g., "胎北車站")
 engine = ChineseEngine()
 corrector = engine.create_corrector(my_terms)
 
 # Step 3: Automatically convert phonetically similar words to correct proper nouns
-result = corrector.correct("我在北車買了流奶,他花揮了才能")
+result = corrector.correct("我在胎北車站買了流奶,他花揮了才能")
 # Result: '我在台北車站買了牛奶,他發揮了才能'
-# Explanation: "北車" → "台北車站", "流奶" → "牛奶", "花揮" → "發揮"
+# Explanation: "胎北車站" → "台北車站", "流奶" → "牛奶", "花揮" → "發揮"
 ```
 
 #### Full Format - Aliases + Keywords + Weights
@@ -363,93 +358,9 @@ result = corrector.correct("I use Pyton to write Ten so floor code")
 # Output: "I use Python to write TensorFlow code"
 ```
 
-### 5. Streaming Processing (ASR/LLM Streaming)
+### 5. Incremental Inputs (No Streaming API)
 
-#### Realtime ASR Streaming
-
-For real-time subtitle scenarios in speech recognition, passing accumulated complete recognition results each time:
-
-```python
-from phonofix import ChineseEngine, StreamingCorrector
-
-engine = ChineseEngine()
-corrector = engine.create_corrector(["台北車站", "牛奶"])
-
-# Create streaming processor
-streamer = StreamingCorrector(corrector, overlap_size=8)
-
-# Simulate ASR accumulated input
-asr_outputs = [
-    "我在胎北",
-    "我在胎北車站",
-    "我在胎北車站買了流",
-    "我在胎北車站買了流奶",
-]
-
-for text in asr_outputs:
-    result = streamer.feed(text)
-    print(f"Confirmed: {result.confirmed} | Pending: {result.pending}")
-
-# Get complete result at the end
-final = streamer.finalize()
-print(f"Final: {final}")
-# Final: 我在台北車站買了牛奶
-```
-
-#### LLM Streaming Output
-
-For LLM streaming output, passing new chunks each time:
-
-```python
-from phonofix import ChineseEngine, ChunkStreamingCorrector
-
-engine = ChineseEngine()
-corrector = engine.create_corrector(["聖靈", "聖經", "恩典"])
-
-# Create chunk mode streaming processor
-streamer = ChunkStreamingCorrector(corrector, overlap_size=6)
-
-# Simulate LLM streaming output
-llm_chunks = ["聖林", "借著默氏", "寫了這本", "生經，", "是安點。"]
-
-for chunk in llm_chunks:
-    result = streamer.feed_chunk(chunk)
-    if result.confirmed:
-        print(result.confirmed, end="", flush=True)  # Real-time output
-
-# Output remaining part at the end
-remaining = streamer.finalize()
-print(remaining)
-# Output: 聖靈借著默氏寫了這本聖經，是恩典。
-```
-
-#### WebSocket Real-World Application
-
-```python
-from phonofix import ChineseEngine, StreamingCorrector
-import json
-
-engine = ChineseEngine()
-corrector = engine.create_corrector(my_terms)
-
-async def handle_asr_websocket(websocket):
-    streamer = StreamingCorrector(corrector, overlap_size=10)
-    
-    async for message in websocket:
-        data = json.loads(message)
-        
-        if data["type"] == "partial":
-            result = streamer.feed(data["text"])
-            await websocket.send(json.dumps({
-                "confirmed": result.confirmed,
-                "pending": result.pending,
-            }))
-            
-        elif data["type"] == "final":
-            final = streamer.finalize()
-            await websocket.send(json.dumps({"final": final}))
-            streamer.reset()  # Reset, ready for next segment
-```
+Streaming APIs were removed in `v0.2.0`. For incremental ASR/LLM inputs, see `examples/realtime_streaming_examples.py` for a simple “re-run correction on accumulated text” workflow.
 
 ## 📁 Project Structure
 
@@ -457,40 +368,40 @@ async def handle_asr_websocket(websocket):
 phonofix/
 ├── src/
 │   └── phonofix/                      # Main package (src layout)
-│       ├── __init__.py                # Main entry, exports UnifiedEngine, ChineseEngine, etc.
+│       ├── __init__.py                # Main entry, exports ChineseEngine/EnglishEngine/JapaneseEngine, etc.
 │       │
-│       ├── engine/                    # Engine layer (singleton pattern entry)
-│       │   ├── base.py                # BaseEngine abstract class
-│       │   ├── unified_engine.py      # UnifiedEngine - mixed language
-│       │   ├── chinese_engine.py      # ChineseEngine - Chinese only
-│       │   └── english_engine.py      # EnglishEngine - English only
+│       ├── core/                      # Cross-module shared contracts/utilities
+│       │   ├── protocols/             # Protocols (Corrector/Fuzzy)
+│       │   ├── term_config.py         # Term dict normalization
+│       │   └── engine_interface.py    # CorrectorEngine abstract base
 │       │
 │       ├── backend/                   # Phonetic backend (phonemizer/pypinyin wrapper)
 │       │   ├── base.py                # PhoneticBackend abstract class
 │       │   ├── chinese_backend.py     # Chinese Pinyin backend
 │       │   └── english_backend.py     # English IPA backend
 │       │
-│       ├── correction/                # Corrector layer
-│       │   ├── protocol.py            # CorrectorProtocol definition
-│       │   ├── unified_corrector.py   # Mixed language corrector
-│       │   └── streaming_corrector.py # Streaming corrector (ASR/LLM)
-│       │
 │       ├── languages/                 # Language-specific implementations
 │       │   ├── chinese/               # Chinese module
 │       │   │   ├── config.py          # Pinyin config (initials/finals/fuzzy sounds)
 │       │   │   ├── corrector.py       # Chinese corrector
+│       │   │   ├── engine.py          # ChineseEngine
 │       │   │   ├── fuzzy_generator.py # Fuzzy phonetic variant generator
 │       │   │   ├── number_variants.py # Number variant handling
 │       │   │   └── tokenizer.py       # Chinese tokenizer
 │       │   │
-│       │   └── english/               # English module
-│       │       ├── config.py          # IPA config
-│       │       ├── corrector.py       # English corrector
-│       │       ├── fuzzy_generator.py # Syllable split variant generator
-│       │       └── tokenizer.py       # English tokenizer
-│       │
-│       ├── router/                    # Language router
-│       │   └── language_router.py     # Auto-detect Chinese/English segments
+│       │   ├── english/               # English module
+│       │   │   ├── config.py          # IPA config
+│       │   │   ├── corrector.py       # English corrector
+│       │   │   ├── engine.py          # EnglishEngine
+│       │   │   ├── fuzzy_generator.py # Syllable split variant generator
+│       │   │   └── tokenizer.py       # English tokenizer
+│       │   │
+│       │   └── japanese/              # Japanese module
+│       │       ├── config.py
+│       │       ├── corrector.py
+│       │       ├── engine.py          # JapaneseEngine
+│       │       ├── fuzzy_generator.py
+│       │       └── tokenizer.py
 │       │
 │       └── utils/                     # Utility modules
 │           ├── lazy_imports.py        # Lazy imports (optional dependency management)
@@ -504,14 +415,15 @@ phonofix/
 ├── examples/                          # Usage examples
 │   ├── chinese_examples.py            # Chinese correction examples
 │   ├── english_examples.py            # English correction examples
-│   ├── mixed_language_examples.py     # Mixed language examples
-│   ├── streaming_demo.py              # Streaming processing examples
-│   └── timing_demo.py                 # Performance timing examples
+│   ├── japanese_examples.py           # Japanese correction examples
+│   ├── mixed_language_examples.py     # Mixed language (manual pipeline) examples
+│   └── realtime_streaming_examples.py # Incremental ASR/LLM inputs (no streaming API)
 │
 ├── tests/                             # Unit tests
 │   ├── test_chinese_corrector.py
 │   ├── test_english_corrector.py
-│   └── test_unified_corrector.py
+│   ├── test_japanese_corrector.py
+│   └── test_language_contracts.py
 │
 ├── pyproject.toml                     # Project configuration (phonofix)
 ├── requirements.txt                   # Dependency list
@@ -527,15 +439,17 @@ The following examples demonstrate how to create your own proper noun dictionary
 **Problem**: Speech recognition often mishears proper nouns as phonetically similar common words
 
 ```python
-# Your proper noun dictionary
-terms = ["牛奶", "發揮", "然後", "TensorFlow", "Kubernetes"]
+from phonofix import ChineseEngine, EnglishEngine
 
-engine = UnifiedEngine()
-corrector = engine.create_corrector(terms)
+ch_corrector = ChineseEngine().create_corrector(["牛奶", "發揮", "然後"])
+en_corrector = EnglishEngine().create_corrector({
+    "TensorFlow": ["Ten so floor"],
+    "Kubernetes": ["koo ber netes"],
+})
 
 # ASR output: proper nouns misheard
 asr_output = "我買了流奶，蘭後用Ten so floor訓練模型"
-result = corrector.correct(asr_output)
+result = ch_corrector.correct(en_corrector.correct(asr_output, full_context=asr_output), full_context=asr_output)
 # Result: "我買了牛奶，然後用TensorFlow訓練模型"
 ```
 
@@ -544,15 +458,17 @@ result = corrector.correct(asr_output)
 **Problem**: LLMs may choose phonetically similar common characters for rare proper nouns
 
 ```python
-# Your proper noun dictionary
-terms = ["耶穌", "恩典", "PyTorch", "NumPy"]
+from phonofix import ChineseEngine, EnglishEngine
 
-engine = UnifiedEngine()
-corrector = engine.create_corrector(terms)
+ch_corrector = ChineseEngine().create_corrector(["耶穌", "恩典"])
+en_corrector = EnglishEngine().create_corrector({
+    "PyTorch": ["pie torch"],
+    "NumPy": ["num pie"],
+})
 
 # LLM output: rare proper nouns replaced with homophone common characters
 llm_output = "耶穌的恩點很大，我用排炬和南派做機器學習"
-result = corrector.correct(llm_output)
+result = ch_corrector.correct(en_corrector.correct(llm_output, full_context=llm_output), full_context=llm_output)
 # Result: "耶穌的恩典很大，我用PyTorch和NumPy做機器學習"
 ```
 
@@ -616,10 +532,9 @@ Please refer to the `examples/` directory, which contains multiple usage example
 |------|-------------|
 | `chinese_examples.py` | Chinese phonetic substitution examples |
 | `english_examples.py` | English phonetic substitution examples |
-| `mixed_language_examples.py` | Mixed Chinese-English substitution examples |
-| `streaming_demo.py` | Basic streaming processing examples |
-| `realtime_streaming_demo.py` | ASR/LLM real-time streaming examples |
-| `timing_demo.py` | Performance timing examples |
+| `japanese_examples.py` | Japanese phonetic substitution examples |
+| `mixed_language_examples.py` | Mixed Chinese-English substitution examples (manual pipeline) |
+| `realtime_streaming_examples.py` | Incremental ASR/LLM inputs (no streaming API) |
 
 ```bash
 # Run Chinese examples
@@ -628,8 +543,11 @@ uv run python examples/chinese_examples.py
 # Run English examples (requires espeak-ng)
 uv run python examples/english_examples.py
 
-# Run streaming examples
-uv run python examples/realtime_streaming_demo.py
+# Run Japanese examples (requires cutlet/fugashi/unidic-lite)
+uv run python examples/japanese_examples.py
+
+# Run incremental-input examples (no streaming API)
+uv run python examples/realtime_streaming_examples.py
 ```
 
 ## 🔧 Technical Details
@@ -724,10 +642,9 @@ Input Text
     │
     ▼
 ┌─────────────────────────────────────┐
-│ 2. Language Block Detection          │
-│    (UnifiedCorrector)                │
-│    Chinese block → ChineseCorrector  │
-│    English block → EnglishCorrector  │
+│ 2. Choose Corrector(s)               │
+│    Per language: one corrector       │
+│    Mixed: chain multiple correctors  │
 └─────────────────────────────────────┘
     │
     ▼
