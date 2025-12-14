@@ -19,9 +19,9 @@ import Levenshtein
 import re
 import logging
 from functools import lru_cache
-from typing import Generator, Optional, Callable, Dict, List, Any, TYPE_CHECKING, Union
-from .config import ChinesePhoneticConfig
-from .utils import ChinesePhoneticUtils, _get_pypinyin
+from typing import Any, Dict, Optional, TYPE_CHECKING
+
+from .utils import _get_pypinyin
 from phonofix.core.protocols.corrector import ContextAwareCorrectorProtocol
 from phonofix.utils.logger import get_logger, TimingContext
 
@@ -40,6 +40,12 @@ def cached_get_pinyin_string(text: str) -> str:
     pypinyin = _get_pypinyin()
     pinyin_list = pypinyin.lazy_pinyin(text, style=pypinyin.NORMAL)
     return "".join(pinyin_list)
+
+@lru_cache(maxsize=50000)
+def cached_get_pinyin_syllables(text: str) -> tuple[str, ...]:
+    """快取版拼音音節列表（無聲調）"""
+    pypinyin = _get_pypinyin()
+    return tuple(pypinyin.lazy_pinyin(text, style=pypinyin.NORMAL))
 
 
 @lru_cache(maxsize=50000)
@@ -154,6 +160,7 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
         """建立單個索引項目，預先計算拼音與聲母特徵"""
         # 使用快取版本的拼音計算
         pinyin_str = cached_get_pinyin_string(term)
+        pinyin_syllables = cached_get_pinyin_syllables(term)
         initials_list = list(cached_get_initials(term))
         return {
             "term": term,
@@ -162,6 +169,7 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
             "exclude_when": [e.lower() for e in exclude_when],
             "weight": weight,
             "pinyin_str": pinyin_str,
+            "pinyin_syllables": pinyin_syllables,
             "initials": initials_list,
             "len": len(term),
             "is_mixed": self.utils.contains_english(term),
@@ -296,7 +304,14 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
                 return True
         return False
 
-    def _calculate_pinyin_similarity(self, segment, target_pinyin_str):
+    def _calculate_pinyin_similarity(
+        self,
+        segment: str,
+        target_pinyin_str: str,
+        *,
+        segment_syllables: tuple[str, ...] | None = None,
+        target_syllables: tuple[str, ...] | None = None,
+    ):
         """
         計算拼音相似度
 
@@ -315,6 +330,24 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
         # 快速路徑：完全匹配
         if window_pinyin_str == target_pinyin_lower:
             return window_pinyin_str, 0.0, True
+
+        # 音節級特殊音節映射（例如 hua <-> fa），避免「整串拼音」比對失效
+        if (
+            segment_syllables
+            and target_syllables
+            and len(segment_syllables) == len(target_syllables)
+            and len(segment_syllables) <= 4
+        ):
+            syllable_map = self.config.SPECIAL_SYLLABLE_MAP_UNIDIRECTIONAL
+            ok = True
+            for seg_syl, tgt_syl in zip(segment_syllables, target_syllables):
+                if seg_syl == tgt_syl:
+                    continue
+                if tgt_syl not in (syllable_map.get(seg_syl) or ()):
+                    ok = False
+                    break
+            if ok:
+                return window_pinyin_str, 0.0, True
         
         # 特殊音節匹配
         if len(segment) >= 2 and len(target_pinyin_lower) < 10:
@@ -441,8 +474,11 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
             return None
         
         threshold = self._get_dynamic_threshold(word_len, item["is_mixed"])
-        window_pinyin_str, error_ratio, is_fuzzy_match = (
-            self._calculate_pinyin_similarity(original_segment, item["pinyin_str"])
+        window_pinyin_str, error_ratio, is_fuzzy_match = self._calculate_pinyin_similarity(
+            original_segment,
+            item["pinyin_str"],
+            segment_syllables=cached_get_pinyin_syllables(original_segment),
+            target_syllables=item.get("pinyin_syllables"),
         )
         if is_fuzzy_match:
             threshold = max(threshold, 0.15)

@@ -12,13 +12,10 @@
     result = corrector.correct('頭が痛いのでasupirinを飲みました')
 """
 
-from typing import Dict, List, Optional, Any, Tuple, Generator, Callable, TYPE_CHECKING
 import logging
+from typing import Dict, List, TYPE_CHECKING
 
 from phonofix.core.protocols.corrector import ContextAwareCorrectorProtocol
-from .phonetic_impl import JapanesePhoneticSystem
-from .tokenizer import JapaneseTokenizer
-from .config import JapanesePhoneticConfig
 from phonofix.utils.logger import get_logger, TimingContext
 
 if TYPE_CHECKING:
@@ -83,7 +80,7 @@ class JapaneseCorrector(ContextAwareCorrectorProtocol):
             exclude_when = config.get("exclude_when", [])
             
             # 收集所有目標詞 (別名 + 正確詞本身)
-            targets = set(aliases)
+            targets = set(aliases) | {canonical}
             
             for alias in targets:
                 # 計算別名的拼音

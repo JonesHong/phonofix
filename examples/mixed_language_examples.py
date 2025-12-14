@@ -1,4 +1,4 @@
-﻿"""
+"""
 混合語言校正範例
 
 本檔案展示「手動串接多個 corrector」的混合語言校正功能：
@@ -12,15 +12,15 @@
 - 以 pipeline 順序套用（本範例使用：英文 → 中文）
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from _example_utils import add_repo_to_sys_path, print_case
+
+add_repo_to_sys_path()
 
 from phonofix import ChineseEngine, EnglishEngine
 
 # 全域 Engine（避免重複初始化）
-ch_engine = ChineseEngine()
-en_engine = EnglishEngine()
+ch_engine = ChineseEngine(verbose=False)
+en_engine = EnglishEngine(verbose=False)
 
 
 # =============================================================================
@@ -59,10 +59,7 @@ def example_1_basic_mixed():
 
     for text, explanation in test_cases:
         result = correct_text(text)
-        print(f"原句: {text}")
-        print(f"結果: {result}")
-        print(f"說明: {explanation}")
-        print()
+        print_case("Mixed", text, result, explanation)
 
 
 # =============================================================================
@@ -105,10 +102,7 @@ def example_2_english_keywords_exclude_when():
 
     for text, explanation in test_cases:
         result = corrector.correct(text)
-        print(f"原句: {text}")
-        print(f"結果: {result}")
-        print(f"說明: {explanation}")
-        print()
+        print_case("English Context", text, result, explanation)
 
 
 # =============================================================================
@@ -156,9 +150,7 @@ def example_3_technical_terms():
     print("修正結果:")
     for text in test_cases:
         result = corrector.correct(text)
-        print(f"  原句: {text}")
-        print(f"  結果: {result}")
-        print()
+        print_case("Technical", text, result, "專業術語校正")
 
 
 # =============================================================================
@@ -190,10 +182,7 @@ def example_4_exclude_when_priority():
 
     for text, explanation in test_cases:
         result = corrector.correct(text)
-        print(f"原句: {text}")
-        print(f"結果: {result}")
-        print(f"說明: {explanation}")
-        print()
+        print_case("Priority", text, result, explanation)
 
 
 # =============================================================================
@@ -254,7 +243,7 @@ def example_5_full_test():
     
     for input_text, expected in test_cases:
         result = correct_text(input_text)
-        status = "✅" if result == expected else "❌"
+        status = "OK" if result == expected else "FAIL"
         if result == expected:
             passed += 1
         else:
@@ -262,7 +251,7 @@ def example_5_full_test():
             
         print(f"Input:    {input_text}")
         print(f"Output:   {result}")
-        print(f"Expected: {expected} {status}")
+        print(f"Expected: {expected} ({status})")
         print("-" * 50)
     
     print(f"\n結果: {passed} 通過, {failed} 失敗")
@@ -272,9 +261,9 @@ def example_5_full_test():
 # 主程式
 # =============================================================================
 if __name__ == "__main__":
-    print("\n" + "🌐" * 20)
-    print("  混合語言校正範例")
-    print("🌐" * 20 + "\n")
+    print("\n" + "=" * 60)
+    print("混合語言校正範例")
+    print("=" * 60 + "\n")
 
     examples = [
         ("基礎混合語言", example_1_basic_mixed),
@@ -288,11 +277,11 @@ if __name__ == "__main__":
         try:
             func()
         except Exception as e:
-            print(f"❌ 範例 '{name}' 執行失敗: {e}")
+            print(f"範例 '{name}' 執行失敗: {e}")
             import traceback
             traceback.print_exc()
         print()
 
     print("=" * 60)
-    print("✅ 所有範例執行完成!")
+    print("所有範例執行完成!")
     print("=" * 60)

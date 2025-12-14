@@ -147,7 +147,7 @@ uv sync
 uv sync --dev
 
 # Run examples
-uv run python examples/chinese_examples.py
+uv run ./examples/chinese_examples.py
 
 # Run tests
 uv run pytest
@@ -358,7 +358,7 @@ result = corrector.correct("I use Pyton to write Ten so floor code")
 
 ### 5. Incremental Inputs (No Streaming API)
 
-Streaming APIs were removed in `v0.2.0`. For incremental ASR/LLM inputs, see `examples/realtime_streaming_examples.py` for a simple “re-run correction on accumulated text” workflow.
+Streaming APIs were removed in `v0.2.0`. For incremental ASR/LLM inputs, a simple and stable approach is: accumulate the full text and re-run `correct()` on each update.
 
 ## 📁 Project Structure
 
@@ -414,8 +414,8 @@ phonofix/
 │   ├── chinese_examples.py            # Chinese correction examples
 │   ├── english_examples.py            # English correction examples
 │   ├── japanese_examples.py           # Japanese correction examples
-│   ├── mixed_language_examples.py     # Mixed language (manual pipeline) examples
-│   └── realtime_streaming_examples.py # Incremental ASR/LLM inputs (no streaming API)
+│   ├── _example_utils.py              # Shared helpers (CLI/output/translation)
+│   └── README.md                      # Example design notes
 │
 ├── tests/                             # Unit tests
 │   ├── test_chinese_corrector.py
@@ -531,21 +531,16 @@ Please refer to the `examples/` directory, which contains multiple usage example
 | `chinese_examples.py` | Chinese phonetic substitution examples |
 | `english_examples.py` | English phonetic substitution examples |
 | `japanese_examples.py` | Japanese phonetic substitution examples |
-| `mixed_language_examples.py` | Mixed Chinese-English substitution examples (manual pipeline) |
-| `realtime_streaming_examples.py` | Incremental ASR/LLM inputs (no streaming API) |
 
 ```bash
 # Run Chinese examples
-uv run python examples/chinese_examples.py
+uv run ./examples/chinese_examples.py
 
 # Run English examples (requires espeak-ng)
-uv run python examples/english_examples.py
+uv run ./examples/english_examples.py
 
 # Run Japanese examples (requires cutlet/fugashi/unidic-lite)
-uv run python examples/japanese_examples.py
-
-# Run incremental-input examples (no streaming API)
-uv run python examples/realtime_streaming_examples.py
+uv run ./examples/japanese_examples.py
 ```
 
 ## 🔧 Technical Details

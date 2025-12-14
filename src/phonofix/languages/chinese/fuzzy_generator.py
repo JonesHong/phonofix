@@ -7,7 +7,6 @@
 僅在實際使用中文功能時才會載入 Pinyin2Hanzi 和 hanziconv。
 """
 
-import itertools
 from .config import ChinesePhoneticConfig
 from .utils import ChinesePhoneticUtils
 from phonofix.core.protocols.fuzzy import FuzzyGeneratorProtocol
@@ -34,8 +33,10 @@ def _get_pinyin2hanzi():
         from Pinyin2Hanzi import DefaultDagParams, dag
         _pinyin2hanzi_params_class = DefaultDagParams
         _pinyin2hanzi_dag = dag
+        _imports_checked = True
         return _pinyin2hanzi_params_class, _pinyin2hanzi_dag
     except ImportError:
+        _imports_checked = True
         from phonofix.languages.chinese import CHINESE_INSTALL_HINT
         raise ImportError(CHINESE_INSTALL_HINT)
 
@@ -53,6 +54,7 @@ def _get_hanziconv():
         _imports_checked = True
         return _hanziconv
     except ImportError:
+        _imports_checked = True
         from phonofix.languages.chinese import CHINESE_INSTALL_HINT
         raise ImportError(CHINESE_INSTALL_HINT)
 
@@ -68,9 +70,17 @@ class ChineseFuzzyGenerator(FuzzyGeneratorProtocol):
     - 用於擴充修正器的比對目標，提高召回率
     """
 
-    def __init__(self, config=None):
+    def __init__(
+        self,
+        config=None,
+        *,
+        enable_representative_variants: bool = False,
+        max_phonetic_states: int = 600,
+    ):
         self.config = config or ChinesePhoneticConfig
         self.utils = ChinesePhoneticUtils(config=self.config)
+        self.enable_representative_variants = enable_representative_variants
+        self.max_phonetic_states = max(50, int(max_phonetic_states))
         self._dag_params = None  # 延遲初始化
 
     @property
@@ -144,17 +154,20 @@ class ChineseFuzzyGenerator(FuzzyGeneratorProtocol):
         for p in potential_pinyins:
             if p == base_pinyin:
                 # 原始拼音對應原始字符
-                options.append({"pinyin": p, "char": char})
+                options.append({"pinyin": p, "char": char, "changes": 0})
             else:
+                if not self.enable_representative_variants:
+                    continue
+
                 # 模糊拼音需要反查一個代表字，以便後續組合成詞
                 # 這裡只取第一個最可能的字作為代表
                 candidate_chars = self._pinyin_to_chars(p)
                 repr_char = candidate_chars[0]
                 if '\u4e00' <= repr_char <= '\u9fff':
-                    options.append({"pinyin": p, "char": repr_char})
+                    options.append({"pinyin": p, "char": repr_char, "changes": 1})
         return options
 
-    def _generate_char_combinations(self, char_options_list):
+    def _generate_char_combinations(self, char_options_list, *, max_results: int):
         """
         生成所有字符變體的排列組合
 
@@ -169,19 +182,44 @@ class ChineseFuzzyGenerator(FuzzyGeneratorProtocol):
             List[str]: 組合後的詞彙列表
             範例: ["台積", "台基"]
         """
-        seen_pinyins = set()
-        combinations = []
-        
-        # 使用 itertools.product 進行笛卡兒積組合
-        for combo in itertools.product(*char_options_list):
-            word = "".join([item["char"] for item in combo])
-            pinyin = "".join([item["pinyin"] for item in combo])
-            
-            # 避免重複的拼音組合 (不同的字但拼音相同視為同一種模糊變體)
-            if pinyin not in seen_pinyins:
-                combinations.append(word)
-                seen_pinyins.add(pinyin)
-        return combinations
+        # 以「拼音字串」為 key 做 beam search：邊生成邊去重，避免笛卡兒積爆炸。
+        # state: pinyin_key -> (surface_word, change_count)
+        states: dict[str, tuple[str, int]] = {"": ("", 0)}
+
+        for options in char_options_list:
+            next_states: dict[str, tuple[str, int]] = {}
+            for p_prefix, (w_prefix, c_prefix) in states.items():
+                for opt in options:
+                    p_new = p_prefix + opt["pinyin"]
+                    w_new = w_prefix + opt["char"]
+                    c_new = c_prefix + int(opt.get("changes", 0) or 0)
+
+                    existing = next_states.get(p_new)
+                    if existing is None:
+                        next_states[p_new] = (w_new, c_new)
+                        continue
+
+                    # 同一 phonetic key 下保留「變更更少」的 representative；若相同則取字典序穩定結果
+                    if c_new < existing[1] or (c_new == existing[1] and w_new < existing[0]):
+                        next_states[p_new] = (w_new, c_new)
+
+            # 控制狀態數量（依變更數/長度/字典序做穩定裁剪）
+            if len(next_states) > self.max_phonetic_states:
+                ranked = sorted(
+                    next_states.items(),
+                    key=lambda kv: (kv[1][1], len(kv[1][0]), kv[1][0], kv[0]),
+                )
+                next_states = dict(ranked[: self.max_phonetic_states])
+
+            states = next_states
+
+        # 依更少變更優先輸出，並限制結果數量
+        ranked_final = sorted(
+            states.values(),
+            key=lambda v: (v[1], len(v[0]), v[0]),
+        )
+        words = [w for (w, _) in ranked_final if w]
+        return words[:max_results]
 
     def _add_sticky_phrase_aliases(self, term, aliases):
         """
@@ -222,20 +260,31 @@ class ChineseFuzzyGenerator(FuzzyGeneratorProtocol):
         if not term:
             return []
 
-        # 1. 對詞彙中的每個字，生成其模糊音變體 (字級別)
-        char_options_list = []
-        for char in term:
-            char_options_list.append(self._get_char_variations(char))
-        
-        # 2. 組合所有字的變體，產生新的詞彙 (詞級別)
-        variants = self._generate_char_combinations(char_options_list)
-        
-        # 3. 處理黏音/懶音 (整詞特例)
+        variants: list[str] = []
+
+        # 1) 黏音/懶音 (整詞特例) 永遠保留（不依賴代表字功能）
         self._add_sticky_phrase_aliases(term, variants)
 
-        # 4. 最終整理（去重、排序、移除原詞）
-        unique_aliases = {a for a in variants if isinstance(a, str) and a and a != term}
-        return sorted(unique_aliases)[:max_variants]
+        # 2) 字級別代表字變體（可選，預設關閉）
+        if self.enable_representative_variants:
+            char_options_list = []
+            for char in term:
+                options = self._get_char_variations(char)
+                # 若某字無可用選項，回退為原字（避免整詞被丟棄）
+                if not options:
+                    options = [{"pinyin": self.utils.get_pinyin_string(char), "char": char, "changes": 0}]
+                char_options_list.append(options)
+
+            # 生成階段就以拼音 key 去重並裁剪，避免爆炸
+            combinations = self._generate_char_combinations(
+                char_options_list,
+                max_results=max_variants + 10,  # 留一點空間給 sticky variants
+            )
+            variants.extend(combinations)
+
+        # 3) 最終整理（移除原詞、去重、穩定排序）
+        unique_aliases = sorted({a for a in variants if a and a != term})
+        return unique_aliases[:max_variants]
 
     def filter_homophones(self, term_list):
         """

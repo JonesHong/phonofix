@@ -25,6 +25,9 @@ class ChineseEngine(CorrectorEngine):
     def __init__(
         self,
         phonetic_config: Optional[ChinesePhoneticConfig] = None,
+        *,
+        enable_surface_variants: bool = False,
+        enable_representative_variants: bool = False,
         verbose: bool = False,
         on_timing: Optional[Callable[[str, float], None]] = None,
     ):
@@ -37,8 +40,12 @@ class ChineseEngine(CorrectorEngine):
             self._phonetic_config = phonetic_config or ChinesePhoneticConfig
             self._phonetic = ChinesePhoneticSystem(backend=self._backend)
             self._tokenizer = ChineseTokenizer()
-            self._fuzzy_generator = ChineseFuzzyGenerator(config=self._phonetic_config)
+            self._fuzzy_generator = ChineseFuzzyGenerator(
+                config=self._phonetic_config,
+                enable_representative_variants=enable_representative_variants,
+            )
             self._utils = ChinesePhoneticUtils(config=self._phonetic_config)
+            self._enable_surface_variants = enable_surface_variants
 
             self._initialized = True
             self._logger.info("ChineseEngine initialized")
@@ -118,11 +125,12 @@ class ChineseEngine(CorrectorEngine):
         pinyin = self._utils.get_pinyin_string(term)
         self._logger.debug(f"  [Pinyin] {term} -> {pinyin}")
 
-        max_variants = int(value.get("max_variants", 30) or 30)
-        with self._log_timing(f"generate_variants({term})"):
-            fuzzy_variants = self._fuzzy_generator.generate_variants(term, max_variants=max_variants)
-
-        merged_aliases = list(value.get("aliases", [])) + list(fuzzy_variants)
+        merged_aliases = list(value.get("aliases", []))
+        if self._enable_surface_variants:
+            max_variants = int(value.get("max_variants", 30) or 30)
+            with self._log_timing(f"generate_variants({term})"):
+                fuzzy_variants = self._fuzzy_generator.generate_variants(term, max_variants=max_variants)
+            merged_aliases.extend(list(fuzzy_variants))
         value["aliases"] = self._filter_aliases_by_pinyin(merged_aliases)
 
         if value["aliases"]:

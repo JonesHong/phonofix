@@ -23,6 +23,9 @@ class JapaneseEngine(CorrectorEngine):
     def __init__(
         self,
         phonetic_config: Optional[JapanesePhoneticConfig] = None,
+        *,
+        enable_surface_variants: bool = False,
+        enable_representative_variants: bool = False,
         verbose: bool = False,
         on_timing: Optional[Callable[[str, float], None]] = None,
     ):
@@ -31,8 +34,12 @@ class JapaneseEngine(CorrectorEngine):
         with self._log_timing("JapaneseEngine.__init__"):
             self._phonetic = JapanesePhoneticSystem()
             self._tokenizer = JapaneseTokenizer()
-            self._fuzzy_generator = JapaneseFuzzyGenerator(config=phonetic_config)
-            self._phonetic_config = phonetic_config or JapanesePhoneticConfig
+            self._phonetic_config = phonetic_config or JapanesePhoneticConfig()
+            self._enable_surface_variants = enable_surface_variants
+            self._fuzzy_generator = JapaneseFuzzyGenerator(
+                config=self._phonetic_config,
+                enable_representative_variants=enable_representative_variants,
+            )
 
             self._initialized = True
             self._logger.info("JapaneseEngine initialized")
@@ -84,19 +91,15 @@ class JapaneseEngine(CorrectorEngine):
         else:
             value = {"aliases": []}
 
-        max_variants = int(value.get("max_variants", 30) or 30)
-        with self._log_timing(f"generate_variants({term})"):
-            fuzzy_variants = self._fuzzy_generator.generate_variants(term, max_variants=max_variants)
+        merged_aliases = list(value.get("aliases", []))
 
-        merged_aliases = list(value.get("aliases", [])) + list(fuzzy_variants)
-        seen = set()
-        deduped = []
-        for alias in merged_aliases:
-            if alias and alias not in seen and alias != term:
-                deduped.append(alias)
-                seen.add(alias)
+        if self._enable_surface_variants:
+            max_variants = int(value.get("max_variants", 30) or 30)
+            with self._log_timing(f"generate_variants({term})"):
+                fuzzy_variants = self._fuzzy_generator.generate_variants(term, max_variants=max_variants)
+            merged_aliases.extend(list(fuzzy_variants))
 
-        value["aliases"] = deduped
+        value["aliases"] = self._filter_aliases_by_phonetic(merged_aliases, canonical=term)
 
         if value["aliases"]:
             self._logger.debug(
@@ -109,3 +112,16 @@ class JapaneseEngine(CorrectorEngine):
             "exclude_when": value.get("exclude_when", []),
             "weight": value.get("weight", 1.0),
         }
+
+    def _filter_aliases_by_phonetic(self, aliases: List[str], *, canonical: str) -> List[str]:
+        seen = set()
+        deduped: List[str] = []
+        for alias in aliases:
+            if not alias or alias == canonical:
+                continue
+            key = self._phonetic.to_phonetic(alias)
+            if not key or key in seen:
+                continue
+            deduped.append(alias)
+            seen.add(key)
+        return deduped

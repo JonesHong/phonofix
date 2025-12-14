@@ -33,7 +33,14 @@ class EnglishTokenizer(Tokenizer):
         Returns:
             List[str]: 單字列表
         """
-        return re.findall(r"[A-Za-z0-9]+", text)
+        tokens: List[str] = []
+        for match in re.finditer(r"[A-Za-z0-9]+", text):
+            token = match.group(0)
+            if token.isalpha() and token.isupper() and len(token) <= 5:
+                tokens.extend(list(token))
+            else:
+                tokens.append(token)
+        return tokens
 
     def get_token_indices(self, text: str) -> List[Tuple[int, int]]:
         """
@@ -45,8 +52,13 @@ class EnglishTokenizer(Tokenizer):
         Returns:
             List[Tuple[int, int]]: 每個單字的 (start_index, end_index) 列表
         """
-        indices = []
-        # 使用 finditer 迭代所有匹配項，並獲取其 span (start, end)
+        indices: List[Tuple[int, int]] = []
         for match in re.finditer(r"[A-Za-z0-9]+", text):
-            indices.append(match.span())
+            start, end = match.span()
+            token = match.group(0)
+            if token.isalpha() and token.isupper() and len(token) <= 5:
+                for offset in range(len(token)):
+                    indices.append((start + offset, start + offset + 1))
+            else:
+                indices.append((start, end))
         return indices

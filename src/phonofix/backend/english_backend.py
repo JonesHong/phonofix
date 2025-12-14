@@ -8,7 +8,7 @@
 import os
 import threading
 import warnings
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, Optional
 
 from .base import PhoneticBackend
 from phonofix.languages.english import ENGLISH_INSTALL_HINT
@@ -145,6 +145,64 @@ def _cached_ipa_convert(text: str) -> str:
             _ipa_cache[text] = result
     
     return result
+
+
+def _normalize_english_text_for_ipa(text: str) -> str:
+    """
+    英文 IPA 轉換前的輕量正規化（用於 token/canonical 對齊）
+
+    目標：讓縮寫/數字在 batch IPA 場景下也能與 phonetic matching 對齊，避免過度依賴 surface variants。
+    """
+    if not text:
+        return ""
+
+    # 常見縮寫（小寫）
+    common_abbreviations = {
+        "js",
+        "ts",
+        "py",
+        "rb",
+        "go",
+        "rs",
+        "cs",
+        "db",
+        "ml",
+        "ai",
+        "ui",
+        "ux",
+        "api",
+        "sql",
+        "css",
+        "xml",
+        "sdk",
+        "aws",
+        "gcp",
+    }
+
+    normalized = text
+
+    # 全大寫短詞：視為字母縮寫（AWS -> A W S）
+    if normalized.isupper() and len(normalized) <= 5 and normalized.isalpha():
+        normalized = " ".join(list(normalized))
+    # 常見小寫縮寫：轉為大寫字母發音（js -> J S）
+    elif normalized.lower() in common_abbreviations and normalized.isalpha():
+        normalized = " ".join(list(normalized.upper()))
+
+    # 數字簡單展開（避免 1kg / 3d 類案例直接進 phonemizer）
+    normalized = (
+        normalized.replace("0", "zero ")
+        .replace("1", "one ")
+        .replace("2", "two ")
+        .replace("3", "three ")
+        .replace("4", "four ")
+        .replace("5", "five ")
+        .replace("6", "six ")
+        .replace("7", "seven ")
+        .replace("8", "eight ")
+        .replace("9", "nine ")
+    )
+
+    return normalized
 
 
 def _batch_ipa_convert(texts: list) -> Dict[str, str]:
@@ -294,8 +352,8 @@ class EnglishPhoneticBackend(PhoneticBackend):
         """
         if not self._initialized:
             self.initialize()
-        
-        return _cached_ipa_convert(text)
+
+        return _cached_ipa_convert(_normalize_english_text_for_ipa(text))
     
     def to_phonetic_batch(self, texts: list) -> Dict[str, str]:
         """
@@ -311,8 +369,10 @@ class EnglishPhoneticBackend(PhoneticBackend):
         """
         if not self._initialized:
             self.initialize()
-        
-        return _batch_ipa_convert(texts)
+
+        normalized = [_normalize_english_text_for_ipa(t) for t in texts]
+        normalized_map = _batch_ipa_convert(normalized)
+        return {orig: normalized_map.get(_normalize_english_text_for_ipa(orig), "") for orig in texts}
     
     def get_cache_stats(self) -> Dict[str, Any]:
         """

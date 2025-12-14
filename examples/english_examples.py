@@ -1,49 +1,31 @@
 """
-英文語音辨識校正範例 (English ASR Correction Examples)
+英文語音辨識校正範例
 
-=== 核心理念 ===
-本工具專門解決 ASR (語音辨識) 將專有名詞誤聽為發音相似常見詞彙的問題。
-例如：
-- "TensorFlow" 被聽成 "tensor flow" 或 "tens are flow"
-- "Kubernetes" 被聽成 "cooper net ease" 
-- "acetaminophen" 被聽成 "a set a mini fan"
-
-這不是簡單的拼寫糾正，而是利用 IPA 音標進行語音相似度比對。
-
-=== 範例內容 ===
-1. 基礎用法 - 自動生成 IPA 音標索引
-2. 手動別名 - 已知的 ASR 錯誤模式
+本檔案展示 EnglishEngine 的所有核心功能：
+1. 基礎用法 - Engine.create_corrector() 工廠方法
+2. 模糊詞典生成 - surface variants + representative variants
 3. 發音相似誤聽 - 專有名詞被聽成常見詞彙
-4. 上下文關鍵字 - 同音異義詞辨析
+4. 上下文關鍵字 - 根據前後文判斷替換 (同音異義詞)
 5. 上下文排除 - 避免錯誤修正
 6. 權重系統 - 控制替換優先級
-7. 混合格式配置
-8. 長文章校正
+7. 同音過濾 - 以 IPA phonetic key 去重，避免詞典膨脹
+8. 混合格式配置 - list/dict 混用
+9. 長文章校正 - 完整段落測試
+
+注意：自語言模組重構後，surface variants 預設關閉。
+如需「自動生成別名（分詞/分隔符/大小寫/可選的代表拼寫）」請建立 Engine 時開啟：
+- enable_surface_variants=True
+- enable_representative_variants=True  (較 aggressive，會生成更多候選)
 """
 
-import sys
-from pathlib import Path
+from _example_utils import add_repo_to_sys_path, print_case
 
-root_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(root_dir))
-sys.path.insert(0, str(root_dir / "src"))
+add_repo_to_sys_path()
 
 from phonofix import EnglishEngine
-from tools.translation_client import translate_text
 
 # 全域 Engine (單例模式，避免重複初始化)
-engine = EnglishEngine()
-
-
-def print_case(title, text, result, explanation):
-    """統一的輸出格式"""
-    print(f"--- {title} ---")
-    print(f"原文 (Original):  {text}")
-    print(f"譯文 (Trans):     {translate_text(text)}")
-    print(f"修正 (Corrected): {result}")
-    print(f"譯文 (Trans):     {translate_text(result)}")
-    print(f"說明 (Note):      {explanation}")
-    print()
+engine = EnglishEngine(verbose=False)
 
 
 # =============================================================================
@@ -58,13 +40,15 @@ def example_1_basic_usage():
     print("範例 1: 基礎用法 (Basic Usage)")
     print("=" * 60)
 
-    # 只需提供正確的詞彙，系統會自動透過 IPA 音標比對錯誤
-    corrector = engine.create_corrector([
-        "TensorFlow",   # ASR 可能誤聽為 "ten so flow" 或 "tensor flow"
-        "Kubernetes",   # ASR 可能誤聽為 "cooper net ease" 或 "cube and at ease"
-        "PostgreSQL",   # ASR 可能誤聽為 "post grass sequel"
-        "Django",       # ASR 可能誤聽為 "jango" (D 被吃掉)
-    ])
+    # 只需提供正確的詞彙
+    corrector = engine.create_corrector(
+        [
+            "TensorFlow",  # ASR 可能誤聽為 "tensor flow"
+            "Kubernetes",  # ASR 可能誤聽為 "cooper net ease"
+            "PostgreSQL",  # ASR 可能誤聽為 "post grass sequel"
+            "Django",  # ASR 可能誤聽為 "jango" (D 被吃掉)
+        ]
+    )
 
     test_cases = [
         ("Learning tensor flow for AI", "ASR 誤聽為常見詞 (tensor flow -> TensorFlow)"),
@@ -255,36 +239,38 @@ def example_6_weight_system():
 
 
 # =============================================================================
-# 範例 7: 發音變體展示 (Phonetic Variants)
+# 範例 7: 同音過濾 + 變體覆蓋 (Homophone Filtering)
 # =============================================================================
-def example_7_phonetic_variants():
+def example_7_homophone_filtering():
     """
-    展示 EnglishFuzzyGenerator 生成的發音變體。
-    Show generated phonetic variants for given terms.
+    展示 EnglishFuzzyGenerator 的覆蓋範圍，以及「同 IPA phonetic key 去重」的效果。
     """
     print("=" * 60)
-    print("範例 7: 發音變體展示 (Phonetic Variants)")
+    print("範例 7: 同音過濾 + 變體覆蓋 (Homophone Filtering)")
     print("=" * 60)
 
     from phonofix.languages.english.fuzzy_generator import EnglishFuzzyGenerator
-    generator = EnglishFuzzyGenerator()
+
+    generator_safe = EnglishFuzzyGenerator(enable_representative_variants=False)
+    generator_repr = EnglishFuzzyGenerator(enable_representative_variants=True)
 
     terms = [
         "TensorFlow",
         "Kubernetes",
         "PostgreSQL",
-        "Django",
-        "algorithm",
         "scikit-learn",
-        "Matplotlib",
     ]
 
     for term in terms:
-        variants = generator.generate_variants(term)
+        safe_variants = generator_safe.generate_variants(term, max_variants=20)
+        repr_variants = generator_repr.generate_variants(term, max_variants=20)
+
         print(f"目標詞: {term}")
-        print(f"生成的變體數: {len(variants)}")
-        print(f"前10個變體: {variants[:10]}")
-        print(f"說明: 展示自動生成的 ASR 誤聽拼寫變體")
+        print(f"安全變體數 (safe): {len(safe_variants)}")
+        print(f"代表變體數 (repr): {len(repr_variants)}")
+        print(f"safe 前10個: {safe_variants[:10]}")
+        print(f"repr 前10個: {repr_variants[:10]}")
+        print("說明: 生成階段會以 IPA key 去重，避免同音變體造成詞典膨脹")
         print()
 
 # =============================================================================
@@ -299,20 +285,20 @@ def example_8_mixed_format():
     print("範例 8: 混合格式 (Mixed Format)")
     print("=" * 60)
 
-    corrector = engine.create_corrector({
-        # 簡單列表：只指定已知誤聽
-        "PyTorch": ["pie torch", "by torch"],
-        
-        # 空字典：讓系統自動生成發音相似變體
-        "Matplotlib": {},
-        
-        # 完整配置：精細控制
-        "scikit-learn": {
-            "aliases": ["psychic learn", "sigh kit learn"],
-            "keywords": ["machine learning", "classifier", "regression"],
-            "weight": 0.5
+    corrector = engine.create_corrector(
+        {
+            # 簡單列表：只指定已知誤聽
+            "PyTorch": ["pie torch", "by torch"],
+            # 空字典：讓系統自動生成發音相似變體（需開啟 enable_surface_variants）
+            "Matplotlib": {},
+            # 完整配置：精細控制
+            "scikit-learn": {
+                "aliases": ["psychic learn", "sigh kit learn"],
+                "keywords": ["machine learning", "classifier", "regression"],
+                "weight": 0.5,
+            },
         }
-    })
+    )
 
     test_cases = [
         ("Training with pie torch", "簡單列表 -> PyTorch"),
@@ -326,15 +312,15 @@ def example_8_mixed_format():
 
 
 # =============================================================================
-# 範例 8: 長文章校正 (Long Article)
+# 範例 9: 長文章校正 (Long Article)
 # =============================================================================
-def example_8_long_article():
+def example_9_long_article():
     """
     長文章綜合測試。
     模擬真實的語音轉文字輸出，包含多種 ASR 誤聽。
     """
     print("=" * 60)
-    print("範例 8: 長文章校正 (Long Article)")
+    print("範例 9: 長文章校正 (Long Article)")
     print("=" * 60)
 
     terms = {
@@ -357,14 +343,12 @@ def example_8_long_article():
 
     print("原文 (Original):")
     print(article)
-    print(f"譯文: {translate_text(article)}")
     print("-" * 40)
     
     result = corrector.correct(article)
     
     print("修正後 (Corrected):")
     print(result)
-    print(f"譯文: {translate_text(result)}")
     print("-" * 40)
 
 
@@ -386,20 +370,20 @@ if __name__ == "__main__":
         example_4_context_keywords,
         example_5_exclude_when,
         example_6_weight_system,
-        example_7_phonetic_variants,
+        example_7_homophone_filtering,
         example_8_mixed_format,
-        example_8_long_article,
+        example_9_long_article,
     ]
 
     for func in examples:
         try:
             func()
         except Exception as e:
-            print(f"❌ 範例執行失敗: {e}")
+            print(f"範例執行失敗: {e}")
             import traceback
             traceback.print_exc()
         print()
 
     print("=" * 60)
-    print("✅ 所有範例執行完成!")
+    print("所有範例執行完成!")
     print("=" * 60)

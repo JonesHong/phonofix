@@ -24,6 +24,9 @@ class EnglishEngine(CorrectorEngine):
     def __init__(
         self,
         phonetic_config: Optional[EnglishPhoneticConfig] = None,
+        *,
+        enable_surface_variants: bool = False,
+        enable_representative_variants: bool = False,
         verbose: bool = False,
         on_timing: Optional[Callable[[str, float], None]] = None,
     ):
@@ -35,8 +38,13 @@ class EnglishEngine(CorrectorEngine):
 
             self._phonetic = EnglishPhoneticSystem(backend=self._backend)
             self._tokenizer = EnglishTokenizer()
-            self._fuzzy_generator = EnglishFuzzyGenerator()
             self._phonetic_config = phonetic_config or EnglishPhoneticConfig
+            self._enable_surface_variants = enable_surface_variants
+            self._fuzzy_generator = EnglishFuzzyGenerator(
+                config=self._phonetic_config,
+                backend=self._backend,
+                enable_representative_variants=enable_representative_variants,
+            )
 
             self._initialized = True
             self._logger.info("EnglishEngine initialized")
@@ -106,15 +114,18 @@ class EnglishEngine(CorrectorEngine):
         ipa = self._backend.to_phonetic(term)
         self._logger.debug(f"  [IPA] {term} -> {ipa}")
 
-        max_variants = int(value.get("max_variants", 30) or 30)
-        with self._log_timing(f"generate_variants({term})"):
-            auto_variants = self._fuzzy_generator.generate_variants(term, max_variants=max_variants)
+        if self._enable_surface_variants:
+            max_variants = int(value.get("max_variants", 30) or 30)
+            with self._log_timing(f"generate_variants({term})"):
+                auto_variants = self._fuzzy_generator.generate_variants(term, max_variants=max_variants)
 
-        current_aliases = set(value["aliases"])
-        for variant in auto_variants:
-            if variant != term and variant not in current_aliases:
-                value["aliases"].append(variant)
-                current_aliases.add(variant)
+            current_aliases = set(value["aliases"])
+            for variant in auto_variants:
+                if variant != term and variant not in current_aliases:
+                    value["aliases"].append(variant)
+                    current_aliases.add(variant)
+
+        value["aliases"] = self._filter_aliases_by_phonetic(value["aliases"])
 
         if value["aliases"]:
             self._logger.debug(
@@ -127,3 +138,17 @@ class EnglishEngine(CorrectorEngine):
             "exclude_when": value.get("exclude_when", []),
             "weight": value.get("weight", 0.0),
         }
+
+    def _filter_aliases_by_phonetic(self, aliases: list[str]) -> list[str]:
+        if not aliases:
+            return []
+
+        ipa_map = self._backend.to_phonetic_batch(aliases)
+        seen = set()
+        filtered: list[str] = []
+        for alias in aliases:
+            ipa = ipa_map.get(alias, "")
+            if ipa and ipa not in seen:
+                filtered.append(alias)
+                seen.add(ipa)
+        return filtered

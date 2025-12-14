@@ -25,11 +25,9 @@
 """
 
 import os
-import re
 import threading
 import warnings
 from functools import lru_cache
-from typing import List, Optional
 
 import Levenshtein
 
@@ -340,29 +338,8 @@ class EnglishPhoneticSystem(PhoneticSystem):
         Returns:
             bool: 若 (編輯距離 / 最大長度) <= 容錯率，則返回 True
         """
-        # 計算 Levenshtein 編輯距離
-        dist = Levenshtein.distance(phonetic1, phonetic2)
-        
-        # 根據較長字串的長度進行正規化
-        max_len = max(len(phonetic1), len(phonetic2))
-        min_len = min(len(phonetic1), len(phonetic2))
-        
-        if max_len == 0:
-            return True
-        
-        # 長度差異檢查：如果兩個字串長度差異超過 50%，不匹配
-        if min_len > 0 and (max_len - min_len) / min_len > 0.5:
-            return False
-        
-        ratio = dist / max_len
-        tolerance = self.get_tolerance(max_len)
-        
-        # 額外檢查：首音素必須相同或相似
-        if len(phonetic1) > 0 and len(phonetic2) > 0:
-            if not self._are_first_phonemes_similar(phonetic1, phonetic2):
-                tolerance = min(tolerance, 0.25)
-        
-        return ratio <= tolerance
+        _, is_match = self.calculate_similarity_score(phonetic1, phonetic2)
+        return is_match
     
     def calculate_similarity_score(self, phonetic1: str, phonetic2: str) -> tuple[float, bool]:
         """
@@ -373,30 +350,101 @@ class EnglishPhoneticSystem(PhoneticSystem):
             error_ratio: 0.0 ~ 1.0 (越低越相似)
             is_fuzzy_match: 是否通過模糊匹配閾值
         """
-        # 計算 Levenshtein 編輯距離
-        dist = Levenshtein.distance(phonetic1, phonetic2)
-        
-        # 根據較長字串的長度進行正規化
-        max_len = max(len(phonetic1), len(phonetic2))
-        min_len = min(len(phonetic1), len(phonetic2))
-        
+        # 1) 基本正規化（移除空白/長音符號等）
+        raw1 = self._normalize_ipa_for_distance(phonetic1)
+        raw2 = self._normalize_ipa_for_distance(phonetic2)
+
+        max_len = max(len(raw1), len(raw2))
+        min_len = min(len(raw1), len(raw2))
         if max_len == 0:
             return 0.0, True
-        
-        # 長度差異檢查：如果兩個字串長度差異超過 50%，視為不匹配
-        if min_len > 0 and (max_len - min_len) / min_len > 0.5:
+
+        # 長度差異檢查：極端差異直接排除（避免誤匹配爆炸）
+        if min_len > 0 and (max_len - min_len) / min_len > 0.8:
             return 1.0, False
-        
-        ratio = dist / max_len
+
+        # 2) raw IPA distance（保留完整資訊）
+        ratio_raw = Levenshtein.distance(raw1, raw2) / max_len
+
+        # 3) group-level distance（將音素映射到相似音素群組）
+        g1 = self._map_to_phoneme_groups(raw1)
+        g2 = self._map_to_phoneme_groups(raw2)
+        g_max = max(len(g1), len(g2))
+        ratio_group = Levenshtein.distance(g1, g2) / g_max if g_max else ratio_raw
+
+        # 4) consonant skeleton distance（弱化母音差異，改善常見 ASR 誤聽）
+        c1 = self._consonant_skeleton(raw1)
+        c2 = self._consonant_skeleton(raw2)
+        c_max = max(len(c1), len(c2))
+        ratio_cons = Levenshtein.distance(c1, c2) / c_max if c_max >= 4 else 1.0
+
+        error_ratio = min(ratio_raw, ratio_group, ratio_cons)
         tolerance = self.get_tolerance(max_len)
-        
+
         # 額外檢查：首音素必須相同或相似
-        if len(phonetic1) > 0 and len(phonetic2) > 0:
-            if not self._are_first_phonemes_similar(phonetic1, phonetic2):
-                # 如果首音素不相似，大幅降低容錯率 (要求更精確的匹配)
-                tolerance = min(tolerance, 0.15)
-        
-        return ratio, ratio <= tolerance
+        if raw1 and raw2 and not self._are_first_phonemes_similar(raw1, raw2):
+            tolerance = min(tolerance, 0.15)
+
+        return error_ratio, error_ratio <= tolerance
+
+    def _normalize_ipa_for_distance(self, ipa: str) -> str:
+        # 移除空白
+        ipa = (ipa or "").replace(" ", "")
+        # 移除長音符號
+        ipa = ipa.replace("ː", "")
+        # 將常見 r-colored vowels 正規化
+        ipa = ipa.replace("ɚ", "ə").replace("ɝ", "ə")
+        # 將 IPA g 正規化（phonemizer 常用 ɡ）
+        ipa = ipa.replace("ɡ", "g")
+        return ipa
+
+    def _map_to_phoneme_groups(self, ipa: str) -> str:
+        """
+        將每個 IPA 字元映射到「相似音素群組」代表字元。
+
+        目的：讓 b/p、i/ɛ 等常見差異不放大距離。
+        """
+        mapped = []
+        for ch in ipa:
+            code = None
+            for idx, group in enumerate(EnglishPhoneticConfig.FUZZY_PHONEME_GROUPS):
+                if ch in group:
+                    code = chr(ord("A") + idx)
+                    break
+            mapped.append(code if code is not None else ch)
+        return "".join(mapped)
+
+    def _consonant_skeleton(self, ipa: str) -> str:
+        """
+        取得 consonant skeleton（移除母音/弱讀母音/部分滑音）。
+
+        目的：改善「post grass sequel」這種母音差異很大、但骨架相近的 ASR 誤聽。
+        """
+        vowels = {
+            "a",
+            "e",
+            "i",
+            "o",
+            "u",
+            "ɪ",
+            "i",
+            "ɛ",
+            "e",
+            "æ",
+            "ɑ",
+            "ɔ",
+            "ʌ",
+            "ə",
+            "ɐ",
+            "ʊ",
+            "u",
+            "o",
+            "ɚ",
+            "ɝ",
+        }
+        # glide 類在 ASR 誤聽中常不穩定，弱化其影響
+        weak = {"j", "w"}
+        return "".join([ch for ch in ipa if ch not in vowels and ch not in weak])
 
     def _are_first_phonemes_similar(self, phonetic1: str, phonetic2: str) -> bool:
         """
@@ -432,5 +480,5 @@ class EnglishPhoneticSystem(PhoneticSystem):
         if length <= 5:
             return 0.25  # 中詞
         if length <= 8:
-            return 0.30  # 長詞
-        return 0.35  # 超長詞
+            return 0.35  # 長詞（需要容許常見 syllable split / vowel shift）
+        return 0.40  # 超長詞

@@ -3,21 +3,23 @@
 
 本檔案展示 ChineseEngine 的所有核心功能：
 1. 基礎用法 - Engine.create_corrector() 工廠方法
-2. 模糊詞典生成 - 自動生成同音/近音變體
+2. 模糊詞典生成 - surface variants + representative variants
 3. 同音字過濾 - 避免無意義的替換
 4. 台灣口音支援 - n/l, r/l, f/h 混淆
 5. 上下文關鍵字 - 根據前後文判斷替換
 6. 權重系統 - 控制替換優先級
 7. 豁免排除 - exclude_when 上下文排除條件
 8. 長文章校正 - 完整段落測試
+
+注意：自語言模組重構後，surface variants 預設關閉。
+如需「自動生成別名（同音/近音變體）」請建立 Engine 時開啟：
+- enable_surface_variants=True
+- enable_representative_variants=True  (中文建議同時開啟，否則多數詞彙只會產生黏音/特例變體)
 """
 
-import sys
-from pathlib import Path
+from _example_utils import add_repo_to_sys_path, print_case
 
-root_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(root_dir))
-sys.path.insert(0, str(root_dir / "src"))
+add_repo_to_sys_path()
 
 from phonofix import ChineseEngine
 
@@ -25,34 +27,25 @@ from phonofix import ChineseEngine
 engine = ChineseEngine(verbose=False)
 
 
-def print_case(title, text, result, explanation):
-    """統一的輸出格式"""
-    print(f"--- {title} ---")
-    print(f"原文 (Original):  {text}")
-    print(f"修正 (Corrected): {result}")
-    print(f"說明 (Note):      {explanation}")
-    print()
-
-
 # =============================================================================
 # 範例 1: 基礎用法 - 自動生成別名
 # =============================================================================
 def example_1_basic_usage():
     """
-    最簡單的用法：只提供關鍵字列表，系統自動生成所有模糊音變體
+    最簡單的用法：只提供關鍵字列表，系統自動生成模糊音變體
     """
     print("=" * 60)
     print("範例 1: 基礎用法 (Basic Usage)")
     print("=" * 60)
 
-    # 只需提供正確的詞彙，系統會自動生成同音/近音的錯誤變體
+    # 只需提供正確的詞彙；此範例使用「開啟 surface + representative variants」的 Engine
     corrector = engine.create_corrector(
         [
-            "台北車站",  # 自動生成: 胎北車站, 太北車站, 臺北車站...
+            "台北車站",  # 可修正常見同音字（同音字別名不會膨脹）
             "牛奶",  # 自動生成: 流奶, 留奶...
             "發揮",  # 自動生成: 花揮, 法揮...
             "學校",  # 自動生成: 些校, 雪校...
-            "然後",  # 自動生成: 蘭後, 藍後...
+            "然後",  # 自動生成: 挪, 亂後...
         ]
     )
 
@@ -244,37 +237,61 @@ def example_6_weight_system():
 
 
 # =============================================================================
-# 範例 7: 同音字過濾
+# 範例 7: 同音過濾 + 變體覆蓋 (Homophone Filtering)
 # =============================================================================
 def example_7_homophone_filtering():
     """
-    自動過濾無意義的同音字替換：
-    - 台北車站 的別名不會包含 太北車站、抬北車站 等（拼音相同）
-    - 這避免了「正確→正確」的無意義替換
+    展示 ChineseFuzzyGenerator 的覆蓋範圍，以及「同音去重」避免詞典膨脹。
+
+    - safe: 只包含黏音/特例（覆蓋小，但風險低）
+    - repr: 開啟 representative variants（覆蓋更多模糊音規則，但候選更多）
     """
     print("=" * 60)
-    print("範例 7: 同音過濾 (Homophone Filtering)")
+    print("範例 7: 同音過濾 + 變體覆蓋 (Homophone Filtering)")
     print("=" * 60)
 
     from phonofix.languages.chinese.fuzzy_generator import (
         ChineseFuzzyGenerator,
     )
 
-    generator = ChineseFuzzyGenerator()
+    generator_safe = ChineseFuzzyGenerator(enable_representative_variants=False)
+    generator_repr = ChineseFuzzyGenerator(enable_representative_variants=True)
 
-    # 生成變體
-    term = "台北車站"
-    all_variants = generator.generate_variants(term)
+    terms = [
+        "台北車站",
+        "牛奶",
+        "發揮",
+        "學校",
+        "然後",
+        "不知道",  # 黏音/特例：safe 也會有變體
+    ]
 
-    # filter_homophones 接受一個列表，過濾同音詞
-    filter_result = generator.filter_homophones([term] + all_variants)
+    for term in terms:
+        safe_variants = generator_safe.generate_variants(term, max_variants=20)
+        repr_variants = generator_repr.generate_variants(term, max_variants=20)
 
-    print(f"目標詞: {term}")
-    print(f"生成的變體數: {len(all_variants)}")
+        print(f"目標詞: {term}")
+        print(f"安全變體數 (safe): {len(safe_variants)}")
+        print(f"代表變體數 (repr): {len(repr_variants)}")
+        print(f"safe 前10個: {safe_variants[:10]}")
+        print(f"repr 前10個: {repr_variants[:10]}")
+        print("說明: repr 會以拼音 key 做 beam 去重，避免同音變體造成膨脹")
+        print()
+
+    # 2) filter_homophones：當你有「外部詞表」或「人工別名」時，用它來做同音去重
+    manual_terms = [
+        "台北車站",
+        "太北車站",
+        "胎北車站",
+        "臺北車站",
+        "台北市",
+    ]
+    filter_result = generator_repr.filter_homophones(manual_terms)
+
     print(f"過濾後保留數量: {len(filter_result['kept'])}")
     print(f"被過濾的同音詞數量: {len(filter_result['filtered'])}")
     print(f"保留的變體 (前10個): {filter_result['kept'][:10]}")
-    print(f"說明: 同音詞被過濾，避免無意義替換")
+    print("說明: 去聲調拼音相同者只保留第一個，避免詞典膨脹")
     print()
 
 
@@ -388,9 +405,9 @@ def example_9_long_article():
 # 主程式
 # =============================================================================
 if __name__ == "__main__":
-    print("\n" + "🇹🇼" * 20)
+    print("\n" + "ch" * 20)
     print("  中文語音辨識校正範例 (Chinese Examples)")
-    print("🇹🇼" * 20 + "\n")
+    print("ch" * 20 + "\n")
 
     examples = [
         example_1_basic_usage,
@@ -408,12 +425,12 @@ if __name__ == "__main__":
         try:
             func()
         except Exception as e:
-            print(f"❌ 範例執行失敗: {e}")
+            print(f"範例執行失敗: {e}")
             import traceback
 
             traceback.print_exc()
         print()
 
     print("=" * 60)
-    print("✅ 所有範例執行完成!")
+    print("所有範例執行完成!")
     print("=" * 60)

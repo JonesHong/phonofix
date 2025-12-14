@@ -5,10 +5,9 @@ ASR/LLM 增量輸入示範（無串流 API）
 本範例示範在增量輸入下，使用「累積全文 + 重新 correct」的方式處理。
 """
 
-import sys
-from pathlib import Path
+from _example_utils import add_repo_to_sys_path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+add_repo_to_sys_path()
 
 from phonofix import ChineseEngine
 
@@ -66,4 +65,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

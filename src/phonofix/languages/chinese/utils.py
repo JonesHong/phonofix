@@ -117,9 +117,6 @@ class ChinesePhoneticUtils:
         for i1, i2 in zip(init1_list, init2_list):
             if i1 == i2:
                 continue
-            # 英文聲母不參與模糊匹配
-            if self.contains_english(str(i1)) or self.contains_english(str(i2)):
-                return False
             # 檢查是否屬於同一模糊音群組
             # 範例: i1="z", i2="zh" -> 兩者皆屬 "z_group" -> 匹配
             group1 = self.config.FUZZY_INITIALS_MAP.get(i1)

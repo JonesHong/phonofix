@@ -11,11 +11,9 @@
     result = corrector.correct('I use Pyton for ML')
 """
 
-import re
 import logging
-from typing import List, Dict, Union, Optional, Set, TYPE_CHECKING, Any, Generator, Callable
-from .phonetic_impl import EnglishPhoneticSystem
-from .tokenizer import EnglishTokenizer
+from typing import Dict, List, TYPE_CHECKING
+
 from phonofix.core.protocols.corrector import ContextAwareCorrectorProtocol
 from phonofix.utils.logger import get_logger, TimingContext
 
@@ -91,7 +89,7 @@ class EnglishCorrector(ContextAwareCorrectorProtocol):
             # 確保正確詞本身也在搜尋範圍 (如果需要)
             # 通常我們只搜尋別名，但有時正確詞也需要被處理 (例如大小寫修正)
             # 這裡我們將正確詞也視為一個潛在的目標，但通常它會是完全匹配
-            targets = set(aliases)
+            targets = set(aliases) | {canonical}
             
             for alias in targets:
                 flat_mapping.append({

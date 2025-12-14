@@ -147,7 +147,7 @@ uv sync
 uv sync --dev
 
 # 執行範例
-uv run python examples/chinese_examples.py
+uv run ./examples/chinese_examples.py
 
 # 執行測試
 uv run pytest
@@ -358,7 +358,7 @@ result = corrector.correct("I use Pyton to write Ten so floor code")
 
 ### 5. 增量輸入（無串流 API）
 
-串流 API 已在 `v0.2.0` 移除；若要處理 ASR/LLM 的增量輸入，可參考 `examples/realtime_streaming_examples.py`（以「累積全文再重跑 correct」的方式處理）。
+串流 API 已在 `v0.2.0` 移除；若要處理 ASR/LLM 的增量輸入，一個簡單且穩定的做法是：累積全文並在每次更新時重新執行 `correct()`。
 
 ## 📁 專案結構
 
@@ -414,8 +414,8 @@ phonofix/
 │   ├── chinese_examples.py            # 中文校正範例
 │   ├── english_examples.py            # 英文校正範例
 │   ├── japanese_examples.py           # 日文校正範例
-│   ├── mixed_language_examples.py     # 混合語言（手動串接）範例
-│   └── realtime_streaming_examples.py # 增量輸入示範（無串流 API）
+│   ├── _example_utils.py              # 共用工具（CLI/輸出/翻譯）
+│   └── README.md                      # 範例設計說明
 │
 ├── tests/                             # 單元測試
 │   ├── test_chinese_corrector.py
@@ -531,21 +531,16 @@ result = corrector.correct("醫生開了二四批林給我")
 | `chinese_examples.py` | 中文語音替換範例 |
 | `english_examples.py` | 英文語音替換範例 |
 | `japanese_examples.py` | 日文語音替換範例 |
-| `mixed_language_examples.py` | 中英混合替換範例（手動串接） |
-| `realtime_streaming_examples.py` | 增量輸入示範（無串流 API） |
 
 ```bash
 # 執行中文範例
-uv run python examples/chinese_examples.py
+uv run ./examples/chinese_examples.py
 
 # 執行英文範例 (需安裝 espeak-ng)
-uv run python examples/english_examples.py
+uv run ./examples/english_examples.py
 
 # 執行日文範例 (需安裝 cutlet/fugashi/unidic-lite)
-uv run python examples/japanese_examples.py
-
-# 執行增量輸入範例 (無串流 API)
-uv run python examples/realtime_streaming_examples.py
+uv run ./examples/japanese_examples.py
 ```
 
 ## 🔧 技術細節
