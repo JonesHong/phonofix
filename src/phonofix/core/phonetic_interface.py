@@ -6,6 +6,7 @@
 
 from abc import ABC, abstractmethod
 
+
 class PhoneticSystem(ABC):
     """
     語言發音系統抽象介面 (Abstract Base Class)

@@ -19,7 +19,14 @@ class CorrectorProtocol(Protocol):
     """
 
     def correct(
-        self, text: str, full_context: str | None = None, silent: bool = False
+        self,
+        text: str,
+        full_context: str | None = None,
+        silent: bool = False,
+        *,
+        mode: str | None = None,
+        fail_policy: str = "degrade",
+        trace_id: str | None = None,
     ) -> str:
         """修正文本（可選完整上下文/靜默模式）"""
         ...

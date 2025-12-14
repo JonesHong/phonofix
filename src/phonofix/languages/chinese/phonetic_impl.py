@@ -8,6 +8,7 @@
 from typing import TYPE_CHECKING
 
 from phonofix.core.phonetic_interface import PhoneticSystem
+
 from .utils import ChinesePhoneticUtils
 
 if TYPE_CHECKING:
@@ -22,11 +23,11 @@ class ChinesePhoneticSystem(PhoneticSystem):
     - 將中文文本轉換為拼音字串
     - 判斷兩個拼音字串是否模糊相似 (支援聲母/韻母模糊音)
     - 提供基於長度的容錯率閾值
-    
+
     使用方式:
     1. 舊版 API (使用 utils 內部快取):
        phonetic = ChinesePhoneticSystem()
-       
+
     2. 新版 API (使用 Backend 單例):
        from phonofix.backend import get_chinese_backend
        backend = get_chinese_backend()
@@ -37,7 +38,7 @@ class ChinesePhoneticSystem(PhoneticSystem):
     def __init__(self, backend: "ChinesePhoneticBackend" = None):
         """
         初始化中文發音系統
-        
+
         Args:
             backend: 可選的 ChinesePhoneticBackend 實例。
                      如果提供，將使用 Backend 的快取；
@@ -83,7 +84,7 @@ class ChinesePhoneticSystem(PhoneticSystem):
         # 或者調用者會逐字處理。
         # 實際上，utils.are_fuzzy_similar 主要是為單音節設計的。
         # 但中文修正器通常在滑動視窗上運作，所以這裡的 text 可能是單字或短語。
-        
+
         # 為了符合介面定義，我們直接使用 utils 的邏輯
         # 但要注意多音節字串未對齊時可能會有問題
         return self.utils.are_fuzzy_similar(phonetic1, phonetic2)

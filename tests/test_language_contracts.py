@@ -12,18 +12,7 @@
 
 from __future__ import annotations
 
-import pytest
-
 from phonofix.core.protocols.corrector import CorrectorProtocol
-
-
-def _has_japanese_deps() -> bool:
-    try:
-        import cutlet  # noqa: F401
-
-        return True
-    except ImportError:
-        return False
 
 
 class TestLanguageContracts:
@@ -73,7 +62,6 @@ class TestLanguageContracts:
         assert isinstance(variants, list)
         assert all(isinstance(v, str) for v in variants)
 
-    @pytest.mark.skipif(not _has_japanese_deps(), reason="需要安裝 phonofix[ja]")
     def test_japanese_contracts(self):
         from phonofix import JapaneseEngine
         from phonofix.languages.japanese.fuzzy_generator import JapaneseFuzzyGenerator

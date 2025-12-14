@@ -60,6 +60,20 @@ Users must provide their own proper noun dictionary. This tool will:
 
 Streaming APIs (`StreamingCorrector`, `ChunkStreamingCorrector`) were removed in `v0.2.0` during the language-module refactor.
 
+### 5. Observability & Failure Policy (Production / Evaluation)
+
+Principle: **Degrade is allowed, but silent degrade is not**.
+
+- `silent`: only disables logger output; it does not disable events
+- `on_event`: preferred SDK surface for collecting replacements, errors, and degrade signals
+- `fail_policy`:
+  - `"degrade"` (default): on fuzzy exception, fall back to exact-only and emit `fuzzy_error` + `degraded`
+  - `"raise"`: on fuzzy exception, raise immediately (staging/CI/offline evaluation)
+- `mode` shortcuts:
+  - `"production"` is equivalent to `fail_policy="degrade"`
+  - `"evaluation"` is equivalent to `fail_policy="raise"`
+- `trace_id`: correlation ID for all events produced by a single `correct()` call (caller-provided or auto-generated)
+
 ## 📦 Installation
 
 ### Using uv (Recommended)
@@ -75,7 +89,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 ```bash
-# Default installation (includes both Chinese and English support)
+# Default installation (includes Chinese, English, and Japanese support)
 uv add phonofix
 
 # Chinese support only
@@ -134,7 +148,7 @@ sudo pacman -S espeak-ng
 Japanese support requires `cutlet`, `fugashi`, and `unidic-lite`.
 
 ```bash
-pip install "phonofix[ja]"
+uv add "phonofix[ja]"
 ```
 
 ### Development Environment Setup
@@ -142,6 +156,9 @@ pip install "phonofix[ja]"
 ```bash
 # Install dependencies after cloning
 uv sync
+
+# If the repo commits uv.lock (recommended), use the lockfile for reproducible installs
+uv sync --locked
 
 # Install dev dependencies
 uv sync --dev
@@ -202,6 +219,14 @@ print(correct(noisy_text))
 llm_text = "我在胎北車站用派森寫code"  # LLM transliterated Python as "派森"
 print(correct(llm_text))
 # Output: "我在台北車站用Python寫code"
+
+# Event callback (observability): events are still emitted even with silent=True
+events = []
+def on_event(e):  # e["type"] in {"replacement", "fuzzy_error", "degraded", "warning"}
+    events.append(e)
+
+en_corrector = en_engine.create_corrector({"Python": ["Pyton"]}, on_event=on_event)
+en_corrector.correct("I use Pyton", silent=True, mode="production", trace_id="req-001")
 ```
 
 ### 2. Japanese Support

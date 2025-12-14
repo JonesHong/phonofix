@@ -7,6 +7,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Tuple
 
+
 class Tokenizer(ABC):
     """
     語言分詞器抽象介面 (Abstract Base Class)

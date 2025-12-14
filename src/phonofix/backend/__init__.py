@@ -10,8 +10,8 @@
 """
 
 from .base import PhoneticBackend
-from .english_backend import EnglishPhoneticBackend, get_english_backend
 from .chinese_backend import ChinesePhoneticBackend, get_chinese_backend
+from .english_backend import EnglishPhoneticBackend, get_english_backend
 
 __all__ = [
     "PhoneticBackend",

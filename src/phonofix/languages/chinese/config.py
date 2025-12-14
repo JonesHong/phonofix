@@ -58,10 +58,9 @@ class ChinesePhoneticConfig:
     # 某些混淆通常是單向的，例如 "hua" 容易被聽成 "fa"，但 "fa" 不太容易被聽成 "hua"
     # 用於更嚴格的模糊匹配場景
     SPECIAL_SYLLABLE_MAP_UNIDIRECTIONAL = {
-        "hua": ["fa"], "hui": ["fei"], "huan": ["fan"], "hong": ["feng"], "fu": ["hu"],
+        "hua": ["fa"], "hui": ["fei", "wei"], "huan": ["fan", "wan"], "hong": ["feng"], "fu": ["hu"],
         "xie": ["xue"], "jie": ["jue"], "qie": ["que"], "nie": ["nue"], "lie": ["lue"],
         "lan": ["ran"], "yan": ["ran"], "lou": ["rou"],
-        "hui": ["wei"], "huan": ["wan"],
         "e": ["er"],
         "wen": ["weng"], "iong": ["yong"],
         "lun": ["ren"], "leng": ["ren"],
@@ -106,7 +105,7 @@ class ChinesePhoneticConfig:
     def build_group_to_initials_map(cls):
         """
         建立反向查找表: 模糊音群組 -> 聲母列表
-        
+
         用途: 快速查找某個群組包含哪些聲母
         範例: "z_group" -> ["z", "zh"]
         """
@@ -115,7 +114,7 @@ class ChinesePhoneticConfig:
             if group not in group_to_initials:
                 group_to_initials[group] = []
             group_to_initials[group].append(init)
-        
+
         # 特殊處理: r_l_group 應該包含 l，即使 FUZZY_INITIALS_MAP 中 l 映射到 n_l_group
         # 這是為了處理 r -> l 的單向或部分雙向關係
         if "r_l_group" in group_to_initials:

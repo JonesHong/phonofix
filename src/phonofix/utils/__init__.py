@@ -4,19 +4,18 @@
 提供日誌、計時、延遲導入等通用工具。
 """
 
-from .logger import (
-    get_logger,
-    log_timing,
-    TimingContext,
-)
-
 from .lazy_imports import (
-    is_chinese_available,
-    is_english_available,
-    check_chinese_dependencies,
-    check_english_dependencies,
     CHINESE_INSTALL_HINT,
     ENGLISH_INSTALL_HINT,
+    check_chinese_dependencies,
+    check_english_dependencies,
+    is_chinese_available,
+    is_english_available,
+)
+from .logger import (
+    TimingContext,
+    get_logger,
+    log_timing,
 )
 
 __all__ = [
@@ -24,7 +23,7 @@ __all__ = [
     "get_logger",
     "log_timing",
     "TimingContext",
-    
+
     # 依賴檢查
     "is_chinese_available",
     "is_english_available",

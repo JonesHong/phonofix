@@ -30,10 +30,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Setup
 ```bash
-# Install dependencies
-pip install pypinyin Levenshtein Pinyin2Hanzi hanziconv
-# Or use requirements.txt
-pip install -r requirements.txt
+# Install project dependencies (uv)
+uv sync
+
+# Install dev dependencies
+uv sync --dev
 ```
 
 ### Run Examples
@@ -47,8 +48,8 @@ python examples/examples.py
 
 ### Testing
 ```bash
-# Basic functionality test
-python -c "from chinese_text_corrector import ChineseTextCorrector; print('Import successful')"
+# Run tests
+uv run pytest
 ```
 
 ## Architecture

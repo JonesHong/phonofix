@@ -8,8 +8,9 @@
 from typing import Any, Callable, Dict, List, Optional
 
 from phonofix.backend import ChinesePhoneticBackend, get_chinese_backend
-from phonofix.core.term_config import TermDictInput, normalize_term_dict
 from phonofix.core.engine_interface import CorrectorEngine
+from phonofix.core.events import CorrectionEventHandler
+from phonofix.core.term_config import TermDictInput, normalize_term_dict
 
 from .config import ChinesePhoneticConfig
 from .corrector import ChineseCorrector
@@ -26,7 +27,7 @@ class ChineseEngine(CorrectorEngine):
         self,
         phonetic_config: Optional[ChinesePhoneticConfig] = None,
         *,
-        enable_surface_variants: bool = False,
+        enable_surface_variants: bool = True,
         enable_representative_variants: bool = False,
         verbose: bool = False,
         on_timing: Optional[Callable[[str, float], None]] = None,
@@ -84,6 +85,7 @@ class ChineseEngine(CorrectorEngine):
         self,
         term_dict: TermDictInput,
         protected_terms: Optional[List[str]] = None,
+        on_event: Optional[CorrectionEventHandler] = None,
         **kwargs,
     ) -> ChineseCorrector:
         with self._log_timing("ChineseEngine.create_corrector"):
@@ -111,6 +113,7 @@ class ChineseEngine(CorrectorEngine):
                 engine=self,
                 term_mapping=normalized_dict,
                 protected_terms=set(protected_terms) if protected_terms else None,
+                on_event=on_event,
             )
 
     def _normalize_term_value(self, term: str, value: Any) -> Optional[Dict[str, Any]]:
@@ -131,7 +134,8 @@ class ChineseEngine(CorrectorEngine):
             with self._log_timing(f"generate_variants({term})"):
                 fuzzy_variants = self._fuzzy_generator.generate_variants(term, max_variants=max_variants)
             merged_aliases.extend(list(fuzzy_variants))
-        value["aliases"] = self._filter_aliases_by_pinyin(merged_aliases)
+        max_variants = int(value.get("max_variants", 30) or 30)
+        value["aliases"] = self._filter_aliases_by_pinyin(merged_aliases)[:max_variants]
 
         if value["aliases"]:
             self._logger.debug(

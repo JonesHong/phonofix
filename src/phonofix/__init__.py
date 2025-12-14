@@ -15,14 +15,24 @@ phonofix - 多語言語音相似修正器 (Multi-Language Phonetic Corrector)
 # =============================================================================
 # Engine 層（官方入口）
 # =============================================================================
+# =============================================================================
+# Backend 層（進階用途）
+# =============================================================================
+from phonofix.backend import (
+    ChinesePhoneticBackend,
+    EnglishPhoneticBackend,
+    get_chinese_backend,
+    get_english_backend,
+)
+from phonofix.core.events import CorrectionEvent, CorrectionEventHandler
+
+# =============================================================================
+# Protocol（進階用途）
+# =============================================================================
+from phonofix.core.protocols.corrector import ContextAwareCorrectorProtocol, CorrectorProtocol
 from phonofix.languages.chinese import ChineseEngine
 from phonofix.languages.english import EnglishEngine
 from phonofix.languages.japanese import JapaneseEngine
-
-# =============================================================================
-# 日誌工具
-# =============================================================================
-from phonofix.utils.logger import enable_debug_logging, enable_timing_logging, get_logger
 
 # =============================================================================
 # 依賴檢查工具
@@ -35,19 +45,9 @@ from phonofix.utils.lazy_imports import (
 )
 
 # =============================================================================
-# Backend 層（進階用途）
+# 日誌工具
 # =============================================================================
-from phonofix.backend import (
-    ChinesePhoneticBackend,
-    EnglishPhoneticBackend,
-    get_chinese_backend,
-    get_english_backend,
-)
-
-# =============================================================================
-# Protocol（進階用途）
-# =============================================================================
-from phonofix.core.protocols.corrector import CorrectorProtocol, ContextAwareCorrectorProtocol
+from phonofix.utils.logger import enable_debug_logging, enable_timing_logging, get_logger
 
 __all__ = [
     # Engines
@@ -71,7 +71,9 @@ __all__ = [
     # Protocols (advanced)
     "CorrectorProtocol",
     "ContextAwareCorrectorProtocol",
+    # Events (advanced)
+    "CorrectionEvent",
+    "CorrectionEventHandler",
 ]
 
 __version__ = "0.2.0"
-

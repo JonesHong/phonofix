@@ -7,6 +7,7 @@
 from typing import Any, Optional
 
 from phonofix.utils.logger import get_logger
+
 from . import JAPANESE_INSTALL_HINT
 
 logger = get_logger(__name__)
@@ -32,7 +33,7 @@ def _get_cutlet() -> Any:
             # 預設使用 Hepburn 拼音，不使用外來語拼寫 (例如 'Camera' -> 'Kamera')
             # 這樣可以統一拼音維度，方便模糊比對
             _cutlet_instance = cutlet.Cutlet()
-            _cutlet_instance.use_foreign_spelling = False 
+            _cutlet_instance.use_foreign_spelling = False
         except ImportError as e:
             logger.error("無法載入 cutlet，請確認是否已安裝日文依賴")
             raise ImportError(JAPANESE_INSTALL_HINT) from e
@@ -42,7 +43,7 @@ def _get_cutlet() -> Any:
 def _get_fugashi() -> Any:
     """
     取得 Fugashi Tagger 實例 (Lazy Loading)
-    
+
     通常 Cutlet 內部會處理，但如果需要直接存取分詞器可使用此函式。
 
     Returns:
@@ -62,7 +63,7 @@ def _get_fugashi() -> Any:
 def is_japanese_char(char: str) -> bool:
     """
     判斷字元是否為日文 (平假名、片假名)
-    
+
     注意：漢字 (Kanji) 與中文重疊，此處不包含漢字判斷。
     漢字的語言歸屬通常由上下文決定。
 
@@ -74,15 +75,15 @@ def is_japanese_char(char: str) -> bool:
     """
     if not char:
         return False
-        
+
     code = ord(char)
-    
+
     # 平假名 (Hiragana): 0x3040 - 0x309F
     if 0x3040 <= code <= 0x309F:
         return True
-        
+
     # 片假名 (Katakana): 0x30A0 - 0x30FF
     if 0x30A0 <= code <= 0x30FF:
         return True
-        
+
     return False

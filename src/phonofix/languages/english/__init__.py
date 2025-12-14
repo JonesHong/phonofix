@@ -18,10 +18,7 @@
 - EnglishTokenizer: 英文分詞器
 
 效能優化:
-- cached_ipa_convert: 快取版 IPA 轉換
-- warmup_ipa_cache: 預熱 IPA 快取 (加速首次執行)
-- clear_english_cache: 清除快取
-- get_english_cache_stats: 取得快取統計
+- 英文 IPA 的 G2P / 初始化 / 快取皆由 Backend 單例負責（`phonofix.backend.get_english_backend`）
 """
 
 from __future__ import annotations
@@ -46,10 +43,6 @@ _LAZY_IMPORTS = {
     "EnglishCorrector": (".corrector", "EnglishCorrector"),
     "EnglishFuzzyGenerator": (".fuzzy_generator", "EnglishFuzzyGenerator"),
     "EnglishPhoneticSystem": (".phonetic_impl", "EnglishPhoneticSystem"),
-    "cached_ipa_convert": (".phonetic_impl", "cached_ipa_convert"),
-    "warmup_ipa_cache": (".phonetic_impl", "warmup_ipa_cache"),
-    "clear_english_cache": (".phonetic_impl", "clear_english_cache"),
-    "get_english_cache_stats": (".phonetic_impl", "get_english_cache_stats"),
     "EnglishPhoneticConfig": (".config", "EnglishPhoneticConfig"),
     "EnglishTokenizer": (".tokenizer", "EnglishTokenizer"),
 }
@@ -61,10 +54,6 @@ __all__ = [
     "EnglishPhoneticSystem",
     "EnglishPhoneticConfig",
     "EnglishTokenizer",
-    "cached_ipa_convert",
-    "warmup_ipa_cache",
-    "clear_english_cache",
-    "get_english_cache_stats",
     "ENGLISH_INSTALL_HINT",
     "INSTALL_HINT",
 ]

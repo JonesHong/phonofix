@@ -8,8 +8,9 @@
 from typing import Any, Callable, Dict, Optional
 
 from phonofix.backend import EnglishPhoneticBackend, get_english_backend
-from phonofix.core.term_config import TermDictInput, normalize_term_dict
 from phonofix.core.engine_interface import CorrectorEngine
+from phonofix.core.events import CorrectionEventHandler
+from phonofix.core.term_config import TermDictInput, normalize_term_dict
 
 from .config import EnglishPhoneticConfig
 from .corrector import EnglishCorrector
@@ -25,7 +26,7 @@ class EnglishEngine(CorrectorEngine):
         self,
         phonetic_config: Optional[EnglishPhoneticConfig] = None,
         *,
-        enable_surface_variants: bool = False,
+        enable_surface_variants: bool = True,
         enable_representative_variants: bool = False,
         verbose: bool = False,
         on_timing: Optional[Callable[[str, float], None]] = None,
@@ -79,10 +80,11 @@ class EnglishEngine(CorrectorEngine):
         self,
         term_dict: TermDictInput,
         protected_terms: Optional[list[str]] = None,
+        on_event: Optional[CorrectionEventHandler] = None,
         **kwargs,
     ) -> EnglishCorrector:
         with self._log_timing("EnglishEngine.create_corrector"):
-            _ = protected_terms
+            protected_set = set(protected_terms) if protected_terms else None
             normalized_input = normalize_term_dict(term_dict)
 
             normalized_dict = {}
@@ -100,7 +102,12 @@ class EnglishEngine(CorrectorEngine):
                 f"rate={hit_rate:.1f}%, size={cache_stats['currsize']}"
             )
 
-            return EnglishCorrector._from_engine(engine=self, term_mapping=normalized_dict)
+            return EnglishCorrector._from_engine(
+                engine=self,
+                term_mapping=normalized_dict,
+                protected_terms=protected_set,
+                on_event=on_event,
+            )
 
     def _normalize_term_value(self, term: str, value: Any) -> Optional[Dict[str, Any]]:
         if isinstance(value, list):
@@ -125,7 +132,8 @@ class EnglishEngine(CorrectorEngine):
                     value["aliases"].append(variant)
                     current_aliases.add(variant)
 
-        value["aliases"] = self._filter_aliases_by_phonetic(value["aliases"])
+        max_variants = int(value.get("max_variants", 30) or 30)
+        value["aliases"] = self._filter_aliases_by_phonetic(value["aliases"])[:max_variants]
 
         if value["aliases"]:
             self._logger.debug(

@@ -7,10 +7,10 @@
 僅在實際使用中文功能時才會載入 Pinyin2Hanzi 和 hanziconv。
 """
 
-from .config import ChinesePhoneticConfig
-from .utils import ChinesePhoneticUtils
 from phonofix.core.protocols.fuzzy import FuzzyGeneratorProtocol
 
+from .config import ChinesePhoneticConfig
+from .utils import ChinesePhoneticUtils
 
 # =============================================================================
 # 延遲導入 Pinyin2Hanzi 和 hanziconv
@@ -25,10 +25,10 @@ _imports_checked = False
 def _get_pinyin2hanzi():
     """延遲載入 Pinyin2Hanzi 模組"""
     global _pinyin2hanzi_dag, _pinyin2hanzi_params_class, _imports_checked
-    
+
     if _imports_checked and _pinyin2hanzi_dag is not None:
         return _pinyin2hanzi_params_class, _pinyin2hanzi_dag
-    
+
     try:
         from Pinyin2Hanzi import DefaultDagParams, dag
         _pinyin2hanzi_params_class = DefaultDagParams
@@ -44,10 +44,10 @@ def _get_pinyin2hanzi():
 def _get_hanziconv():
     """延遲載入 hanziconv 模組"""
     global _hanziconv, _imports_checked
-    
+
     if _imports_checked and _hanziconv is not None:
         return _hanziconv
-    
+
     try:
         from hanziconv import HanziConv
         _hanziconv = HanziConv
@@ -96,7 +96,7 @@ class ChineseFuzzyGenerator(FuzzyGeneratorProtocol):
         將拼音轉換為可能的漢字 (同音字反查)
 
         使用 Pinyin2Hanzi 庫的 DAG (有向無環圖) 演算法找出最可能的漢字。
-        
+
         Args:
             pinyin_str: 拼音字串 (如 "zhong")
             max_chars: 最多返回幾個候選字
@@ -108,7 +108,7 @@ class ChineseFuzzyGenerator(FuzzyGeneratorProtocol):
         # 延遲載入
         _, dag = _get_pinyin2hanzi()
         HanziConv = _get_hanziconv()
-        
+
         # 使用 DAG 演算法查詢拼音對應的漢字路徑
         result = dag(self.dag_params, [pinyin_str], path_num=max_chars)
         chars = []
@@ -134,9 +134,9 @@ class ChineseFuzzyGenerator(FuzzyGeneratorProtocol):
 
         Returns:
             List[Dict]: 變體列表，每個元素包含 {"pinyin": 拼音, "char": 代表字}
-            範例: "中" (zhong) -> 
+            範例: "中" (zhong) ->
             [
-                {"pinyin": "zhong", "char": "中"}, 
+                {"pinyin": "zhong", "char": "中"},
                 {"pinyin": "zong", "char": "宗"}  (假設 z/zh 模糊)
             ]
         """
@@ -174,7 +174,7 @@ class ChineseFuzzyGenerator(FuzzyGeneratorProtocol):
         Args:
             char_options_list: 每個位置的字符變體列表
             範例: [
-                [{"char": "台", "pinyin": "tai"}], 
+                [{"char": "台", "pinyin": "tai"}],
                 [{"char": "積", "pinyin": "ji"}, {"char": "基", "pinyin": "ji"}]
             ]
 
@@ -237,7 +237,7 @@ class ChineseFuzzyGenerator(FuzzyGeneratorProtocol):
         if term in self.config.STICKY_PHRASE_MAP:
             # 取得目前已有的變體文字，避免重複
             alias_texts = [a if isinstance(a, str) else a.get("text", "") for a in aliases]
-            
+
             for sticky in self.config.STICKY_PHRASE_MAP[term]:
                 if sticky not in alias_texts:
                     # 黏音通常沒有標準拼音對應，或拼音不重要，故只存文字

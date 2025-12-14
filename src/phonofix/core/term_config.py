@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, TypedDict, Union
 
-
 TermDictInput = Union[List[str], Dict[str, Any]]
 
 

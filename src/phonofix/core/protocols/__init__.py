@@ -5,7 +5,7 @@ Protocols（契約）集中管理
 避免分散在 correction/ 等特定功能資料夾造成定位混淆。
 """
 
-from .corrector import CorrectorProtocol, ContextAwareCorrectorProtocol
+from .corrector import ContextAwareCorrectorProtocol, CorrectorProtocol
 from .fuzzy import FuzzyGeneratorProtocol
 
 __all__ = [

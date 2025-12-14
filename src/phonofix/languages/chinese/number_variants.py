@@ -95,11 +95,11 @@ COMMON_NUMBER_ALIASES = {
     "110": ["幺幺洞", "一一零"],
     "119": ["幺幺勾", "一一九"],
     "120": ["幺二洞", "一二零"],
-    
+
     # 型號類 (範例)
     "A380": ["A三八零", "A三八洞"],
     "747": ["七四七", "拐四拐"],
-    
+
     # 可根據實際需求擴充
 }
 
@@ -111,20 +111,20 @@ COMMON_NUMBER_ALIASES = {
 def generate_number_variants(number_str: str) -> list:
     """
     為數字字串生成所有可能的發音變體組合
-    
+
     注意: 此函數目前未啟用
-    
+
     Args:
         number_str: 數字字串，如 "110"
-        
+
     Returns:
         list: 所有可能的變體組合，如 ["幺幺洞", "一一零", "幺一零", ...]
     """
     if not ENABLE_NUMBER_VARIANTS:
         return []
-    
+
     from itertools import product
-    
+
     # 為每個數字收集可能的字元
     char_options = []
     for digit in number_str:
@@ -139,22 +139,22 @@ def generate_number_variants(number_str: str) -> list:
         else:
             # 非數字字元，保留原樣
             char_options.append([digit])
-    
+
     # 生成所有組合
     variants = ["".join(combo) for combo in product(*char_options)]
-    
+
     return variants
 
 
 def get_variant_count(length: int) -> int:
     """
     計算 N 位數字最多可能產生的變體數量
-    
+
     假設所有位數都是有變體的數字 (0,1,2,6,7,9)，每位 2 種選擇
-    
+
     Args:
         length: 數字位數
-        
+
     Returns:
         int: 最大變體數量 (2^n)
     """
@@ -170,7 +170,7 @@ def get_variant_count(length: int) -> int:
 1. 將 ENABLE_NUMBER_VARIANTS 設為 True
 
 2. 在 dictionary_generator.py 中匯入並整合:
-   
+
    from .number_variants import (
        ENABLE_NUMBER_VARIANTS,
        NUMBER_PHONETIC_VARIANTS,
@@ -178,19 +178,19 @@ def get_variant_count(length: int) -> int:
    )
 
 3. 在 _add_sticky_phrase_aliases 或新函數中處理數字:
-   
+
    def _add_number_aliases(self, term_mapping):
        if not ENABLE_NUMBER_VARIANTS:
            return term_mapping
-       
+
        for term, aliases in term_mapping.items():
            # 檢測並處理包含數字的術語
            ...
 
 4. 或者，直接使用 COMMON_NUMBER_ALIASES 加入 term_mapping:
-   
+
    from phonofix.languages.chinese.number_variants import COMMON_NUMBER_ALIASES
-   
+
    term_mapping = {
        "台北車站": ["北車"],
        **COMMON_NUMBER_ALIASES,  # 加入常見數字別名

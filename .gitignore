@@ -112,7 +112,7 @@ Thumbs.db
 
 # uv
 .venv/
-uv.lock
+# uv.lock 建議納入版控以確保可重現性（讓 uv 以 lockfile 安裝）
 
 # Debug files
 debug_*.py

@@ -6,9 +6,9 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import logging
-from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 from phonofix.core.term_config import TermDictInput
 from phonofix.utils.logger import TimingContext, get_logger, setup_logger

@@ -7,8 +7,9 @@
 
 from typing import Any, Callable, Dict, List, Optional
 
-from phonofix.core.term_config import TermDictInput, normalize_term_dict
 from phonofix.core.engine_interface import CorrectorEngine
+from phonofix.core.events import CorrectionEventHandler
+from phonofix.core.term_config import TermDictInput, normalize_term_dict
 
 from .config import JapanesePhoneticConfig
 from .corrector import JapaneseCorrector
@@ -24,7 +25,7 @@ class JapaneseEngine(CorrectorEngine):
         self,
         phonetic_config: Optional[JapanesePhoneticConfig] = None,
         *,
-        enable_surface_variants: bool = False,
+        enable_surface_variants: bool = True,
         enable_representative_variants: bool = False,
         verbose: bool = False,
         on_timing: Optional[Callable[[str, float], None]] = None,
@@ -70,6 +71,7 @@ class JapaneseEngine(CorrectorEngine):
         self,
         term_dict: TermDictInput,
         protected_terms: Optional[List[str]] = None,
+        on_event: Optional[CorrectionEventHandler] = None,
         **kwargs,
     ) -> JapaneseCorrector:
         normalized_input = normalize_term_dict(term_dict)
@@ -80,7 +82,13 @@ class JapaneseEngine(CorrectorEngine):
             if normalized_value:
                 normalized_mapping[term] = normalized_value
 
-        return JapaneseCorrector._from_engine(engine=self, term_mapping=normalized_mapping)
+        protected_set = set(protected_terms) if protected_terms else None
+        return JapaneseCorrector._from_engine(
+            engine=self,
+            term_mapping=normalized_mapping,
+            protected_terms=protected_set,
+            on_event=on_event,
+        )
 
     def _normalize_term_value(self, term: str, value: Any) -> Optional[Dict[str, Any]]:
         if isinstance(value, list):
@@ -99,7 +107,8 @@ class JapaneseEngine(CorrectorEngine):
                 fuzzy_variants = self._fuzzy_generator.generate_variants(term, max_variants=max_variants)
             merged_aliases.extend(list(fuzzy_variants))
 
-        value["aliases"] = self._filter_aliases_by_phonetic(merged_aliases, canonical=term)
+        max_variants = int(value.get("max_variants", 30) or 30)
+        value["aliases"] = self._filter_aliases_by_phonetic(merged_aliases, canonical=term)[:max_variants]
 
         if value["aliases"]:
             self._logger.debug(

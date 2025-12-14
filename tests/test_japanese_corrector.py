@@ -4,18 +4,11 @@
 測試日文拼音轉換、分詞與修正功能。
 """
 
-import importlib.util
-
-import pytest
-
 from phonofix import JapaneseEngine
 from phonofix.languages.japanese.phonetic_impl import JapanesePhoneticSystem
 from phonofix.languages.japanese.tokenizer import JapaneseTokenizer
 
-HAS_JAPANESE_DEPS = importlib.util.find_spec("cutlet") is not None
 
-
-@pytest.mark.skipif(not HAS_JAPANESE_DEPS, reason="需要安裝 phonofix[ja]")
 class TestJapaneseCorrector:
     def test_phonetic_conversion(self):
         """測試日文拼音轉換"""
@@ -29,7 +22,7 @@ class TestJapaneseCorrector:
         # 如果分詞器沒有正確標記為助詞，可能會轉為 "ha"。
         # 這裡 Cutlet 轉為 "konnichiha"，我們暫時接受此結果。
         # 理想情況下應為 "konnichiwa"。
-        assert phonetic.to_phonetic("こんにちは") == "konnichiha"
+        assert phonetic.to_phonetic("こんにちは") in {"konnichiha", "konnichiwa"}
 
         assert phonetic.to_phonetic("アスピリン") == "asupirin"
 
@@ -77,3 +70,69 @@ class TestJapaneseCorrector:
         # 測試模糊匹配 (容許些微差異)
         # "rokisonin" vs "rokisonen" (i -> e)
         assert corrector.correct("痛み止めにrokisonenを使います") == "痛み止めにロキソニンを使います"
+
+    def test_protected_terms_and_event(self):
+        """測試 protected_terms 與 on_event（日文也應一致）"""
+        events = []
+
+        def on_event(e):
+            events.append(e)
+
+        engine = JapaneseEngine()
+        corrector = engine.create_corrector(
+            {"アスピリン": ["asupirin"]},
+            protected_terms=["asupirin"],
+            on_event=on_event,
+        )
+
+        # 因為 asupirin 被保護，不應替換，也不應發事件
+        assert corrector.correct("asupirin") == "asupirin"
+        assert events == []
+
+    def test_protected_terms_overlap_span_skips_replacement(self):
+        """protected_terms 只要與候選片段重疊，就必須跳過（日文）"""
+        events = []
+
+        def on_event(e):
+            events.append(e)
+
+        engine = JapaneseEngine()
+        corrector = engine.create_corrector(
+            {"アスピリン": ["asupirin"]},
+            protected_terms=["asup"],
+            on_event=on_event,
+        )
+
+        assert corrector.correct("asupirin") == "asupirin"
+        assert events == []
+
+    def test_silent_disables_event(self):
+        """測試 silent=True 不應輸出 log，但事件回呼仍可用（可觀測性）"""
+        events = []
+
+        def on_event(e):
+            events.append(e)
+
+        engine = JapaneseEngine()
+        corrector = engine.create_corrector(
+            {"アスピリン": ["asupirin"]},
+            on_event=on_event,
+        )
+
+        assert corrector.correct("asupirin", silent=True) == "アスピリン"
+        assert any(ev.get("type") == "replacement" and ev.get("replacement") == "アスピリン" for ev in events)
+
+    def test_keywords_and_exclude_when(self):
+        """測試 keywords/exclude_when 過濾規則（exclude_when 優先）"""
+        engine = JapaneseEngine()
+        corrector = engine.create_corrector({
+            "アスピリン": {
+                "aliases": ["asupirin"],
+                "keywords": ["頭"],
+                "exclude_when": ["胃"],
+            }
+        })
+
+        assert corrector.correct("頭が痛いのでasupirin") == "頭が痛いのでアスピリン"
+        assert corrector.correct("胃が痛いのでasupirin") == "胃が痛いのでasupirin"
+        assert corrector.correct("asupirin") == "asupirin"

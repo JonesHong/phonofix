@@ -9,7 +9,7 @@
 
 class EnglishPhoneticConfig:
     """英文語音配置類別 - 集中管理英文模糊音規則"""
-    
+
     # 常見的字母/數字音似混淆
     # 格式: 字母 -> [可能被聽成的變體]
     # 範例: 'E' 可能被聽成 '1' (one 的發音)
@@ -32,7 +32,7 @@ class EnglishPhoneticConfig:
         '4': ['four', 'for'],
         '8': ['eight', 'ate'],
     }
-    
+
     # 常見拼寫錯誤模式 (正規表達式: 正確 -> 錯誤變體)
     # 格式: (pattern, replacement)
     SPELLING_PATTERNS = [
@@ -40,7 +40,7 @@ class EnglishPhoneticConfig:
         (r'(.)\1', r'\1'),           # tt -> t, ss -> s
         # 常見混淆
         (r'ph', 'f'),                # python -> fython
-        (r'th', 't'),                # python -> pyton  
+        (r'th', 't'),                # python -> pyton
         (r'ow', 'o'),                # flow -> flo
         (r'ck', 'k'),                # back -> bak
         (r'tion', 'shun'),           # station -> stashun
@@ -53,7 +53,7 @@ class EnglishPhoneticConfig:
 
         (r'que$', 'k'),              # technique -> technik
     ]
-    
+
     # IPA 相似音映射 (用於發音比對)
     # 格式: 音素 -> [可互換的相似音素]
     IPA_FUZZY_MAP = {
@@ -65,7 +65,7 @@ class EnglishPhoneticConfig:
         'ð': ['d', 'z'],      # the -> de/ze
         'ŋ': ['n'],           # sing -> sin
     }
-    
+
     # 默認容錯率 (IPA Levenshtein 距離 / 最大長度)
     DEFAULT_TOLERANCE = 0.40
 

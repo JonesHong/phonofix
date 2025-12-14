@@ -6,6 +6,7 @@
 
 import re
 from typing import List, Tuple
+
 from phonofix.core.tokenizer_interface import Tokenizer
 
 

@@ -6,7 +6,7 @@
 
 使用方式:
     from phonofix import ChineseEngine
-    
+
     engine = ChineseEngine()
     corrector = engine.create_corrector({'台北車站': ['北車', '台北站']})
     result = corrector.correct('我在北車等你')
@@ -15,15 +15,20 @@
 僅在實際使用中文功能時才會載入 pypinyin。
 """
 
-import Levenshtein
-import re
 import logging
+import re
+import uuid
 from functools import lru_cache
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional
+
+import Levenshtein
+
+from phonofix.core.events import CorrectionEventHandler
+from phonofix.core.protocols.corrector import ContextAwareCorrectorProtocol
+from phonofix.utils.aho_corasick import AhoCorasick
+from phonofix.utils.logger import TimingContext, get_logger
 
 from .utils import _get_pypinyin
-from phonofix.core.protocols.corrector import ContextAwareCorrectorProtocol
-from phonofix.utils.logger import get_logger, TimingContext
 
 if TYPE_CHECKING:
     from phonofix.languages.chinese.engine import ChineseEngine
@@ -64,28 +69,29 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
     - 針對輸入文本進行滑動視窗掃描
     - 結合拼音模糊比對與上下文關鍵字驗證
     - 修正同音異字或近音字造成的拼寫錯誤
-    
+
     建立方式:
         使用 ChineseEngine.create_corrector() 建立實例
     """
-    
+
     @classmethod
     def _from_engine(
         cls,
         engine: "ChineseEngine",
         term_mapping: Dict[str, Dict],
         protected_terms: Optional[set] = None,
+        on_event: Optional[CorrectionEventHandler] = None,
     ) -> "ChineseCorrector":
         """
         由 ChineseEngine 調用的內部工廠方法
-        
+
         此方法使用 Engine 提供的共享元件，避免重複初始化。
-        
+
         Args:
             engine: ChineseEngine 實例
             term_mapping: 正規化的專有名詞映射
             protected_terms: 受保護的詞彙集合 (這些詞不會被修正)
-            
+
         Returns:
             ChineseCorrector: 輕量實例
         """
@@ -98,9 +104,101 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
         instance.utils = engine.utils
         instance.use_canonical = True
         instance.protected_terms = protected_terms or set()
+        instance._on_event = on_event
+        instance._exact_matcher = None
+        instance._exact_items_by_alias = {}
+        instance._protected_matcher = None
+
+        if instance.protected_terms:
+            matcher: AhoCorasick[str] = AhoCorasick()
+            for term in instance.protected_terms:
+                if term:
+                    matcher.add(term, term)
+            matcher.build()
+            instance._protected_matcher = matcher
         instance.search_index = instance._build_search_index(term_mapping)
-        
+        instance._build_exact_matcher()
+        instance._build_fuzzy_buckets()
+
         return instance
+
+    def _build_exact_matcher(self) -> None:
+        items_by_alias: dict[str, list[Dict[str, Any]]] = {}
+        for item in self.search_index:
+            if not item.get("is_alias"):
+                continue
+            alias = item["term"]
+            if not alias:
+                continue
+            items_by_alias.setdefault(alias, []).append(item)
+
+        if not items_by_alias:
+            self._exact_items_by_alias = {}
+            self._exact_matcher = None
+            return
+
+        matcher: AhoCorasick[str] = AhoCorasick()
+        for alias in items_by_alias.keys():
+            matcher.add(alias, alias)
+        matcher.build()
+
+        self._exact_items_by_alias = items_by_alias
+        self._exact_matcher = matcher
+
+    def _build_fuzzy_buckets(self) -> None:
+        """
+        建立便宜 pruning 用的分桶索引
+
+        分桶維度：
+        - 片段長度（len）
+        - 首聲母群組（FUZZY_INITIALS_MAP）
+        """
+        buckets: dict[int, dict[str, list[Dict[str, Any]]]] = {}
+        for item in self.search_index:
+            word_len = int(item["len"])
+            initials = item.get("initials") or []
+            first = initials[0] if initials else ""
+            group = self.config.FUZZY_INITIALS_MAP.get(first) or first or ""
+            buckets.setdefault(word_len, {}).setdefault(group, []).append(item)
+
+        self._fuzzy_buckets = buckets
+
+    def _emit_replacement(self, candidate: Dict[str, Any], *, silent: bool, trace_id: str | None) -> None:
+        event = {
+            "type": "replacement",
+            "engine": getattr(self._engine, "_engine_name", "chinese"),
+            "trace_id": trace_id,
+            "start": candidate.get("start"),
+            "end": candidate.get("end"),
+            "original": candidate.get("original"),
+            "replacement": candidate.get("replacement"),
+            "canonical": candidate.get("canonical"),
+            "alias": candidate.get("alias"),
+            "score": candidate.get("score"),
+            "has_context": candidate.get("has_context", False),
+        }
+
+        try:
+            if self._on_event is not None:
+                self._on_event(event)
+        except Exception:
+            if not silent:
+                self._logger.exception("on_event 回呼執行失敗")
+
+        if not silent and candidate.get("original") != candidate.get("replacement"):
+            tag = "上下文命中" if candidate.get("has_context") else "發音修正"
+            self._logger.info(
+                f"[{tag}] '{candidate.get('original')}' -> '{candidate.get('replacement')}' "
+                f"(Score: {candidate.get('score'):.3f})"
+            )
+
+    def _emit_pipeline_event(self, event: Dict[str, Any], *, silent: bool) -> None:
+        try:
+            if self._on_event is not None:
+                self._on_event(event)
+        except Exception:
+            if not silent:
+                self._logger.exception("on_event 回呼執行失敗")
 
     @staticmethod
     def _filter_aliases_by_pinyin(aliases, utils):
@@ -162,6 +260,7 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
         pinyin_str = cached_get_pinyin_string(term)
         pinyin_syllables = cached_get_pinyin_syllables(term)
         initials_list = list(cached_get_initials(term))
+        is_alias = term != canonical
         return {
             "term": term,
             "canonical": canonical,
@@ -173,6 +272,7 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
             "initials": initials_list,
             "len": len(term),
             "is_mixed": self.utils.contains_english(term),
+            "is_alias": is_alias,
         }
 
     def _get_dynamic_threshold(self, word_len, is_mixed=False):
@@ -235,12 +335,20 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
 
     def _build_protection_mask(self, text: str) -> set[int]:
         """建立保護遮罩，標記不應被修正的區域 (受保護的詞彙)"""
-        protected_indices = set()
-        if self.protected_terms:
+        protected_indices: set[int] = set()
+        if not self.protected_terms:
+            return protected_indices
+
+        if self._protected_matcher is None:
             for protected_term in self.protected_terms:
+                if not protected_term:
+                    continue
                 for match in re.finditer(re.escape(protected_term), text):
-                    for idx in range(match.start(), match.end()):
-                        protected_indices.add(idx)
+                    protected_indices.update(range(match.start(), match.end()))
+            return protected_indices
+
+        for start, end, _word, _value in self._protected_matcher.iter_matches(text):
+            protected_indices.update(range(start, end))
         return protected_indices
 
     def _is_segment_protected(self, start_idx, word_len, protected_indices):
@@ -250,30 +358,37 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
                 return True
         return False
 
+    @staticmethod
+    def _is_span_protected(start: int, end: int, protected_indices: set[int]) -> bool:
+        for idx in range(start, end):
+            if idx in protected_indices:
+                return True
+        return False
+
     def _is_valid_segment(self, segment):
         """檢查片段是否包含有效字符 (中文、英文、數字)"""
-        if re.search(r"[^a-zA-Z0-9\u4e00-\u9fa5]", segment):
+        if re.search(r"[^a-zA-Z0-9\u4e00-\u9fff]", segment):
             return False
         return True
 
     def _should_exclude_by_context(self, full_text, exclude_when):
         """
         檢查是否應根據上下文排除修正
-        
+
         策略:
         - 如果沒有定義 exclude_when，則不排除
         - 如果有定義 exclude_when，則文本中包含任一排除條件就排除
-        
+
         Args:
             full_text: 完整文本
             exclude_when: 上下文排除條件列表
-            
+
         Returns:
             bool: 如果應該排除則返回 True
         """
         if not exclude_when:
             return False
-        
+
         full_text_lower = full_text.lower()
         for condition in exclude_when:
             if condition.lower() in full_text_lower:
@@ -283,21 +398,21 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
     def _has_required_keyword(self, full_text, keywords):
         """
         檢查是否滿足關鍵字必要條件
-        
+
         策略:
         - 如果沒有定義 keywords，則無條件通過
         - 如果有定義 keywords，則文本中必須包含至少一個關鍵字
-        
+
         Args:
             full_text: 完整文本
             keywords: 關鍵字列表
-            
+
         Returns:
             bool: 如果滿足條件則返回 True
         """
         if not keywords:
             return True
-        
+
         full_text_lower = full_text.lower()
         for kw in keywords:
             if kw.lower() in full_text_lower:
@@ -326,7 +441,7 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
         # 使用快取版本的拼音計算
         window_pinyin_str = cached_get_pinyin_string(segment)
         target_pinyin_lower = target_pinyin_str.lower()
-        
+
         # 快速路徑：完全匹配
         if window_pinyin_str == target_pinyin_lower:
             return window_pinyin_str, 0.0, True
@@ -348,27 +463,27 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
                     break
             if ok:
                 return window_pinyin_str, 0.0, True
-        
+
         # 特殊音節匹配
         if len(segment) >= 2 and len(target_pinyin_lower) < 10:
             if self.utils.check_special_syllable_match(
                 window_pinyin_str, target_pinyin_lower, bidirectional=False
             ):
                 return window_pinyin_str, 0.0, True
-        
+
         # 韻母模糊匹配
         if self.utils.check_finals_fuzzy_match(
             window_pinyin_str, target_pinyin_lower
         ):
             return window_pinyin_str, 0.1, True
-        
+
         # Levenshtein 編輯距離
         dist = Levenshtein.distance(window_pinyin_str, target_pinyin_lower)
         max_len = max(len(window_pinyin_str), len(target_pinyin_lower))
         error_ratio = dist / max_len if max_len > 0 else 0
         return window_pinyin_str, error_ratio, False
 
-    def _check_initials_match(self, segment, item):
+    def _check_initials_match(self, segment, item, *, segment_initials: tuple[str, ...] | None = None):
         """
         檢查聲母是否匹配
 
@@ -379,10 +494,10 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
         word_len = item["len"]
         if item["is_mixed"]:
             return True  # 混合語言詞跳過聲母檢查
-        
+
         # 使用快取版本的聲母計算
-        window_initials = list(cached_get_initials(segment))
-        
+        window_initials = list(segment_initials if segment_initials is not None else cached_get_initials(segment))
+
         if word_len <= 3:
             # 短詞: 所有聲母都必須匹配
             if not self.utils.is_fuzzy_initial_match(
@@ -417,40 +532,101 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
             final_score -= context_bonus
         return final_score
 
-    def _create_candidate(self, start_idx, word_len, original, item, score, has_context):
-        """建立候選修正物件"""
-        replacement = item["canonical"] if self.use_canonical else item["term"]
-        return {
-            "start": start_idx,
-            "end": start_idx + word_len,
-            "original": original,
-            "replacement": replacement,
-            "score": score,
-            "has_context": has_context,
-        }
+    def _score_candidate_drafts(self, drafts: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+        """
+        統一計分階段
 
-    def _process_exact_match(self, text: str, start_idx: int, original_segment: str, item: Dict[str, Any]):
-        """處理完全匹配的情況 (別名精確匹配)"""
-        if original_segment != item["term"]:
-            return None
-        
-        # 檢查關鍵字必要條件：如果有定義 keywords 但沒命中，則跳過
-        if not self._has_required_keyword(text, item["keywords"]):
-            return None
-        
-        # 檢查上下文排除條件：如果有定義 exclude_when 且命中，則跳過
-        if self._should_exclude_by_context(text, item["exclude_when"]):
-            return None
-        
-        has_context, context_distance = self._check_context_bonus(text, start_idx, start_idx + item["len"], item["keywords"])
-        final_score = self._calculate_final_score(
-            0.0, item, has_context, context_distance
-        )
-        return self._create_candidate(
-            start_idx, item["len"], original_segment, item, final_score, has_context
-        )
+        目的：把「候選生成」與「打分」分離，之後可替換索引策略（BK-tree / n-gram 等）。
+        """
+        best: dict[tuple[int, int, str], Dict[str, Any]] = {}
 
-    def _process_fuzzy_match(self, text: str, start_idx: int, original_segment: str, item: Dict[str, Any]):
+        for draft in drafts:
+            item = draft["item"]
+            start = int(draft["start"])
+            end = int(draft["end"])
+            original = str(draft["original"])
+            replacement = item["canonical"] if self.use_canonical else item["term"]
+
+            if not replacement or original == replacement:
+                continue
+
+            score = self._calculate_final_score(
+                float(draft["error_ratio"]),
+                item,
+                bool(draft.get("has_context", False)),
+                draft.get("context_distance"),
+            )
+
+            candidate = {
+                "start": start,
+                "end": end,
+                "original": original,
+                "replacement": replacement,
+                "canonical": item["canonical"],
+                "alias": item["term"],
+                "score": score,
+                "has_context": bool(draft.get("has_context", False)),
+            }
+
+            key = (start, end, replacement)
+            prev = best.get(key)
+            if prev is None or candidate["score"] < prev["score"]:
+                best[key] = candidate
+
+        return list(best.values())
+
+    def _generate_exact_candidate_drafts(
+        self, text: str, protected_indices: set[int]
+    ) -> list[Dict[str, Any]]:
+        if not self._exact_matcher:
+            return []
+
+        drafts: list[Dict[str, Any]] = []
+        for start, end, _word, alias in self._exact_matcher.iter_matches(text):
+            if self._is_span_protected(start, end, protected_indices):
+                continue
+
+            original_segment = text[start:end]
+            if not self._is_valid_segment(original_segment):
+                continue
+            if original_segment in self.protected_terms:
+                continue
+
+            for item in self._exact_items_by_alias.get(alias, []):
+                # keywords / exclude_when 規則（與既有行為一致，context 用完整文本）
+                if not self._has_required_keyword(text, item["keywords"]):
+                    continue
+                if self._should_exclude_by_context(text, item["exclude_when"]):
+                    continue
+
+                has_context, context_distance = self._check_context_bonus(
+                    text, start, end, item["keywords"]
+                )
+
+                drafts.append(
+                    {
+                        "start": start,
+                        "end": end,
+                        "original": original_segment,
+                        "error_ratio": 0.0,
+                        "has_context": has_context,
+                        "context_distance": context_distance,
+                        "item": item,
+                    }
+                )
+
+        return drafts
+
+    def _process_fuzzy_match_draft(
+        self,
+        text: str,
+        start_idx: int,
+        original_segment: str,
+        item: Dict[str, Any],
+        *,
+        segment_initials: tuple[str, ...] | None = None,
+        segment_syllables: tuple[str, ...] | None = None,
+    ):
         """
         處理模糊匹配
 
@@ -464,81 +640,89 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
         7. 計算最終分數
         """
         word_len = item["len"]
-        
+
         # 檢查關鍵字必要條件：如果有定義 keywords 但沒命中，則跳過
         if not self._has_required_keyword(text, item["keywords"]):
             return None
-        
+
         # 檢查上下文排除條件：如果有定義 exclude_when 且命中，則跳過
         if self._should_exclude_by_context(text, item["exclude_when"]):
             return None
-        
+
+        # 便宜 pruning：先做首聲母/群組檢查，避免進入拼音 similarity 計算
+        if not self._check_initials_match(original_segment, item, segment_initials=segment_initials):
+            return None
+
         threshold = self._get_dynamic_threshold(word_len, item["is_mixed"])
         window_pinyin_str, error_ratio, is_fuzzy_match = self._calculate_pinyin_similarity(
             original_segment,
             item["pinyin_str"],
-            segment_syllables=cached_get_pinyin_syllables(original_segment),
+            segment_syllables=segment_syllables or cached_get_pinyin_syllables(original_segment),
             target_syllables=item.get("pinyin_syllables"),
         )
         if is_fuzzy_match:
             threshold = max(threshold, 0.15)
         if error_ratio > threshold:
             return None
-        if not self._check_initials_match(original_segment, item):
-            return None
         has_context, context_distance = self._check_context_bonus(text, start_idx, start_idx + word_len, item["keywords"])
-        final_score = self._calculate_final_score(
-            error_ratio, item, has_context, context_distance
-        )
-        replacement = item["canonical"] if self.use_canonical else item["term"]
-        if original_segment == replacement:
-            return None
-        return self._create_candidate(
-            start_idx, word_len, original_segment, item, final_score, has_context
-        )
+        return {
+            "start": start_idx,
+            "end": start_idx + word_len,
+            "original": original_segment,
+            "error_ratio": error_ratio,
+            "has_context": has_context,
+            "context_distance": context_distance,
+            "item": item,
+        }
 
-    def _find_candidates(self, text: str, protected_indices: set[int]) -> list[Dict[str, Any]]:
+    def _generate_fuzzy_candidate_drafts(self, text: str, protected_indices: set[int]) -> list[Dict[str, Any]]:
         """
-        搜尋所有可能的修正候選
+        搜尋所有可能的模糊修正候選（不計分，只產生候選資訊）
 
         遍歷所有索引項目，在文本中進行滑動視窗比對。
         """
         text_len = len(text)
-        candidates = []
-        for item in self.search_index:
-            word_len = item["len"]
+        drafts: list[Dict[str, Any]] = []
+
+        for word_len, groups in self._fuzzy_buckets.items():
             if word_len > text_len:
                 continue
+
             for i in range(text_len - word_len + 1):
                 if self._is_segment_protected(i, word_len, protected_indices):
                     continue
+
                 original_segment = text[i : i + word_len]
                 if not self._is_valid_segment(original_segment):
                     continue
                 if original_segment in self.protected_terms:
                     continue
-                candidate = self._process_exact_match(
-                    text, i, original_segment, item
-                )
-                if candidate:
-                    # 匹配詳情日誌
-                    self._logger.debug(
-                        f"  [Match] '{candidate['original']}' -> '{candidate['replacement']}' "
-                        f"(exact, score={candidate['score']:.3f})"
-                    )
-                    candidates.append(candidate)
+
+                segment_initials = tuple(cached_get_initials(original_segment))
+                first = segment_initials[0] if segment_initials else ""
+                group = self.config.FUZZY_INITIALS_MAP.get(first) or first or ""
+
+                items = list(groups.get(group, []))
+                if group == "":
+                    items = list(groups.get("", []))
+                if not items:
                     continue
-                candidate = self._process_fuzzy_match(
-                    text, i, original_segment, item
-                )
-                if candidate:
-                    # 匹配詳情日誌
-                    self._logger.debug(
-                        f"  [Match] '{candidate['original']}' -> '{candidate['replacement']}' "
-                        f"(fuzzy, score={candidate['score']:.3f})"
+
+                segment_syllables = cached_get_pinyin_syllables(original_segment)
+
+                for item in items:
+                    draft = self._process_fuzzy_match_draft(
+                        text,
+                        i,
+                        original_segment,
+                        item,
+                        segment_initials=segment_initials,
+                        segment_syllables=segment_syllables,
                     )
-                    candidates.append(candidate)
-        return candidates
+                    if draft:
+                        drafts.append(draft)
+
+        return drafts
 
     def _resolve_conflicts(self, candidates):
         """
@@ -560,24 +744,34 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
                 final_candidates.append(cand)
         return final_candidates
 
-    def _apply_replacements(self, text: str, final_candidates: list[Dict[str, Any]], silent: bool = False) -> str:
+    def _apply_replacements(
+        self,
+        text: str,
+        final_candidates: list[Dict[str, Any]],
+        silent: bool = False,
+        *,
+        trace_id: str | None = None,
+    ) -> str:
         """應用修正並輸出日誌"""
         final_candidates.sort(key=lambda x: x["start"], reverse=True)
         final_text_list = list(text)
         for cand in final_candidates:
-            if cand["original"] != cand["replacement"]:
-                if not silent:
-                    tag = "[上下文命中]" if cand.get("has_context") else "[發音修正]"
-                    # 用戶可見的修正反饋
-                    print(
-                        f"{tag} '{cand['original']}' -> '{cand['replacement']}' (Score: {cand['score']:.3f})"
-                    )
+            self._emit_replacement(cand, silent=silent, trace_id=trace_id)
             final_text_list[cand["start"] : cand["end"]] = list(
                 cand["replacement"]
             )
         return "".join(final_text_list)
 
-    def correct(self, text: str, full_context: str | None = None, silent: bool = False) -> str:
+    def correct(
+        self,
+        text: str,
+        full_context: str | None = None,
+        silent: bool = False,
+        *,
+        mode: str | None = None,
+        fail_policy: str = "degrade",
+        trace_id: str | None = None,
+    ) -> str:
         """
         執行修正流程
 
@@ -591,8 +785,49 @@ class ChineseCorrector(ContextAwareCorrectorProtocol):
         """
         with TimingContext("ChineseCorrector.correct", self._logger, logging.DEBUG):
             protected_indices = self._build_protection_mask(text)
-            candidates = self._find_candidates(text, protected_indices)
+
+            if mode == "evaluation":
+                fail_policy = "raise"
+            elif mode == "production":
+                fail_policy = "degrade"
+
+            trace_id_value = trace_id or uuid.uuid4().hex
+
+            drafts: list[Dict[str, Any]] = []
+            drafts.extend(self._generate_exact_candidate_drafts(text, protected_indices))
+            try:
+                drafts.extend(self._generate_fuzzy_candidate_drafts(text, protected_indices))
+            except Exception as exc:
+                self._emit_pipeline_event(
+                    {
+                        "type": "fuzzy_error",
+                        "engine": getattr(self._engine, "_engine_name", "chinese"),
+                        "trace_id": trace_id_value,
+                        "stage": "candidate_gen",
+                        "fallback": "none" if fail_policy == "raise" else "exact_only",
+                        "exception_type": type(exc).__name__,
+                        "exception_message": str(exc),
+                    },
+                    silent=silent,
+                )
+                if fail_policy == "raise":
+                    raise
+                self._emit_pipeline_event(
+                    {
+                        "type": "degraded",
+                        "engine": getattr(self._engine, "_engine_name", "chinese"),
+                        "trace_id": trace_id_value,
+                        "stage": "candidate_gen",
+                        "fallback": "exact_only",
+                        "degrade_reason": "fuzzy_error",
+                    },
+                    silent=silent,
+                )
+                if not silent:
+                    self._logger.exception("產生 fuzzy 候選失敗，降級為 exact-only")
+
+            candidates = self._score_candidate_drafts(drafts)
             final_candidates = self._resolve_conflicts(candidates)
-            return self._apply_replacements(text, final_candidates, silent=silent)
+            return self._apply_replacements(text, final_candidates, silent=silent, trace_id=trace_id_value)
 
     # 串流 API 已移除（Phase 6：精簡對外介面，改由上層自行分段/多次呼叫 correct()）

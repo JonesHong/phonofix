@@ -60,6 +60,20 @@
 
 串流 API（`StreamingCorrector`, `ChunkStreamingCorrector`）已在 `v0.2.0` 的語言模組重構中移除。
 
+### 5. 可觀測性與故障策略（Production / Evaluation）
+
+本套件的原則是：**允許降級，但不允許默默降級**。
+
+- `silent`：只代表「不輸出 logger」，不代表「不出事件」
+- `on_event`：建議用於收集替換紀錄、錯誤、降級訊號（比 log 更適合作為 SDK 介面）
+- `fail_policy`：
+  - `"degrade"`（預設）：fuzzy 發生例外時降級為 exact-only，並發出 `fuzzy_error` + `degraded` 事件
+  - `"raise"`：fuzzy 發生例外時直接拋出（適合 staging/CI/離線評估）
+- `mode`：語意化的捷徑
+  - `"production"` 等同 `fail_policy="degrade"`
+  - `"evaluation"` 等同 `fail_policy="raise"`
+- `trace_id`：同一次 `correct()` 的事件關聯 ID（可由呼叫端傳入，或由套件自動產生）
+
 ## 📦 安裝
 
 ### 使用 uv (推薦)
@@ -75,7 +89,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 ```bash
-# 預設安裝 (包含中英文支援)
+# 預設安裝 (包含中英日支援)
 uv add phonofix
 
 # 僅中文支援
@@ -134,7 +148,7 @@ sudo pacman -S espeak-ng
 日文支援需要 `cutlet`, `fugashi`, 和 `unidic-lite`。
 
 ```bash
-pip install "phonofix[ja]"
+uv add "phonofix[ja]"
 ```
 
 ### 開發環境設定
@@ -142,6 +156,9 @@ pip install "phonofix[ja]"
 ```bash
 # Clone 專案後安裝依賴
 uv sync
+
+# 若 repo 有提交 uv.lock（建議），可使用 lockfile 進行可重現安裝
+uv sync --locked
 
 # 安裝開發依賴
 uv sync --dev
@@ -202,6 +219,14 @@ print(correct(noisy_text))
 llm_text = "我在胎北車站用派森寫code"  # LLM 把 Python 音譯成「派森」
 print(correct(llm_text))
 # 輸出: "我在台北車站用Python寫code"
+
+# 事件回呼（可觀測性）：即使 silent=True，仍可收到事件
+events = []
+def on_event(e):  # e["type"] in {"replacement", "fuzzy_error", "degraded", "warning"}
+    events.append(e)
+
+en_corrector = en_engine.create_corrector({"Python": ["Pyton"]}, on_event=on_event)
+en_corrector.correct("I use Pyton", silent=True, mode="production", trace_id="req-001")
 ```
 
 ### 2. 日文支援

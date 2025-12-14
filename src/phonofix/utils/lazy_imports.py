@@ -16,7 +16,7 @@
 
 """
 
-from typing import Optional, Callable, Any, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 from phonofix.languages.chinese import CHINESE_INSTALL_HINT
 from phonofix.languages.english import ENGLISH_INSTALL_HINT
@@ -43,21 +43,21 @@ _hanziconv_module = None
 def get_pypinyin():
     """
     延遲載入 pypinyin 模組
-    
+
     Returns:
         pypinyin 模組
-        
+
     Raises:
         ImportError: 如果 pypinyin 未安裝
     """
     global _pypinyin_available, _pypinyin_module
-    
+
     if _pypinyin_available is not None:
         if _pypinyin_available:
             return _pypinyin_module
         else:
             raise ImportError(CHINESE_INSTALL_HINT)
-    
+
     try:
         import pypinyin
         _pypinyin_module = pypinyin
@@ -84,21 +84,21 @@ def is_pypinyin_available() -> bool:
 def get_pinyin2hanzi() -> Tuple[Any, Callable]:
     """
     延遲載入 Pinyin2Hanzi 模組
-    
+
     Returns:
         Tuple[DefaultDagParams, dag]: (預設參數類別, dag 函數)
-        
+
     Raises:
         ImportError: 如果 Pinyin2Hanzi 未安裝
     """
     global _pinyin2hanzi_available, _pinyin2hanzi_dag, _pinyin2hanzi_params
-    
+
     if _pinyin2hanzi_available is not None:
         if _pinyin2hanzi_available:
             return _pinyin2hanzi_params, _pinyin2hanzi_dag
         else:
             raise ImportError(CHINESE_INSTALL_HINT)
-    
+
     try:
         from Pinyin2Hanzi import DefaultDagParams, dag
         _pinyin2hanzi_params = DefaultDagParams
@@ -126,21 +126,21 @@ def is_pinyin2hanzi_available() -> bool:
 def get_hanziconv():
     """
     延遲載入 hanziconv 模組
-    
+
     Returns:
         HanziConv 類別
-        
+
     Raises:
         ImportError: 如果 hanziconv 未安裝
     """
     global _hanziconv_available, _hanziconv_module
-    
+
     if _hanziconv_available is not None:
         if _hanziconv_available:
             return _hanziconv_module
         else:
             raise ImportError(CHINESE_INSTALL_HINT)
-    
+
     try:
         from hanziconv import HanziConv
         _hanziconv_module = HanziConv
@@ -167,12 +167,12 @@ def is_hanziconv_available() -> bool:
 def is_chinese_available() -> bool:
     """
     檢查中文支援是否可用
-    
+
     需要 pypinyin, Pinyin2Hanzi, hanziconv 都安裝才返回 True
     """
     return (
-        is_pypinyin_available() and 
-        is_pinyin2hanzi_available() and 
+        is_pypinyin_available() and
+        is_pinyin2hanzi_available() and
         is_hanziconv_available()
     )
 
@@ -180,7 +180,7 @@ def is_chinese_available() -> bool:
 def is_english_available() -> bool:
     """
     檢查英文支援是否可用
-    
+
     需要 phonemizer 安裝且 espeak-ng 可用才返回 True
     """
     try:
@@ -195,7 +195,7 @@ def is_english_available() -> bool:
 def check_chinese_dependencies():
     """
     檢查中文依賴是否已安裝，未安裝則拋出清楚的錯誤
-    
+
     Raises:
         ImportError: 如果任何中文依賴未安裝
     """
@@ -207,7 +207,7 @@ def check_chinese_dependencies():
 def check_english_dependencies():
     """
     檢查英文依賴是否已安裝，未安裝則拋出清楚的錯誤
-    
+
     Raises:
         ImportError: 如果英文依賴未安裝
         RuntimeError: 如果 espeak-ng 不可用

@@ -8,8 +8,8 @@
 """
 
 import re
-from .config import ChinesePhoneticConfig
 
+from .config import ChinesePhoneticConfig
 
 # =============================================================================
 # 延遲導入 pypinyin
@@ -22,14 +22,14 @@ _pypinyin_checked = False
 def _get_pypinyin():
     """延遲載入 pypinyin 模組"""
     global _pypinyin, _pypinyin_checked
-    
+
     if _pypinyin_checked:
         if _pypinyin is not None:
             return _pypinyin
         else:
             from phonofix.languages.chinese import CHINESE_INSTALL_HINT
             raise ImportError(CHINESE_INSTALL_HINT)
-    
+
     try:
         import pypinyin
         _pypinyin = pypinyin
@@ -145,10 +145,10 @@ class ChinesePhoneticUtils:
         """
         if pinyin1 == pinyin2:
             return True
-        
+
         init1, final1 = self.extract_initial_final(pinyin1)
         init2, final2 = self.extract_initial_final(pinyin2)
-        
+
         # 1. 檢查聲母相容性
         if init1 != init2:
             group1 = self.config.FUZZY_INITIALS_MAP.get(init1)
@@ -156,11 +156,11 @@ class ChinesePhoneticUtils:
             # 若聲母不同且不屬於同一模糊群組，則判定為不匹配
             if not (group1 and group2 and group1 == group2):
                 return False
-        
+
         # 2. 檢查韻母
         if final1 == final2:
             return True
-            
+
         # 3. 檢查韻母模糊對
         # 範例: final1="ing", final2="in", pair=("in", "ing")
         for f1, f2 in self.config.FUZZY_FINALS_PAIRS:
@@ -218,7 +218,7 @@ class ChinesePhoneticUtils:
             set: 模糊拼音變體集合
         """
         variants = {pinyin_str}
-        
+
         # 1. 加入特殊音節映射的變體
         # 範例: "hua" -> 加入 "fa"
         syllable_map = (
@@ -229,16 +229,16 @@ class ChinesePhoneticUtils:
         if pinyin_str in syllable_map:
             for variant in syllable_map[pinyin_str]:
                 variants.add(variant)
-        
+
         # 2. 加入聲母模糊變體
         # 範例: "zhang" (init="zh", final="ang") -> 加入 "z" + "ang" = "zang"
         initial, final = self.extract_initial_final(pinyin_str)
-        
+
         if initial in self.config.FUZZY_INITIALS_MAP:
             group = self.config.FUZZY_INITIALS_MAP[initial]
             for fuzzy_init in self.group_to_initials[group]:
                 variants.add(fuzzy_init + final)
-        
+
         current_variants = list(variants)
         for p in current_variants:
             curr_init, curr_final = self.extract_initial_final(p)
