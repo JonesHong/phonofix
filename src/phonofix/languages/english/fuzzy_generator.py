@@ -24,6 +24,13 @@ from .config import EnglishPhoneticConfig
 
 @dataclass(frozen=True)
 class _Candidate:
+    """
+    內部候選資料結構（用於 variants 去重與排序）。
+
+    欄位：
+    - text: 候選變體文字
+    - cost: 生成成本（越低越接近原詞、優先保留）
+    """
     text: str
     cost: int
 
@@ -50,11 +57,27 @@ class EnglishFuzzyGenerator(FuzzyGeneratorProtocol):
         *,
         enable_representative_variants: bool = False,
     ) -> None:
+        """
+        初始化英文模糊變體生成器。
+
+        Args:
+            config: 英文語音設定（class，未提供則使用 EnglishPhoneticConfig）
+            backend: 可選 backend（用於 IPA 去重；若未提供會嘗試取得單例 backend）
+            enable_representative_variants: 是否啟用較激進的拼寫變體（預設關閉）
+        """
         self.config = config or EnglishPhoneticConfig
         self._backend = backend
         self.enable_representative_variants = enable_representative_variants
 
     def generate_variants(self, term: str, max_variants: int = 30) -> List[str]:
+        """
+        為輸入詞彙生成英文模糊變體（surface variants）。
+
+        策略：
+        - 先產生低風險、安全的表面變體（大小寫/分隔符/CamelCase 等）
+        - 若 enable_representative_variants 開啟，追加較激進的單步替換（避免爆炸）
+        - 生成階段以 IPA 去重（同 IPA 只保留成本最低/字典序穩定的代表）
+        """
         if not term:
             return []
 
@@ -103,12 +126,26 @@ class EnglishFuzzyGenerator(FuzzyGeneratorProtocol):
         return [t for (t, _) in ranked][:max_variants]
 
     def _try_get_backend(self) -> Optional[EnglishPhoneticBackend]:
+        """
+        嘗試取得英文 backend（失敗時回傳 None）。
+
+        用途：
+        - EnglishFuzzyGenerator 可以在「不強制初始化 backend」的情況下運作
+        - 若 backend 不可用，就退回到純 surface 排序（仍可工作）
+        """
         try:
             return get_english_backend()
         except Exception:
             return None
 
     def _generate_safe_surface_variants(self, term: str) -> list[_Candidate]:
+        """
+        產生低風險、可泛化的 surface variants。
+
+        原則：
+        - 不依賴特定詞彙表
+        - 只做有限且可預期的轉換（避免誤修與字典膨脹）
+        """
         out: list[_Candidate] = []
 
         # 1) 大小寫
@@ -142,6 +179,13 @@ class EnglishFuzzyGenerator(FuzzyGeneratorProtocol):
         return out
 
     def _generate_representative_spelling_variants(self, term: str) -> list[_Candidate]:
+        """
+        產生較激進的 representative spelling variants（預設關閉）。
+
+        注意：
+        - 只做單步替換（count=1）與單一位置混淆，避免狀態爆炸
+        - 主要用於 ASR 常見錯拼或字母/數字音似混淆
+        """
         out: list[_Candidate] = []
         lower = term.lower()
 
@@ -164,5 +208,12 @@ class EnglishFuzzyGenerator(FuzzyGeneratorProtocol):
 
 
 def generate_english_variants(term: str, max_variants: int = 20) -> List[str]:
+    """
+    便利函數：快速取得英文模糊變體。
+
+    適用場景：
+    - 測試/除錯時想快速看某個 term 會生成哪些 variants
+    - 不需要自行建立 EnglishFuzzyGenerator 實例
+    """
     generator = EnglishFuzzyGenerator()
     return generator.generate_variants(term, max_variants)

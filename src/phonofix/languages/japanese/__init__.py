@@ -52,6 +52,13 @@ __all__ = [
 
 
 def __getattr__(name: str) -> Any:
+    """
+    延遲載入語言模組內的主要符號（PEP 562）。
+
+    目的：
+    - 保持 `phonofix.languages.japanese` 的 import 輕量
+    - 避免在 import 階段就觸發 cutlet/fugashi 的初始化
+    """
     if name not in _LAZY_IMPORTS:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     module_path, attr_name = _LAZY_IMPORTS[name]
@@ -62,4 +69,5 @@ def __getattr__(name: str) -> Any:
 
 
 def __dir__() -> list[str]:
+    """讓 IDE/dir() 能看到延遲載入的符號清單。"""
     return sorted(set(list(globals().keys()) + list(_LAZY_IMPORTS.keys())))

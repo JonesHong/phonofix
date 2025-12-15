@@ -3,43 +3,14 @@
 
 提供底層的拼音處理、模糊音判斷與字串操作工具函數。
 
-注意：此模組使用延遲導入 (Lazy Import) 機制，
-僅在實際使用中文功能時才會載入 pypinyin。
+注意：拼音轉換已統一由 `ChinesePhoneticBackend` 管理，本模組不再直接依賴 pypinyin。
 """
 
 import re
 
+from phonofix.backend import ChinesePhoneticBackend, get_chinese_backend
+
 from .config import ChinesePhoneticConfig
-
-# =============================================================================
-# 延遲導入 pypinyin
-# =============================================================================
-
-_pypinyin = None
-_pypinyin_checked = False
-
-
-def _get_pypinyin():
-    """延遲載入 pypinyin 模組"""
-    global _pypinyin, _pypinyin_checked
-
-    if _pypinyin_checked:
-        if _pypinyin is not None:
-            return _pypinyin
-        else:
-            from phonofix.languages.chinese import CHINESE_INSTALL_HINT
-            raise ImportError(CHINESE_INSTALL_HINT)
-
-    try:
-        import pypinyin
-        _pypinyin = pypinyin
-        _pypinyin_checked = True
-        return _pypinyin
-    except ImportError:
-        _pypinyin_checked = True
-        from phonofix.languages.chinese import CHINESE_INSTALL_HINT
-        raise ImportError(CHINESE_INSTALL_HINT)
-
 
 class ChinesePhoneticUtils:
     """
@@ -52,26 +23,34 @@ class ChinesePhoneticUtils:
     - 處理特殊音節映射 (如 hua <-> fa)
     """
 
-    def __init__(self, config=None):
+    def __init__(self, config=None, backend: ChinesePhoneticBackend | None = None):
+        """
+        初始化中文語音工具。
+
+        Args:
+            config: 拼音設定（未提供則使用預設 ChinesePhoneticConfig）
+            backend: 可選 backend（未提供則取得中文 backend 單例）
+
+        注意：
+        - 本工具類別不直接 import pypinyin；拼音計算由 backend 負責
+        """
         self.config = config or ChinesePhoneticConfig
         self.group_to_initials = self.config.build_group_to_initials_map()
+        self._backend = backend or get_chinese_backend()
 
     @staticmethod
     def contains_english(text):
+        """
+        判斷字串中是否包含英文字母。
+
+        用途：
+        - 中文文本常混入英文縮寫（例如 ICU、PCN），某些規則需要先做分流或跳過
+        """
         return bool(re.search(r"[a-zA-Z]", text))
 
-    @staticmethod
-    def get_pinyin(text, style=None):
-        pypinyin = _get_pypinyin()
-        if style is None:
-            style = pypinyin.NORMAL
-        return pypinyin.lazy_pinyin(text, style=style)
-
-    @staticmethod
-    def get_pinyin_string(text):
-        pypinyin = _get_pypinyin()
-        pinyin_list = pypinyin.lazy_pinyin(text, style=pypinyin.NORMAL)
-        return "".join(pinyin_list).lower()
+    def get_pinyin_string(self, text: str) -> str:
+        """取得文本的拼音字串（無聲調、小寫，委派給 backend 快取）。"""
+        return self._backend.to_phonetic(text)
 
     @staticmethod
     def extract_initial_final(pinyin_str):
@@ -250,6 +229,12 @@ class ChinesePhoneticUtils:
         return variants
 
     def are_fuzzy_similar(self, pinyin1, pinyin2):
-        # Wrapper for interface compatibility if needed
+        """
+        判斷兩個拼音是否可視為模糊相似。
+
+        說明：
+        - 這個方法提供較高層的「是否相似」判斷，供候選生成/計分使用
+        - 目前策略：韻母/聲母模糊 + 特殊音節映射任一命中即視為相似
+        """
         return self.check_finals_fuzzy_match(pinyin1, pinyin2) or \
                self.check_special_syllable_match(pinyin1, pinyin2)

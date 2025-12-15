@@ -136,3 +136,29 @@ class TestJapaneseCorrector:
         assert corrector.correct("頭が痛いのでasupirin") == "頭が痛いのでアスピリン"
         assert corrector.correct("胃が痛いのでasupirin") == "胃が痛いのでasupirin"
         assert corrector.correct("asupirin") == "asupirin"
+
+    def test_exact_match_prefers_longer_alias_on_tie(self):
+        """
+        防回歸：當同一位置可命中多個 exact alias 且分數相同時，應優先使用更長的匹配。
+
+        典型案例：
+        - asupirin 命中在 asupirinn 內，若先替換短的會留下尾巴 'n'
+        """
+        engine = JapaneseEngine(enable_surface_variants=False)
+        corrector = engine.create_corrector({"アスピリン": ["asupirin", "asupirinn"]})
+        assert corrector.correct("頭痛にasupirinn") == "頭痛にアスピリン"
+
+    def test_exact_match_does_not_match_inside_ascii_word(self):
+        """
+        防回歸：短 alias 不應命中在更長的 ASCII 字串內（例如 ai in kaihatsu）。
+        """
+        engine = JapaneseEngine(enable_surface_variants=False)
+        corrector = engine.create_corrector(
+            {
+                "人工知能": ["ai"],
+                "開発": ["kaihatsu"],
+                "ロボット": ["robotto"],
+            }
+        )
+        text = "多くの企業が新しいrobottoのkaihatsuに取り組んでいる"
+        assert corrector.correct(text) == "多くの企業が新しいロボットの開発に取り組んでいる"

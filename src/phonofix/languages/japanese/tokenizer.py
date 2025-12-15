@@ -7,8 +7,7 @@
 from typing import List, Tuple
 
 from phonofix.core.tokenizer_interface import Tokenizer
-
-from .utils import _get_cutlet
+from phonofix.backend import JapanesePhoneticBackend, get_japanese_backend
 
 
 class JapaneseTokenizer(Tokenizer):
@@ -19,6 +18,18 @@ class JapaneseTokenizer(Tokenizer):
     - 將日文文本分割為單詞 (Words)
     - 使用 Cutlet (基於 Fugashi/MeCab) 進行分詞
     """
+
+    def __init__(self, backend: JapanesePhoneticBackend | None = None) -> None:
+        """
+        初始化日文分詞器。
+
+        Args:
+            backend: 可選 backend（未提供則取得日文 backend 單例）
+
+        注意：
+        - backend 會管理 fugashi.Tagger 的 singleton，避免每次 tokenize 都重新初始化
+        """
+        self._backend = backend or get_japanese_backend()
 
     def tokenize(self, text: str) -> List[str]:
         """
@@ -32,20 +43,8 @@ class JapaneseTokenizer(Tokenizer):
         """
         if not text:
             return []
-
-        cutlet = _get_cutlet()
-        # Cutlet 的 romaji() 方法內部會分詞並加空格，
-        # 但我們需要原始文字的 token。
-        # 可以使用 cutlet.slug(text).split("-") 得到拼音 token，
-        # 但若要取得原始文字 token，最好直接用 fugashi。
-        # 不過為了簡化，我們可以利用 cutlet 內部的 tagger。
-
-        # 這裡我們直接使用 cutlet 的 tagger (fugashi)
-        tokens = []
-        for word in cutlet.tagger(text):
-            tokens.append(word.surface)
-
-        return tokens
+        # 由 backend 統一管理 fugashi 初始化與 tokenize 快取，避免重複解析成本。
+        return self._backend.tokenize(text)
 
     def get_token_indices(self, text: str) -> List[Tuple[int, int]]:
         """
@@ -61,13 +60,11 @@ class JapaneseTokenizer(Tokenizer):
         """
         if not text:
             return []
-
-        cutlet = _get_cutlet()
         indices = []
         current_pos = 0
 
-        for word in cutlet.tagger(text):
-            surface = word.surface
+        # 使用 backend.tokenize() 取得 surface tokens（可共用快取）。
+        for surface in self._backend.tokenize(text):
 
             # 在 text 中尋找 surface，從 current_pos 開始
             # 這可以處理 token 之間有空格的情況

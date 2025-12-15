@@ -16,8 +16,7 @@
 - ChinesePhoneticUtils: 拼音工具函數類別
 
 效能優化:
-- cached_get_pinyin_string: 快取版拼音計算
-- cached_get_initials: 快取版聲母計算
+- 拼音/聲母/音節快取統一由 `ChinesePhoneticBackend` 管理
 """
 
 from __future__ import annotations
@@ -36,8 +35,6 @@ INSTALL_HINT = CHINESE_INSTALL_HINT
 _LAZY_IMPORTS = {
     "ChineseEngine": (".engine", "ChineseEngine"),
     "ChineseCorrector": (".corrector", "ChineseCorrector"),
-    "cached_get_pinyin_string": (".corrector", "cached_get_pinyin_string"),
-    "cached_get_initials": (".corrector", "cached_get_initials"),
     "ChineseFuzzyGenerator": (".fuzzy_generator", "ChineseFuzzyGenerator"),
     "ChinesePhoneticConfig": (".config", "ChinesePhoneticConfig"),
     "ChinesePhoneticUtils": (".utils", "ChinesePhoneticUtils"),
@@ -49,14 +46,19 @@ __all__ = [
     "ChineseFuzzyGenerator",
     "ChinesePhoneticConfig",
     "ChinesePhoneticUtils",
-    "cached_get_pinyin_string",
-    "cached_get_initials",
     "CHINESE_INSTALL_HINT",
     "INSTALL_HINT",
 ]
 
 
 def __getattr__(name: str) -> Any:
+    """
+    延遲載入語言模組內的主要符號（PEP 562）。
+
+    目的：
+    - `from phonofix.languages.chinese import ChineseEngine` 仍可用
+    - 但不在 import 階段就載入較重的模組（加速啟動、避免不必要依賴初始化）
+    """
     if name not in _LAZY_IMPORTS:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     module_path, attr_name = _LAZY_IMPORTS[name]
@@ -67,4 +69,5 @@ def __getattr__(name: str) -> Any:
 
 
 def __dir__() -> list[str]:
+    """讓 IDE/dir() 能看到延遲載入的符號清單。"""
     return sorted(set(list(globals().keys()) + list(_LAZY_IMPORTS.keys())))

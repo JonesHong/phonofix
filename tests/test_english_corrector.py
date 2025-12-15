@@ -55,6 +55,12 @@ class TestEnglishCorrector:
         assert "Vue.js" in result
         assert "Node.js" in result
 
+    def test_symbolic_terms_keep_trailing_characters(self):
+        """含符號的 canonical 不應被重複附加符號"""
+        corrector = self.engine.create_corrector({"C++": []})
+
+        assert corrector.correct("I like C++") == "I like C++"
+
     def test_case_insensitive(self):
         """測試大小寫不敏感"""
         corrector = self.engine.create_corrector(["Python"])
@@ -173,6 +179,12 @@ class TestEnglishCorrector:
         })
 
         assert corrector.correct("I love java script") == "I love JavaScript"
+
+    def test_short_alias_requires_token_boundaries(self):
+        """短詞只允許在 token 邊界命中，避免子字串誤修正"""
+        corrector = self.engine.create_corrector({"Go": ["go"]})
+
+        assert corrector.correct("gopher uses go") == "gopher uses Go"
 
 
 class TestEnglishEngineBackend:

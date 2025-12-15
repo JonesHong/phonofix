@@ -10,39 +10,41 @@ phonofix - 多語言語音相似修正器 (Multi-Language Phonetic Corrector)
 - `phonofix.EnglishEngine`
 - `phonofix.ChineseEngine`
 - `phonofix.JapaneseEngine`
+
+此模組刻意維持 import 輕量：
+- 不在 `import phonofix` 階段就載入各語言引擎與其重依賴（phonemizer / pypinyin / cutlet / fugashi 等）。
+- 透過 PEP 562 `__getattr__` 在「第一次使用到某個符號」時才延遲載入。
 """
 
-# =============================================================================
-# Engine 層（官方入口）
-# =============================================================================
-# =============================================================================
-# Backend 層（進階用途）
-# =============================================================================
-from phonofix.backend import (
-    ChinesePhoneticBackend,
-    EnglishPhoneticBackend,
-    get_chinese_backend,
-    get_english_backend,
-)
-from phonofix.core.events import CorrectionEvent, CorrectionEventHandler
+from __future__ import annotations
+
+import importlib
+from typing import Any
 
 # =============================================================================
-# Protocol（進階用途）
+# Lazy imports（PEP 562）
 # =============================================================================
-from phonofix.core.protocols.corrector import ContextAwareCorrectorProtocol, CorrectorProtocol
-from phonofix.languages.chinese import ChineseEngine
-from phonofix.languages.english import EnglishEngine
-from phonofix.languages.japanese import JapaneseEngine
 
-# =============================================================================
-# 依賴檢查工具
-# =============================================================================
-from phonofix.utils.lazy_imports import (
-    check_chinese_dependencies,
-    check_english_dependencies,
-    is_chinese_available,
-    is_english_available,
-)
+_LAZY_IMPORTS: dict[str, tuple[str, str]] = {
+    # Engines（官方入口，語言 package 內也會再做一次延遲載入）
+    "EnglishEngine": ("phonofix.languages.english", "EnglishEngine"),
+    "ChineseEngine": ("phonofix.languages.chinese", "ChineseEngine"),
+    "JapaneseEngine": ("phonofix.languages.japanese", "JapaneseEngine"),
+    # Backend（進階用途）
+    "PhoneticBackend": ("phonofix.backend", "PhoneticBackend"),
+    "EnglishPhoneticBackend": ("phonofix.backend", "EnglishPhoneticBackend"),
+    "ChinesePhoneticBackend": ("phonofix.backend", "ChinesePhoneticBackend"),
+    "JapanesePhoneticBackend": ("phonofix.backend", "JapanesePhoneticBackend"),
+    "get_english_backend": ("phonofix.backend", "get_english_backend"),
+    "get_chinese_backend": ("phonofix.backend", "get_chinese_backend"),
+    "get_japanese_backend": ("phonofix.backend", "get_japanese_backend"),
+    # Protocols（進階用途）
+    "CorrectorProtocol": ("phonofix.core.protocols.corrector", "CorrectorProtocol"),
+    "ContextAwareCorrectorProtocol": ("phonofix.core.protocols.corrector", "ContextAwareCorrectorProtocol"),
+    # Events（進階用途）
+    "CorrectionEvent": ("phonofix.core.events", "CorrectionEvent"),
+    "CorrectionEventHandler": ("phonofix.core.events", "CorrectionEventHandler"),
+}
 
 # =============================================================================
 # 日誌工具
@@ -58,16 +60,14 @@ __all__ = [
     "get_logger",
     "enable_debug_logging",
     "enable_timing_logging",
-    # Dependency checks
-    "is_chinese_available",
-    "is_english_available",
-    "check_chinese_dependencies",
-    "check_english_dependencies",
     # Backend (advanced)
     "get_english_backend",
     "get_chinese_backend",
+    "get_japanese_backend",
+    "PhoneticBackend",
     "EnglishPhoneticBackend",
     "ChinesePhoneticBackend",
+    "JapanesePhoneticBackend",
     # Protocols (advanced)
     "CorrectorProtocol",
     "ContextAwareCorrectorProtocol",
@@ -77,3 +77,25 @@ __all__ = [
 ]
 
 __version__ = "0.2.0"
+
+
+def __getattr__(name: str) -> Any:
+    """
+    延遲載入頂層公開符號（PEP 562）。
+
+    目的：
+    - 讓 `import phonofix` 保持輕量、避免自動觸發重依賴初始化
+    - 仍保留 `phonofix.EnglishEngine` 等穩定 API
+    """
+    if name not in _LAZY_IMPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_path, attr_name = _LAZY_IMPORTS[name]
+    module = importlib.import_module(module_path)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    """讓 IDE/dir() 能看到延遲載入的符號清單。"""
+    return sorted(set(list(globals().keys()) + list(_LAZY_IMPORTS.keys())))

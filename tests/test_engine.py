@@ -44,7 +44,7 @@ class TestEnglishEngine:
         stats_after_c2 = engine.get_backend_stats()
 
         # 快取命中數應該增加
-        assert stats_after_c2['hits'] > stats_after_c1['hits']
+        assert stats_after_c2["caches"]["ipa"]["hits"] > stats_after_c1["caches"]["ipa"]["hits"]
 
     def test_correction_functionality(self):
         """測試修正功能"""
@@ -112,6 +112,15 @@ class TestBackendSingleton:
 
         assert backend1 is backend2
 
+    def test_japanese_backend_singleton(self):
+        """測試日文 Backend 單例"""
+        from phonofix.backend import get_japanese_backend
+
+        backend1 = get_japanese_backend()
+        backend2 = get_japanese_backend()
+
+        assert backend1 is backend2
+
     def test_backend_cache_persistence(self):
         """測試 Backend 快取持久性"""
         from phonofix.backend import get_english_backend
@@ -128,7 +137,7 @@ class TestBackendSingleton:
         backend.to_phonetic('hello')
         stats2 = backend.get_cache_stats()
 
-        assert stats2['hits'] > stats1['hits']
+        assert stats2["caches"]["ipa"]["hits"] > stats1["caches"]["ipa"]["hits"]
 
 
 # =============================================================================

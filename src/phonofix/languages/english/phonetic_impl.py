@@ -29,13 +29,35 @@ class EnglishPhoneticSystem(PhoneticSystem):
     """
 
     def __init__(self, backend: EnglishPhoneticBackend | None = None) -> None:
+        """
+        初始化英文發音系統。
+
+        Args:
+            backend: 可選 backend（未提供則取得英文 backend 單例）
+
+        注意：
+        - backend 會負責 phonemizer/espeak-ng 初始化與快取
+        - 本類別專注在 IPA 正規化與相似度計算
+        """
         self._backend = backend or get_english_backend()
 
     def to_phonetic(self, text: str) -> str:
+        """
+        將文字轉換為 IPA（並做距離計算用的正規化）。
+
+        流程：
+        - 委派 backend 做 G2P（文字 -> IPA）
+        - 去除空白/長音等符號，使距離計算更穩定
+        """
         ipa = self._backend.to_phonetic(text)
         return self._normalize_ipa_for_distance(ipa)
 
     def are_fuzzy_similar(self, phonetic1: str, phonetic2: str) -> bool:
+        """
+        判斷兩個 IPA 是否可視為模糊相似（符合容錯閾值）。
+
+        這是一個 convenience wrapper，內部呼叫 `calculate_similarity_score()`。
+        """
         _, is_match = self.calculate_similarity_score(phonetic1, phonetic2)
         return is_match
 
@@ -80,6 +102,13 @@ class EnglishPhoneticSystem(PhoneticSystem):
         return error_ratio, error_ratio <= tolerance
 
     def _normalize_ipa_for_distance(self, ipa: str) -> str:
+        """
+        將 IPA 正規化成適合距離計算的形式。
+
+        目的：
+        - 去除空白與長音符號（ː）
+        - 統一一些 IPA 表示差異（例如 ɚ/ɝ -> ə，ɡ -> g）
+        """
         ipa = (ipa or "").replace(" ", "")
         ipa = ipa.replace("ː", "")
         ipa = ipa.replace("ɚ", "ə").replace("ɝ", "ə")
@@ -87,6 +116,13 @@ class EnglishPhoneticSystem(PhoneticSystem):
         return ipa
 
     def _map_to_phoneme_groups(self, ipa: str) -> str:
+        """
+        將 IPA 字元映射到「音素群組代碼」以降低距離敏感度。
+
+        說明：
+        - EnglishPhoneticConfig.FUZZY_PHONEME_GROUPS 定義了相近音的群組
+        - 把同群組音素映射成同一代碼（A/B/C...），可提高模糊匹配的召回率
+        """
         mapped: list[str] = []
         for ch in ipa:
             code = None
@@ -98,6 +134,13 @@ class EnglishPhoneticSystem(PhoneticSystem):
         return "".join(mapped)
 
     def _consonant_skeleton(self, ipa: str) -> str:
+        """
+        從 IPA 中抽出「子音骨架」字串。
+
+        用途：
+        - 有些 ASR 錯誤主要落在母音上；子音骨架距離能提供更穩定的判斷
+        - 僅在骨架足夠長（c_max >= 4）時納入評分，避免過短造成誤判
+        """
         vowels = {
             "a",
             "e",
@@ -120,6 +163,12 @@ class EnglishPhoneticSystem(PhoneticSystem):
         return "".join([ch for ch in ipa if ch not in vowels and ch not in weak])
 
     def _are_first_phonemes_similar(self, phonetic1: str, phonetic2: str) -> bool:
+        """
+        檢查首音是否相容（作為額外保守門檻）。
+
+        - 若首音差異過大，常代表完全不同詞彙，即使後續距離小也可能是誤命中
+        - 這裡使用 FUZZY_PHONEME_GROUPS 允許「首音同群組」的寬鬆匹配
+        """
         if not phonetic1 or not phonetic2:
             return True
 
@@ -136,6 +185,13 @@ class EnglishPhoneticSystem(PhoneticSystem):
         return False
 
     def get_tolerance(self, length: int) -> float:
+        """
+        根據 IPA 長度選擇容錯閾值（越短越嚴格）。
+
+        直覺：
+        - 短詞只要改一點就差很多，因此 tolerance 低
+        - 長詞允許更多差異，因此 tolerance 高
+        """
         if length <= 3:
             return 0.15
         if length <= 5:
@@ -143,4 +199,3 @@ class EnglishPhoneticSystem(PhoneticSystem):
         if length <= 8:
             return 0.35
         return 0.40
-

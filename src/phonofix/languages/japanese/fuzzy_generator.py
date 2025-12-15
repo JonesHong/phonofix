@@ -14,19 +14,35 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from phonofix.core.protocols.fuzzy import FuzzyGeneratorProtocol
+from phonofix.backend import JapanesePhoneticBackend, get_japanese_backend
 
 from .config import JapanesePhoneticConfig
-from .utils import _get_cutlet, _get_fugashi
 
 
 @dataclass(frozen=True)
 class _Candidate:
+    """
+    內部候選資料結構（用於 variants 去重與排序）。
+
+    欄位：
+    - text: 候選變體文字
+    - cost: 生成成本（越低越接近原詞、優先保留）
+    - key: phonetic key（正規化 romaji），用於去重
+    """
+
     text: str
     cost: int
     key: str
 
 
 def _kata_to_hira(text: str) -> str:
+    """
+    將片假名轉為平假名（僅轉換假名字元，其他字元保持不變）。
+
+    用途：
+    - fugashi 的 reading 可能回傳片假名
+    - 我們希望把 reading 先統一成平假名，降低後續變體生成的分支
+    """
     hira = []
     for ch in text:
         if "\u30a1" <= ch <= "\u30f6":
@@ -37,6 +53,12 @@ def _kata_to_hira(text: str) -> str:
 
 
 def _hira_to_kata(text: str) -> str:
+    """
+    將平假名轉為片假名（僅轉換假名字元，其他字元保持不變）。
+
+    用途：
+    - 產生「書寫系統差異」的 surface variants（平/片 假名）
+    """
     kata = []
     for ch in text:
         if "\u3041" <= ch <= "\u3096":
@@ -47,12 +69,26 @@ def _hira_to_kata(text: str) -> str:
 
 
 def _has_japanese_script(text: str) -> bool:
+    """
+    粗略判斷文字是否包含日文書寫系統（假名或常用漢字區段）。
+
+    用途：
+    - 決定 term 是「需要轉讀音/romaji」的日文文本，或已是 romaji/mixed
+    """
     return any(
         ("\u3040" <= ch <= "\u30ff") or ("\u4e00" <= ch <= "\u9fff") for ch in text
     )
 
 
 def _normalize_romaji(romaji: str, config: type[JapanesePhoneticConfig]) -> str:
+    """
+    正規化 romaji，產生穩定的 phonetic key。
+
+    目標：
+    - 將不同羅馬字標準（hepburn/kunrei）對齊
+    - 長音/促音/鼻音做規則化，提升 fuzzy matching 的召回率
+    - 回傳值用於 variants 去重（同一讀音只保留成本最低的候選）
+    """
     normalized = romaji.lower().strip().replace(" ", "")
 
     # 1) 羅馬字變體標準化
@@ -129,15 +165,36 @@ class JapaneseFuzzyGenerator(FuzzyGeneratorProtocol):
     def __init__(
         self,
         config: Optional[JapanesePhoneticConfig] = None,
+        backend: JapanesePhoneticBackend | None = None,
         *,
         enable_representative_variants: bool = False,
         max_phonetic_states: int = 400,
     ) -> None:
+        """
+        初始化日文模糊變體生成器。
+
+        Args:
+            config: 日文語音設定（未提供則使用預設 JapanesePhoneticConfig）
+            backend: 可選 backend（未提供則取得日文 backend 單例）
+            enable_representative_variants: 是否啟用假名層級混淆（較昂貴，預設關閉）
+            max_phonetic_states: 展開狀態上限，用於控制變體爆炸
+        """
         self.config = config or JapanesePhoneticConfig()
+        self._backend = backend or get_japanese_backend()
         self.enable_representative_variants = enable_representative_variants
         self.max_phonetic_states = max(50, int(max_phonetic_states))
 
     def generate_variants(self, term: str, max_variants: int = 30) -> List[str]:
+        """
+        為輸入詞彙生成日文模糊變體（surface variants）。
+
+        產物用途：
+        - 讓 corrector 能涵蓋不同書寫系統（漢字/假名/romaji）與常見輸入差異
+
+        注意：
+        - 這裡生成的是「表面字串」變體，最終仍以 phonetic key 去重與比對
+        - 變體數量受 `max_variants` 與 `max_phonetic_states` 控制，避免膨脹
+        """
         if not term:
             return []
 
@@ -187,7 +244,14 @@ class JapaneseFuzzyGenerator(FuzzyGeneratorProtocol):
         return [c.text for c in ranked][:max_variants]
 
     def _to_hiragana_reading(self, text: str) -> str:
-        tagger = _get_fugashi()
+        """
+        將日文文本轉為平假名讀音字串。
+
+        實作：
+        - 使用 fugashi 斷詞後取 reading（kana），若讀不到則回退為 surface
+        - 全部統一成平假名（避免片假名造成額外分支）
+        """
+        tagger = self._backend.get_tagger()
         parts: list[str] = []
         for word in tagger(text):
             try:
@@ -198,30 +262,24 @@ class JapaneseFuzzyGenerator(FuzzyGeneratorProtocol):
         return "".join(parts)
 
     def _to_romaji(self, text: str) -> str:
+        """
+        將（假名/漢字）日文文本轉為 romaji。
+
+        注意：
+        - 轉換與 macrons 移除交由 backend 處理（共享快取、避免重複初始化）
+        - 回傳值用於後續 phonetic key 正規化與規則展開（因此要維持穩定的 ASCII key）
+        """
         if not text:
             return ""
-        cutlet = _get_cutlet()
-        romaji = (cutlet.romaji(text) or "").lower()
-        romaji = romaji.replace(" ", "")
-
-        # 移除長音符號（macrons）
-        macrons = {
-            "ā": "a",
-            "ī": "i",
-            "ū": "u",
-            "ē": "e",
-            "ō": "o",
-            "â": "a",
-            "î": "i",
-            "û": "u",
-            "ê": "e",
-            "ô": "o",
-        }
-        for m, p in macrons.items():
-            romaji = romaji.replace(m, p)
-        return romaji
+        return self._backend.to_phonetic(text)
 
     def _phonetic_key(self, text: str) -> str:
+        """
+        取得候選文字的 phonetic key（正規化 romaji）。
+
+        - 若 text 含日文字元，先轉 romaji
+        - 再套用 `_normalize_romaji()` 做規則化
+        """
         if _has_japanese_script(text):
             romaji = self._to_romaji(text)
         else:
@@ -229,6 +287,12 @@ class JapaneseFuzzyGenerator(FuzzyGeneratorProtocol):
         return _normalize_romaji(romaji, JapanesePhoneticConfig)
 
     def _romaji_rule_variants(self, romaji: str) -> list[tuple[str, int]]:
+        """
+        針對 romaji 產生少量規則變體（hepburn/kunrei、長音、促音、鼻音）。
+
+        回傳：
+        - (variant, cost)；cost 用於排序（越小越優先）
+        """
         if not romaji:
             return []
         ranked = _romaji_variants(romaji, JapanesePhoneticConfig, max_states=self.max_phonetic_states)
@@ -236,8 +300,21 @@ class JapaneseFuzzyGenerator(FuzzyGeneratorProtocol):
         return [(v, c + 1) for v, c in ranked if v and v != romaji]
 
     def _kana_confusion_variants(self, hira: str) -> list[tuple[str, int]]:
+        """
+        產生假名層級的混淆變體（較昂貴，可選）。
+
+        範例：
+        - 清濁音互換
+        - 半濁音互換
+        - 常見近音混淆
+        - 助詞混淆
+
+        注意：
+        - 會做有限 product 並裁剪，避免爆炸
+        """
         # 每字最多 2-3 個候選，使用有限 product 並裁剪
         def options(ch: str) -> list[str]:
+            """取得單一假名的可替代選項集合（含原字）。"""
             out = {ch}
             out.update((JapanesePhoneticConfig.PARTICLE_CONFUSIONS.get(ch) or ""))
             voiced = JapanesePhoneticConfig.VOICED_CONSONANT_MAP.get(ch)

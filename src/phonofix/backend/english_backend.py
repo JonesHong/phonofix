@@ -7,16 +7,23 @@
 
 import os
 import threading
+import time
+import traceback
 import warnings
-from typing import Any, Dict, Optional
+from datetime import datetime
+from typing import Any, Dict, Literal, Optional
 
 from phonofix.languages.english import ENGLISH_INSTALL_HINT
+from phonofix.utils.logger import get_logger
 
 from .base import PhoneticBackend
+from .stats import BackendStats, CacheStats, LazyInitStats
 
 # =============================================================================
 # 全域狀態
 # =============================================================================
+
+logger = get_logger(__name__)
 
 _instance: Optional["EnglishPhoneticBackend"] = None
 _instance_lock = threading.Lock()
@@ -106,6 +113,35 @@ _ipa_cache: Dict[str, str] = {}
 _cache_lock = threading.Lock()
 _cache_maxsize = 50000
 _cache_stats = {"hits": 0, "misses": 0}
+_stats_lock = threading.Lock()
+
+
+def _record_hits(count: int = 1) -> None:
+    """
+    累計快取命中次數（thread-safe）。
+
+    注意：
+    - 英文 backend 的快取統計使用全域 dict + lock 管理
+    - 這裡只負責更新 hits，不做任何快取內容的變更
+    """
+    if count <= 0:
+        return
+    with _stats_lock:
+        _cache_stats["hits"] += count
+
+
+def _record_misses(count: int = 1) -> None:
+    """
+    累計快取未命中次數（thread-safe）。
+
+    注意：
+    - miss 不代表錯誤，只代表需要呼叫 phonemizer 進行一次轉換
+    - miss 的成本較高，因此 stats 可用來觀察效能與 warmup 效果
+    """
+    if count <= 0:
+        return
+    with _stats_lock:
+        _cache_stats["misses"] += count
 
 
 def _cached_ipa_convert(text: str) -> str:
@@ -114,14 +150,12 @@ def _cached_ipa_convert(text: str) -> str:
 
     使用 phonemizer + espeak-ng 將英文文字轉換為 IPA
     """
-    global _cache_stats
-
     # 檢查快取
     if text in _ipa_cache:
-        _cache_stats["hits"] += 1
+        _record_hits()
         return _ipa_cache[text]
 
-    _cache_stats["misses"] += 1
+    _record_misses()
 
     # 未命中快取，執行轉換
     phonemize = _get_phonemize()
@@ -218,26 +252,27 @@ def _batch_ipa_convert(texts: list) -> Dict[str, str]:
     Returns:
         Dict[str, str]: 文字 -> IPA 映射
     """
-    global _cache_stats
-
     if not texts:
         return {}
 
     # 分離已快取和未快取的項目
     results = {}
     uncached = []
+    cached_count = 0
 
     for text in texts:
         if text in _ipa_cache:
-            _cache_stats["hits"] += 1
+            cached_count += 1
             results[text] = _ipa_cache[text]
         else:
             uncached.append(text)
 
+    _record_hits(cached_count)
+
     if not uncached:
         return results
 
-    _cache_stats["misses"] += len(uncached)
+    _record_misses(len(uncached))
 
     # 批次轉換未快取的項目
     phonemize = _get_phonemize()
@@ -294,6 +329,13 @@ class EnglishPhoneticBackend(PhoneticBackend):
         """
         self._initialized = False
         self._init_lock = threading.Lock()
+        self._lazy_init_lock = threading.Lock()
+        self._lazy_init_thread: Optional[threading.Thread] = None
+        self._lazy_init_status: Literal["not_started", "running", "succeeded", "failed"] = "not_started"
+        self._lazy_init_started_at: Optional[str] = None
+        self._lazy_init_finished_at: Optional[str] = None
+        self._lazy_init_duration_ms: Optional[int] = None
+        self._lazy_init_error: Optional[Dict[str, str]] = None
 
     def initialize(self) -> None:
         """
@@ -321,17 +363,57 @@ class EnglishPhoneticBackend(PhoneticBackend):
     def initialize_lazy(self) -> None:
         """
         在背景執行緒初始化 espeak-ng，立即返回不阻塞
+
+        可觀測性：
+        - 此方法不會拋出例外（因為在背景執行緒執行），但會把狀態與錯誤資訊
+          記錄在 backend 內，可透過 `get_cache_stats()["lazy_init"]` 取得。
+        - 這可避免「默默」降級：即使主流程不阻塞，也能在觀測/除錯時知道初始化是否成功。
         """
         if self._initialized:
             return
 
+        with self._lazy_init_lock:
+            if self._lazy_init_status == "running":
+                return
+
+            self._lazy_init_status = "running"
+            self._lazy_init_started_at = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+            self._lazy_init_finished_at = None
+            self._lazy_init_duration_ms = None
+            self._lazy_init_error = None
+            started_monotonic = time.perf_counter()
+
         def _background_init():
+            """
+            背景初始化工作。
+
+            注意：
+            - 背景執行緒無法把例外傳回呼叫端，因此這裡會：
+              1) 記錄 logger（可被集中式 log 收集）
+              2) 將錯誤資訊寫入 lazy_init 狀態（可被 get_cache_stats 觀測）
+            """
             try:
                 self.initialize()
-            except Exception:
-                pass
+                with self._lazy_init_lock:
+                    self._lazy_init_status = "succeeded"
+                    self._lazy_init_finished_at = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+                    self._lazy_init_duration_ms = int((time.perf_counter() - started_monotonic) * 1000)
+                    self._lazy_init_error = None
+            except Exception as exc:
+                logger.exception("EnglishPhoneticBackend.initialize_lazy() 背景初始化失敗")
+                with self._lazy_init_lock:
+                    self._lazy_init_status = "failed"
+                    self._lazy_init_finished_at = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+                    self._lazy_init_duration_ms = int((time.perf_counter() - started_monotonic) * 1000)
+                    self._lazy_init_error = {
+                        "exception_type": type(exc).__name__,
+                        "exception_message": str(exc),
+                        "traceback": traceback.format_exc(),
+                    }
 
-        thread = threading.Thread(target=_background_init, daemon=True)
+        thread = threading.Thread(target=_background_init, daemon=True, name="phonofix-english-backend-init")
+        with self._lazy_init_lock:
+            self._lazy_init_thread = thread
         thread.start()
 
     def is_initialized(self) -> bool:
@@ -374,26 +456,49 @@ class EnglishPhoneticBackend(PhoneticBackend):
         normalized_map = _batch_ipa_convert(normalized)
         return {orig: normalized_map.get(_normalize_english_text_for_ipa(orig), "") for orig in texts}
 
-    def get_cache_stats(self) -> Dict[str, Any]:
+    def get_cache_stats(self) -> BackendStats:
         """
         取得 IPA 快取統計
 
         Returns:
             Dict: 包含 hits, misses, currsize, maxsize
         """
-        return {
-            "hits": _cache_stats["hits"],
-            "misses": _cache_stats["misses"],
-            "currsize": len(_ipa_cache),
-            "maxsize": _cache_maxsize,
+        with _stats_lock:
+            hits = _cache_stats["hits"]
+            misses = _cache_stats["misses"]
+        with _cache_lock:
+            currsize = len(_ipa_cache)
+        with self._lazy_init_lock:
+            lazy_init: LazyInitStats = {
+                "status": self._lazy_init_status,
+                "started_at": self._lazy_init_started_at,
+                "finished_at": self._lazy_init_finished_at,
+                "duration_ms": self._lazy_init_duration_ms,
+                "error": self._lazy_init_error,
+            }
+
+        caches: dict[str, CacheStats] = {
+            "ipa": {
+                "hits": int(hits),
+                "misses": int(misses),
+                "currsize": int(currsize),
+                "maxsize": int(_cache_maxsize),
+            }
         }
+
+        return BackendStats(
+            initialized=bool(self._initialized),
+            lazy_init=lazy_init,
+            caches=caches,
+        )
 
     def clear_cache(self) -> None:
         """清除 IPA 快取"""
-        global _ipa_cache, _cache_stats
         with _cache_lock:
             _ipa_cache.clear()
-            _cache_stats = {"hits": 0, "misses": 0}
+        with _stats_lock:
+            _cache_stats["hits"] = 0
+            _cache_stats["misses"] = 0
 
 
 # =============================================================================

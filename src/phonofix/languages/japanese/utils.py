@@ -1,64 +1,12 @@
 """
 日文工具模組
 
-提供日文處理相關的輔助函式，包含延遲載入 (Lazy Loading) 機制。
+提供日文處理相關的輔助函式。
+
+注意：
+- `cutlet` / `fugashi` 的延遲載入、初始化與快取共用由 `JapanesePhoneticBackend` 管理
+- 本模組僅保留「純文字」相關的輔助函式，不再直接提供依賴取得的 wrapper
 """
-
-from typing import Any, Optional
-
-from phonofix.utils.logger import get_logger
-
-from . import JAPANESE_INSTALL_HINT
-
-logger = get_logger(__name__)
-
-_cutlet_instance: Optional[Any] = None
-_fugashi_tagger: Optional[Any] = None
-
-
-def _get_cutlet() -> Any:
-    """
-    取得 Cutlet 實例 (Lazy Loading)
-
-    Returns:
-        cutlet.Cutlet: Cutlet 實例
-
-    Raises:
-        ImportError: 如果未安裝 cutlet
-    """
-    global _cutlet_instance
-    if _cutlet_instance is None:
-        try:
-            import cutlet
-            # 預設使用 Hepburn 拼音，不使用外來語拼寫 (例如 'Camera' -> 'Kamera')
-            # 這樣可以統一拼音維度，方便模糊比對
-            _cutlet_instance = cutlet.Cutlet()
-            _cutlet_instance.use_foreign_spelling = False
-        except ImportError as e:
-            logger.error("無法載入 cutlet，請確認是否已安裝日文依賴")
-            raise ImportError(JAPANESE_INSTALL_HINT) from e
-    return _cutlet_instance
-
-
-def _get_fugashi() -> Any:
-    """
-    取得 Fugashi Tagger 實例 (Lazy Loading)
-
-    通常 Cutlet 內部會處理，但如果需要直接存取分詞器可使用此函式。
-
-    Returns:
-        fugashi.Tagger: Fugashi Tagger 實例
-    """
-    global _fugashi_tagger
-    if _fugashi_tagger is None:
-        try:
-            import fugashi
-            _fugashi_tagger = fugashi.Tagger()
-        except ImportError as e:
-            logger.error("無法載入 fugashi，請確認是否已安裝日文依賴")
-            raise ImportError(JAPANESE_INSTALL_HINT) from e
-    return _fugashi_tagger
-
 
 def is_japanese_char(char: str) -> bool:
     """

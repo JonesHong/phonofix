@@ -15,6 +15,17 @@ from typing import Callable, Literal, TypedDict
 
 
 class CorrectionEvent(TypedDict, total=False):
+    """
+    修正事件資料結構（TypedDict, total=False）。
+
+    用途：
+    - Engine.create_corrector(on_event=...) 的 callback 會收到此事件
+    - 用於記錄「替換內容」「降級狀態」「候選生成錯誤」等資訊，方便串接觀測/除錯
+
+    設計說明：
+    - `total=False` 表示事件欄位是「依 event.type 選填」
+      例如 replacement 事件會有 start/end/original/replacement；degraded 事件則會有 degrade_reason 等。
+    """
     type: Literal["replacement", "fuzzy_error", "degraded", "warning"]
     engine: str
     trace_id: str

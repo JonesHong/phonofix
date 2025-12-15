@@ -20,13 +20,15 @@ class EnglishTokenizer(Tokenizer):
     - 提供單字在原始文本中的位置索引
     """
 
+    TOKEN_PATTERN = re.compile(r"[A-Za-z0-9]+(?:[+#.!]+[A-Za-z0-9]+)*[+#.!]*")
+
     def tokenize(self, text: str) -> List[str]:
         r"""
         將英文文本分割為單字列表
 
-        使用 ASCII 正規表達式 `[A-Za-z0-9]+` 提取所有單字。
-        這會忽略標點符號與非英文字符，且更適合在混合語言文本中只提取英文片段。
-        例如 "Hello, world!" -> ["Hello", "world"]
+        使用模式 `[A-Za-z0-9]+(?:[+#.!]+[A-Za-z0-9]+)*[+#.!]*` 捕捉常見技術詞尾符號
+        （C++/F#/Go!/Node.js），避免替換時漏掉符號而破壞原字串。
+        例如 "Hello, C++!" -> ["Hello", "C++"]。
 
         Args:
             text: 輸入英文文本
@@ -35,7 +37,7 @@ class EnglishTokenizer(Tokenizer):
             List[str]: 單字列表
         """
         tokens: List[str] = []
-        for match in re.finditer(r"[A-Za-z0-9]+", text):
+        for match in self.TOKEN_PATTERN.finditer(text):
             token = match.group(0)
             if token.isalpha() and token.isupper() and len(token) <= 5:
                 tokens.extend(list(token))
@@ -54,7 +56,7 @@ class EnglishTokenizer(Tokenizer):
             List[Tuple[int, int]]: 每個單字的 (start_index, end_index) 列表
         """
         indices: List[Tuple[int, int]] = []
-        for match in re.finditer(r"[A-Za-z0-9]+", text):
+        for match in self.TOKEN_PATTERN.finditer(text):
             start, end = match.span()
             token = match.group(0)
             if token.isalpha() and token.isupper() and len(token) <= 5:

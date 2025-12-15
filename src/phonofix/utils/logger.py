@@ -126,10 +126,23 @@ class TimingContext:
         self.elapsed: float = 0
 
     def __enter__(self) -> "TimingContext":
+        """
+        進入計時區塊，記錄起始時間。
+
+        Returns:
+            TimingContext: 方便外部讀取 `elapsed`
+        """
         self.start_time = time.perf_counter()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """
+        離開計時區塊，計算 elapsed 並視需要寫入 logger / callback。
+
+        注意：
+        - 本方法不抑制例外（回傳 None）
+        - 若 logger 未啟用對應 level，會安靜略過日誌輸出
+        """
         self.elapsed = time.perf_counter() - self.start_time
 
         if self.logger and self.logger.isEnabledFor(self.level):
@@ -166,10 +179,20 @@ def log_timing(
             pass
     """
     def decorator(func: Callable) -> Callable:
+        """
+        將任意函式包上一層計時邏輯。
+
+        Args:
+            func: 被裝飾的函式
+
+        Returns:
+            Callable: 包裝後函式（保留原函式名稱與 docstring）
+        """
         op_name = operation or func.__name__
 
         @wraps(func)
         def wrapper(*args, **kwargs) -> Any:
+            """實際 wrapper：在呼叫前後用 TimingContext 計時。"""
             nonlocal logger
 
             # 嘗試從 self 取得 logger

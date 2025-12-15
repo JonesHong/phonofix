@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "Multilingual phonetic-similarity replacement engine — a proper-noun substitution tool based on phonetic similarity, supporting ASR/LLM post-processing."
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     { name = "JonesHong", email = "latte831104@gmail.com" }
 ]
@@ -24,7 +24,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -106,7 +105,7 @@ dev = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 extend-exclude = ["examples", "tools", "references", "scripts", "backups", "dist"]
 
 [tool.ruff.lint]
@@ -125,7 +124,7 @@ ignore = [
 known-first-party = ["phonofix"]
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_ignores = true
 disallow_untyped_defs = false

@@ -17,6 +17,16 @@ TermDictInput = Union[List[str], Dict[str, Any]]
 
 
 class NormalizedTermConfig(TypedDict, total=False):
+    """
+    正規化後的 term config（TypedDict, total=False）。
+
+    - normalize_term_dict() 會把使用者輸入（list/dict）統一轉成此結構
+    - `total=False` 表示欄位可選：允許保留輸入中的其他自訂欄位（例如歷史字段）
+
+    重要約定：
+    - canonical 永遠由 term_dict 的 key 表達
+    - aliases 不應包含 canonical 本身
+    """
     aliases: list[str]
     keywords: list[str]
     exclude_when: list[str]

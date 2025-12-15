@@ -7,6 +7,9 @@
 僅在實際使用中文功能時才會載入 Pinyin2Hanzi 和 hanziconv。
 """
 
+from __future__ import annotations
+
+from phonofix.backend import ChinesePhoneticBackend, get_chinese_backend
 from phonofix.core.protocols.fuzzy import FuzzyGeneratorProtocol
 
 from .config import ChinesePhoneticConfig
@@ -73,15 +76,33 @@ class ChineseFuzzyGenerator(FuzzyGeneratorProtocol):
     def __init__(
         self,
         config=None,
+        backend: ChinesePhoneticBackend | None = None,
         *,
         enable_representative_variants: bool = False,
         max_phonetic_states: int = 600,
     ):
+        """
+        初始化中文模糊變體生成器。
+
+        Args:
+            config: 拼音設定（未提供則使用預設 ChinesePhoneticConfig）
+            backend: 可選 backend（未提供則取得中文 backend 單例）
+            enable_representative_variants: 是否啟用代表字變體（較昂貴，預設關閉）
+            max_phonetic_states: 變體展開狀態上限（避免爆炸）
+
+        注意：
+        - Pinyin2Hanzi/hanziconv 只在需要「代表字」功能時才會被實際 import
+        """
         self.config = config or ChinesePhoneticConfig
-        self.utils = ChinesePhoneticUtils(config=self.config)
+        self._backend = backend or get_chinese_backend()
+        self.utils = ChinesePhoneticUtils(config=self.config, backend=self._backend)
         self.enable_representative_variants = enable_representative_variants
         self.max_phonetic_states = max(50, int(max_phonetic_states))
         self._dag_params = None  # 延遲初始化
+
+    def _pinyin_string(self, text: str) -> str:
+        """取得文本的拼音字串（委派給 backend 快取）。"""
+        return self._backend.to_phonetic(text)
 
     @property
     def dag_params(self):
@@ -140,7 +161,7 @@ class ChineseFuzzyGenerator(FuzzyGeneratorProtocol):
                 {"pinyin": "zong", "char": "宗"}  (假設 z/zh 模糊)
             ]
         """
-        base_pinyin = self.utils.get_pinyin_string(char)
+        base_pinyin = self._pinyin_string(char)
         # 非中文字符直接返回原樣
         if not base_pinyin or not ('\u4e00' <= char <= '\u9fff'):
             return [{"pinyin": char, "char": char}]
@@ -272,7 +293,7 @@ class ChineseFuzzyGenerator(FuzzyGeneratorProtocol):
                 options = self._get_char_variations(char)
                 # 若某字無可用選項，回退為原字（避免整詞被丟棄）
                 if not options:
-                    options = [{"pinyin": self.utils.get_pinyin_string(char), "char": char, "changes": 0}]
+                    options = [{"pinyin": self._pinyin_string(char), "char": char, "changes": 0}]
                 char_options_list.append(options)
 
             # 生成階段就以拼音 key 去重並裁剪，避免爆炸
@@ -309,7 +330,7 @@ class ChineseFuzzyGenerator(FuzzyGeneratorProtocol):
 
         for term in term_list:
             # 取得去聲調拼音 (如 "測試" -> "ceshi")
-            pinyin_str = self.utils.get_pinyin_string(term)
+            pinyin_str = self._pinyin_string(term)
 
             if pinyin_str in seen_pinyins:
                 # 拼音已存在,歸類為過濾掉的

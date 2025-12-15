@@ -5,7 +5,9 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any
+
+from .stats import BackendStats
 
 
 class PhoneticBackend(ABC):
@@ -53,12 +55,12 @@ class PhoneticBackend(ABC):
         pass
 
     @abstractmethod
-    def get_cache_stats(self) -> Dict[str, Any]:
+    def get_cache_stats(self) -> BackendStats:
         """
         取得快取統計資訊
 
         Returns:
-            Dict[str, Any]: 快取統計，包含 hits, misses, size 等
+            BackendStats: 統一格式的快取統計（含初始化/可觀測資訊）
         """
         pass
 

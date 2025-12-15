@@ -39,6 +39,17 @@ class CorrectorEngine(ABC):
         verbose: bool = False,
         on_timing: Optional[Callable[[str, float], None]] = None,
     ) -> None:
+        """
+        初始化 Engine 的 logger 與（可選的）計時回呼。
+
+        Args:
+            verbose: 是否開啟 debug 日誌（會呼叫 setup_logger(level=DEBUG)）
+            on_timing: 可選計時回呼（operation, elapsed）-> None
+
+        說明：
+        - Engine 本身不假設使用者一定要配置 logging，因此提供內建的最小化設定
+        - 各語言 Engine 只要在 __init__ 先呼叫此方法即可統一行為
+        """
         self._verbose = verbose
         self._timing_callback = on_timing
 
@@ -48,6 +59,13 @@ class CorrectorEngine(ABC):
         self._logger = get_logger(f"engine.{self._engine_name}")
 
     def _log_timing(self, operation: str) -> TimingContext:
+        """
+        建立計時上下文（TimingContext）。
+
+        用途：
+        - 在 Engine 初始化或 create_corrector 等關鍵路徑量測耗時
+        - 若提供 on_timing callback，可將耗時送到外部 observability 系統
+        """
         return TimingContext(
             operation=operation,
             logger=self._logger,
@@ -57,13 +75,21 @@ class CorrectorEngine(ABC):
 
     @abstractmethod
     def create_corrector(self, term_dict: TermDictInput, **kwargs) -> "CorrectorProtocol":
+        """
+        依據 term_dict 建立語言 corrector。
+
+        注意：
+        - Engine 可能會在此步驟做 term_dict 正規化與索引建立（一次性）
+        - 回傳的 corrector 應保持輕量，適合在多個 domain/tenant 下快速建立
+        """
         pass
 
     @abstractmethod
     def is_initialized(self) -> bool:
+        """回傳 Engine 是否已完成初始化（包含底層 backend 的初始化狀態）。"""
         pass
 
     @abstractmethod
     def get_backend_stats(self) -> Dict[str, Any]:
+        """回傳 backend 的快取/統計資訊（進階用途：效能觀測、debug）。"""
         pass
-

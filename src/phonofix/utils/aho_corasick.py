@@ -17,17 +17,51 @@ T = TypeVar("T")
 
 @dataclass
 class _Node(Generic[T]):
+    """
+    Aho-Corasick trie 節點（內部使用）。
+
+    欄位：
+    - next: 字元 -> 節點索引（用 list 模擬指標，減少物件開銷）
+    - fail: 失敗指標（fallback state index）
+    - out: 此狀態可輸出的命中（word, value）列表
+    """
     next: Dict[str, int] = field(default_factory=dict)
     fail: int = 0
     out: List[Tuple[str, T]] = field(default_factory=list)
 
 
 class AhoCorasick(Generic[T]):
+    """
+    Aho-Corasick 多模式字串匹配器。
+
+    典型用途：
+    - 對大量 alias 做 exact-match 搜尋，快速找出所有命中 span
+    - 將命中 span 交給後續的 phonetic fuzzy scoring 做精準排序
+
+    使用方式：
+        matcher = AhoCorasick[str]()
+        matcher.add("foo", "foo")
+        matcher.build()
+        for start, end, word, value in matcher.iter_matches("..."):
+            ...
+    """
+
     def __init__(self) -> None:
+        """建立 matcher。呼叫 `add()` 後需 `build()` 才能開始匹配（或讓 iter_matches 自動 build）。"""
         self._nodes: List[_Node[T]] = [_Node()]
         self._built = False
 
     def add(self, word: str, value: T) -> None:
+        """
+        加入一個 pattern。
+
+        Args:
+            word: 要匹配的字串（空字串會被忽略）
+            value: 命中時要回傳的 payload
+
+        Raises:
+            RuntimeError: 若已呼叫 build()，為了保持一致性不允許再新增
+        """
         if self._built:
             raise RuntimeError("AhoCorasick 已 build()，不可再 add()")
         if not word:
@@ -44,6 +78,12 @@ class AhoCorasick(Generic[T]):
         self._nodes[node].out.append((word, value))
 
     def build(self) -> None:
+        """
+        建立 fail links（將 trie 轉為可線性掃描的 automaton）。
+
+        - 多次呼叫是安全的（built 後會直接 return）
+        - build 後即可用 `iter_matches()` 在 O(n + matches) 時間內掃描整段文字
+        """
         if self._built:
             return
 

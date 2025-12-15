@@ -10,32 +10,37 @@ from concurrent.futures import ThreadPoolExecutor
 
 
 def test_backend_singletons_are_threadsafe():
-    from phonofix.backend import get_chinese_backend, get_english_backend
+    from phonofix.backend import get_chinese_backend, get_english_backend, get_japanese_backend
 
     def _get_ids(_):
-        return id(get_english_backend()), id(get_chinese_backend())
+        return id(get_english_backend()), id(get_chinese_backend()), id(get_japanese_backend())
 
     with ThreadPoolExecutor(max_workers=16) as ex:
         ids = list(ex.map(_get_ids, range(100)))
 
-    english_ids = {e for e, _c in ids}
-    chinese_ids = {c for _e, c in ids}
+    english_ids = {e for e, _c, _j in ids}
+    chinese_ids = {c for _e, c, _j in ids}
+    japanese_ids = {j for _e, _c, j in ids}
     assert len(english_ids) == 1
     assert len(chinese_ids) == 1
+    assert len(japanese_ids) == 1
 
 
 def test_backend_initialize_is_threadsafe():
-    from phonofix.backend import get_chinese_backend, get_english_backend
+    from phonofix.backend import get_chinese_backend, get_english_backend, get_japanese_backend
 
     english = get_english_backend()
     chinese = get_chinese_backend()
+    japanese = get_japanese_backend()
 
     with ThreadPoolExecutor(max_workers=16) as ex:
         list(ex.map(lambda _: english.initialize(), range(20)))
         list(ex.map(lambda _: chinese.initialize(), range(20)))
+        list(ex.map(lambda _: japanese.initialize(), range(20)))
 
     assert english.is_initialized()
     assert chinese.is_initialized()
+    assert japanese.is_initialized()
 
 
 def test_english_corrector_correct_is_threadsafe():
@@ -66,4 +71,3 @@ def test_chinese_corrector_correct_is_threadsafe():
         results = list(ex.map(_work, range(60)))
 
     assert all(r == "我在台北車站等你" for r in results)
-

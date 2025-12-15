@@ -14,6 +14,7 @@ from functools import lru_cache
 from typing import Any, Dict, Optional, Tuple
 
 from .base import PhoneticBackend
+from .stats import BackendStats, CacheStats
 
 # =============================================================================
 # 全域狀態
@@ -67,6 +68,15 @@ def _cached_get_pinyin_string(text: str) -> str:
     pypinyin = _get_pypinyin()
     pinyin_list = pypinyin.lazy_pinyin(text, style=pypinyin.NORMAL)
     return "".join(pinyin_list).lower()
+
+
+@lru_cache(maxsize=50000)
+def _cached_get_pinyin_syllables(text: str) -> Tuple[str, ...]:
+    """
+    快取版拼音音節列表（無聲調，小寫）
+    """
+    pypinyin = _get_pypinyin()
+    return tuple(pypinyin.lazy_pinyin(text, style=pypinyin.NORMAL))
 
 
 @lru_cache(maxsize=50000)
@@ -174,6 +184,12 @@ class ChinesePhoneticBackend(PhoneticBackend):
         """
         return _cached_get_initials(text)
 
+    def get_pinyin_syllables(self, text: str) -> Tuple[str, ...]:
+        """
+        取得文字的拼音音節列表（無聲調）
+        """
+        return _cached_get_pinyin_syllables(text)
+
     def get_finals(self, text: str) -> Tuple[str, ...]:
         """
         取得文字的韻母列表
@@ -186,41 +202,55 @@ class ChinesePhoneticBackend(PhoneticBackend):
         """
         return _cached_get_finals(text)
 
-    def get_cache_stats(self) -> Dict[str, Any]:
+    def get_cache_stats(self) -> BackendStats:
         """
         取得拼音快取統計
 
         Returns:
-            Dict: 包含各快取的統計資訊
+            BackendStats: 統一格式的快取統計（含初始化/可觀測資訊）
         """
         pinyin_info = _cached_get_pinyin_string.cache_info()
+        syllables_info = _cached_get_pinyin_syllables.cache_info()
         initials_info = _cached_get_initials.cache_info()
         finals_info = _cached_get_finals.cache_info()
 
-        return {
+        caches: dict[str, CacheStats] = {
             "pinyin": {
-                "hits": pinyin_info.hits,
-                "misses": pinyin_info.misses,
-                "currsize": pinyin_info.currsize,
-                "maxsize": pinyin_info.maxsize,
+                "hits": int(pinyin_info.hits),
+                "misses": int(pinyin_info.misses),
+                "currsize": int(pinyin_info.currsize),
+                "maxsize": int(pinyin_info.maxsize or -1),
+            },
+            "syllables": {
+                "hits": int(syllables_info.hits),
+                "misses": int(syllables_info.misses),
+                "currsize": int(syllables_info.currsize),
+                "maxsize": int(syllables_info.maxsize or -1),
             },
             "initials": {
-                "hits": initials_info.hits,
-                "misses": initials_info.misses,
-                "currsize": initials_info.currsize,
-                "maxsize": initials_info.maxsize,
+                "hits": int(initials_info.hits),
+                "misses": int(initials_info.misses),
+                "currsize": int(initials_info.currsize),
+                "maxsize": int(initials_info.maxsize or -1),
             },
             "finals": {
-                "hits": finals_info.hits,
-                "misses": finals_info.misses,
-                "currsize": finals_info.currsize,
-                "maxsize": finals_info.maxsize,
+                "hits": int(finals_info.hits),
+                "misses": int(finals_info.misses),
+                "currsize": int(finals_info.currsize),
+                "maxsize": int(finals_info.maxsize or -1),
             },
         }
+
+        return BackendStats(
+            initialized=bool(self._initialized),
+            lazy_init={"status": "not_supported"},
+            caches=caches,
+        )
 
     def clear_cache(self) -> None:
         """清除所有拼音快取"""
         _cached_get_pinyin_string.cache_clear()
+        _cached_get_pinyin_syllables.cache_clear()
         _cached_get_initials.cache_clear()
         _cached_get_finals.cache_clear()
 

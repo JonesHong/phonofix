@@ -2,17 +2,15 @@
 中文發音系統實作模組
 
 實作基於 Pinyin (拼音) 的中文發音轉換與相似度比對。
-封裝了底層的 ChinesePhoneticUtils 以符合 PhoneticSystem 介面規範。
+
+注意：自 Backend → Engine → Corrector 架構統一後，中文的拼音轉換快取由 backend 單一真實來源負責：
+- phonofix.backend.chinese_backend.ChinesePhoneticBackend
 """
 
-from typing import TYPE_CHECKING
-
+from phonofix.backend import ChinesePhoneticBackend, get_chinese_backend
 from phonofix.core.phonetic_interface import PhoneticSystem
 
 from .utils import ChinesePhoneticUtils
-
-if TYPE_CHECKING:
-    from phonofix.backend.chinese_backend import ChinesePhoneticBackend
 
 
 class ChinesePhoneticSystem(PhoneticSystem):
@@ -24,27 +22,24 @@ class ChinesePhoneticSystem(PhoneticSystem):
     - 判斷兩個拼音字串是否模糊相似 (支援聲母/韻母模糊音)
     - 提供基於長度的容錯率閾值
 
-    使用方式:
-    1. 舊版 API (使用 utils 內部快取):
-       phonetic = ChinesePhoneticSystem()
-
-    2. 新版 API (使用 Backend 單例):
-       from phonofix.backend import get_chinese_backend
-       backend = get_chinese_backend()
-       backend.initialize()
-       phonetic = ChinesePhoneticSystem(backend=backend)
+    使用方式（新版 API）：
+        from phonofix.backend import get_chinese_backend
+        backend = get_chinese_backend()
+        phonetic = ChinesePhoneticSystem(backend=backend)
     """
 
-    def __init__(self, backend: "ChinesePhoneticBackend" = None):
+    def __init__(self, backend: ChinesePhoneticBackend | None = None):
         """
-        初始化中文發音系統
+        初始化中文發音系統。
 
         Args:
-            backend: 可選的 ChinesePhoneticBackend 實例。
-                     如果提供，將使用 Backend 的快取；
-                     否則使用 utils 的內部快取。
+            backend: 可選 backend（未提供則取得中文 backend 單例）
+
+        注意：
+        - backend 負責拼音轉換快取與依賴檢查
+        - utils 內含聲母/韻母/模糊音規則（主要用於 fuzzy 判斷）
         """
-        self._backend = backend
+        self._backend = backend or get_chinese_backend()
         self.utils = ChinesePhoneticUtils()
 
     def to_phonetic(self, text: str) -> str:
@@ -57,12 +52,7 @@ class ChinesePhoneticSystem(PhoneticSystem):
         Returns:
             str: 拼音字串 (無聲調，小寫)
         """
-        if self._backend:
-            # 新架構：使用 Backend 的快取
-            return self._backend.to_phonetic(text)
-        else:
-            # 舊架構：使用 utils 的內部快取
-            return self.utils.get_pinyin_string(text)
+        return self._backend.to_phonetic(text)
 
     def are_fuzzy_similar(self, phonetic1: str, phonetic2: str) -> bool:
         """

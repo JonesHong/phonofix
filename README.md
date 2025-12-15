@@ -76,6 +76,10 @@ Principle: **Degrade is allowed, but silent degrade is not**.
 
 ## 📦 Installation
 
+### Requirements
+
+- Python `>=3.10`
+
 ### Using uv (Recommended)
 
 [uv](https://docs.astral.sh/uv/) is the next-generation Python package manager, fast and feature-complete.

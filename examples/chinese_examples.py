@@ -250,12 +250,10 @@ def example_7_homophone_filtering():
     print("範例 7: 同音過濾 + 變體覆蓋 (Homophone Filtering)")
     print("=" * 60)
 
-    from phonofix.languages.chinese.fuzzy_generator import (
-        ChineseFuzzyGenerator,
-    )
+    from phonofix.languages.chinese.fuzzy_generator import ChineseFuzzyGenerator
 
-    generator_safe = ChineseFuzzyGenerator(enable_representative_variants=False)
-    generator_repr = ChineseFuzzyGenerator(enable_representative_variants=True)
+    generator_safe = ChineseFuzzyGenerator(backend=engine.backend, enable_representative_variants=False)
+    generator_repr = ChineseFuzzyGenerator(backend=engine.backend, enable_representative_variants=True)
 
     terms = [
         "台北車站",

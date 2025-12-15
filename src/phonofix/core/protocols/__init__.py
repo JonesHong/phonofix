@@ -7,10 +7,23 @@ Protocols（契約）集中管理
 
 from .corrector import ContextAwareCorrectorProtocol, CorrectorProtocol
 from .fuzzy import FuzzyGeneratorProtocol
+from .pipeline import (
+    ConflictResolverProtocol,
+    DraftScorerProtocol,
+    ExactDraftGeneratorProtocol,
+    FuzzyDraftGeneratorProtocol,
+    ProtectionMaskBuilderProtocol,
+    ReplacementApplierProtocol,
+)
 
 __all__ = [
     "CorrectorProtocol",
     "ContextAwareCorrectorProtocol",
     "FuzzyGeneratorProtocol",
+    "ProtectionMaskBuilderProtocol",
+    "ExactDraftGeneratorProtocol",
+    "FuzzyDraftGeneratorProtocol",
+    "DraftScorerProtocol",
+    "ConflictResolverProtocol",
+    "ReplacementApplierProtocol",
 ]
-

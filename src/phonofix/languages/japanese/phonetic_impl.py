@@ -9,9 +9,9 @@ from __future__ import annotations
 from typing import Tuple
 
 from phonofix.core.phonetic_interface import PhoneticSystem
+from phonofix.backend import JapanesePhoneticBackend, get_japanese_backend
 
 from .config import JapanesePhoneticConfig
-from .utils import _get_cutlet
 
 
 class JapanesePhoneticSystem(PhoneticSystem):
@@ -24,6 +24,19 @@ class JapanesePhoneticSystem(PhoneticSystem):
     - 支援基於規則的模糊比對 (長音、促音、羅馬字變體)
     """
 
+    def __init__(self, backend: JapanesePhoneticBackend | None = None) -> None:
+        """
+        初始化日文發音系統。
+
+        Args:
+            backend: 可選 backend（未提供則取得日文 backend 單例）
+
+        注意：
+        - backend 負責 cutlet/fugashi 的初始化與快取
+        - 本類別主要提供「romaji 轉換」與「相似度計算」的抽象層
+        """
+        self._backend = backend or get_japanese_backend()
+
     def to_phonetic(self, text: str) -> str:
         """
         將日文文本轉換為羅馬拼音
@@ -34,28 +47,7 @@ class JapanesePhoneticSystem(PhoneticSystem):
         Returns:
             str: 羅馬拼音字串 (小寫)
         """
-        if not text:
-            return ""
-
-        cutlet = _get_cutlet()
-        # 轉換為羅馬拼音並轉小寫
-        romaji = cutlet.romaji(text).lower()
-
-        # 移除空格 (Cutlet 預設會加空格)
-        # 我們希望得到連續的拼音字串以進行比對
-        # 例如 "Tokyo Station" -> "tokyostation"
-        romaji = romaji.replace(" ", "")
-
-        # 移除長音符號 (Macrons) 以統一格式
-        # Cutlet 預設使用赫本式 (Hepburn) 會產生長音符號
-        macrons = {
-            "ā": "a", "ī": "i", "ū": "u", "ē": "e", "ō": "o",
-            "â": "a", "î": "i", "û": "u", "ê": "e", "ô": "o",
-        }
-        for m, p in macrons.items():
-            romaji = romaji.replace(m, p)
-
-        return romaji
+        return self._backend.to_phonetic(text)
 
     def calculate_similarity_score(self, phonetic1: str, phonetic2: str) -> Tuple[float, bool]:
         """

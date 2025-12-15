@@ -18,7 +18,6 @@ from phonofix.core.protocols.corrector import CorrectorProtocol
 class TestLanguageContracts:
     def test_chinese_contracts(self):
         from phonofix import ChineseEngine
-        from phonofix.languages.chinese.fuzzy_generator import ChineseFuzzyGenerator
         from phonofix.languages.chinese.tokenizer import ChineseTokenizer
 
         engine = ChineseEngine()
@@ -34,8 +33,7 @@ class TestLanguageContracts:
         assert all(isinstance(t, str) for t in tokens)
         assert all(isinstance(p, tuple) and len(p) == 2 for p in indices)
 
-        fuzzy = ChineseFuzzyGenerator()
-        variants = fuzzy.generate_variants("台北車站", max_variants=10)
+        variants = engine.fuzzy_generator.generate_variants("台北車站", max_variants=10)
         assert isinstance(variants, list)
         assert all(isinstance(v, str) for v in variants)
 
