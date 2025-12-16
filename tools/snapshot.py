@@ -781,7 +781,7 @@ class ReportGenerator:
         lines: List[str] = []
         lines.append("# Snapshot")
         lines.append("")
-        lines.append(f"- Root: `{config.root.resolve()}`")
+        lines.append(f"- Root: /phonofix") # `{config.root.resolve()}`
         lines.append(f"- Generated: `{now}`")
         lines.append(f"- Max tree depth: `{config.max_tree_depth}`")
         lines.append(f"- Include private symbols: `{config.include_private_symbols}`")
