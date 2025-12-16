@@ -42,6 +42,8 @@ Phonofix 是一個「以語音相似度為核心」的專有名詞替換工具�
 
 專案檔案結構與完整 API/符號快照請見：[snapshot.zh-TW.md](snapshot.zh-TW.md)。
 
+變更紀錄：[`CHANGELOG.zh-TW.md`](CHANGELOG.zh-TW.md)（English: [`CHANGELOG.md`](CHANGELOG.md)）
+
 ## 核心概念
 
 - 你提供「專有名詞字典」（canonical + aliases/設定）

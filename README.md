@@ -6,6 +6,8 @@ Phonofix is a proper-noun substitution tool built around **phonetic similarity**
 
 Project structure and the full API/symbol snapshot: [snapshot.md](snapshot.md)
 
+Changelog: [CHANGELOG.md](CHANGELOG.md) (Traditional Chinese: [CHANGELOG.zh-TW.md](CHANGELOG.zh-TW.md))
+
 ---
 
 ## Table of Contents
