@@ -1,12 +1,39 @@
-[<kbd><strong>English</strong></kbd>](README.md) [<kbd>繁體中文</kbd>](README.zh-TW.md)
+<h1 align="center">Phonofix</h1>
 
-# Phonofix (Multilingual Phonetic Substitution Engine)
+<p align="center">
+  <a href="README.md"><kbd><strong>English</strong></kbd></a>
+  <a href="README.zh-TW.md"><kbd>繁體中文</kbd></a>
+</p>
 
-Phonofix is a proper-noun substitution tool built around **phonetic similarity**. It is useful for ASR/LLM post-processing, proper-noun standardization, and homophone/near-homophone correction.
+<p align="center">
+  <img src="https://raw.githubusercontent.com/JonesHong/phonofix/main/assets/images/logo.png" alt="Phonofix Logo" width="200"/>
+</p>
 
-Project structure and the full API/symbol snapshot: [snapshot.md](snapshot.md)
+<p align="center">
+  <a href="https://pypi.org/project/phonofix/">
+    <img alt="PyPI version" src="https://img.shields.io/pypi/v/phonofix.svg">
+  </a>
+  <a href="https://pypi.org/project/phonofix/">
+    <img alt="Python versions" src="https://img.shields.io/pypi/pyversions/phonofix.svg">
+  </a>
+  <a href="https://github.com/JonesHong/phonofix/blob/main/pyproject.toml">
+    <img alt="License" src="https://img.shields.io/badge/license-MIT-green.svg">
+  </a>
+  <a href="https://github.com/JonesHong/phonofix/blob/main/snapshot.md">
+    <img alt="Snapshot" src="https://img.shields.io/badge/docs-snapshot-blue.svg">
+  </a>
+  <a href="https://github.com/JonesHong/phonofix/blob/main/CHANGELOG.md">
+    <img alt="Changelog" src="https://img.shields.io/badge/changelog-available-blue.svg">
+  </a>
+</p>
 
-Changelog: [CHANGELOG.md](CHANGELOG.md) (Traditional Chinese: [CHANGELOG.zh-TW.md](CHANGELOG.zh-TW.md))
+<p align="center">
+  <strong>Multilingual phonetic-similarity substitution engine for proper nouns</strong>
+</p>
+
+<p align="center">
+  Useful for ASR/LLM post-processing, proper-noun standardization, and homophone/near-homophone correction.
+</p>
 
 ---
 

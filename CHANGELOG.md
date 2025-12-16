@@ -4,6 +4,13 @@ This project follows Semantic Versioning (SemVer).
 
 > Note: Before `1.0.0` (i.e., in `0.x`), the API may include breaking changes. For the stable public surface, follow the official entry points documented in `README.md`.
 
+## [0.3.1] - 2025-12-16
+
+### Changed
+
+- Refreshed the README header section: added the project logo and badges (PyPI/Python versions/License/Snapshot/Changelog) and normalized links to the latest repository.
+- Added `assets/images/logo.png` for documentation use.
+
 ## [0.3.0] - 2025-12-16
 
 ### Breaking Changes
@@ -27,4 +34,3 @@ This project follows Semantic Versioning (SemVer).
 ### Fixed
 
 - `initialize_lazy()` background initialization failures are now observable via backend stats, with test coverage to prevent silent failures.
-

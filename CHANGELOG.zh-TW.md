@@ -4,6 +4,13 @@
 
 > 說明：在 `1.0.0` 之前（`0.x`），API 仍可能包含破壞性變更；若你依賴的是「穩定對外 API」，請以 `README.zh-TW.md` 內標註的官方入口為準。
 
+## [0.3.1] - 2025-12-16
+
+### 調整（Changed）
+
+- README 首頁區塊更新：新增專案 Logo 與 badges（PyPI/Python versions/License/Snapshot/Changelog），並統一連結到最新 repo。
+- 新增 `assets/images/logo.png`（文件使用）。
+
 ## [0.3.0] - 2025-12-16
 
 ### 重大變更（Breaking）
@@ -27,4 +34,3 @@
 ### 修正（Fixed）
 
 - `initialize_lazy()` 背景初始化失敗不再可能「默默」發生：失敗狀態與錯誤可由 backend stats 觀測，並有測試覆蓋。
-

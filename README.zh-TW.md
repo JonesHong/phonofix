@@ -1,31 +1,61 @@
-[<kbd>English</kbd>](README.md) [<kbd><strong>繁體中文</strong></kbd>](README.zh-TW.md)
+<h1 align="center">Phonofix</h1>
 
-# Phonofix（多語言語音相似替換引擎）
+<p align="center">
+  <a href="README.md"><kbd>English</kbd></a>
+  <a href="README.zh-TW.md"><kbd><strong>繁體中文</strong></kbd></a>
+</p>
 
-Phonofix 是一個「以語音相似度為核心」的專有名詞替換工具，適合用在 ASR/LLM 後處理、專有名詞標準化、同音/近音錯寫修正等場景。
+<p align="center">
+  <img src="https://raw.githubusercontent.com/JonesHong/phonofix/main/assets/images/logo.png" alt="Phonofix Logo" width="200"/>
+</p>
+
+<p align="center">
+  <a href="https://pypi.org/project/phonofix/">
+    <img alt="PyPI version" src="https://img.shields.io/pypi/v/phonofix.svg">
+  </a>
+  <a href="https://pypi.org/project/phonofix/">
+    <img alt="Python versions" src="https://img.shields.io/pypi/pyversions/phonofix.svg">
+  </a>
+  <a href="https://github.com/JonesHong/phonofix/blob/main/pyproject.toml">
+    <img alt="License" src="https://img.shields.io/badge/license-MIT-green.svg">
+  </a>
+  <a href="https://github.com/JonesHong/phonofix/blob/main/snapshot.zh-TW.md">
+    <img alt="Snapshot" src="https://img.shields.io/badge/docs-snapshot-blue.svg">
+  </a>
+  <a href="https://github.com/JonesHong/phonofix/blob/main/CHANGELOG.zh-TW.md">
+    <img alt="Changelog" src="https://img.shields.io/badge/changelog-%E5%B7%B2%E6%9B%B4%E6%96%B0-blue.svg">
+  </a>
+</p>
+
+<p align="center">
+  <strong>多語言「語音相似度」專有名詞替換引擎</strong>
+</p>
+
+<p align="center">
+  適合用在 ASR/LLM 後處理、專有名詞標準化、同音/近音錯寫修正等場景。
+</p>
 
 ---
 
 ## 目錄
 
-- [Phonofix（多語言語音相似替換引擎）](#phonofix多語言語音相似替換引擎)
-  - [目錄](#目錄)
-  - [支援語言](#支援語言)
-  - [核心概念](#核心概念)
-  - [快速開始（最新 API）](#快速開始最新-api)
-    - [中文](#中文)
-    - [英文（需安裝 espeak-ng）](#英文需安裝-espeak-ng)
-    - [日文](#日文)
-    - [混合語言（手動串接）](#混合語言手動串接)
-  - [可觀測性與故障策略](#可觀測性與故障策略)
-  - [替換算法流程（概觀）](#替換算法流程概觀)
-  - [安裝](#安裝)
-    - [環境需求](#環境需求)
-    - [使用 uv（推薦）](#使用-uv推薦)
-    - [英文支援（espeak-ng）](#英文支援espeak-ng)
-  - [開發/驗證](#開發驗證)
-  - [授權](#授權)
-  - [致謝](#致謝)
+- [目錄](#目錄)
+- [支援語言](#支援語言)
+- [核心概念](#核心概念)
+- [快速開始（最新 API）](#快速開始最新-api)
+  - [中文](#中文)
+  - [英文（需安裝 espeak-ng）](#英文需安裝-espeak-ng)
+  - [日文](#日文)
+  - [混合語言（手動串接）](#混合語言手動串接)
+- [可觀測性與故障策略](#可觀測性與故障策略)
+- [替換算法流程（概觀）](#替換算法流程概觀)
+- [安裝](#安裝)
+  - [環境需求](#環境需求)
+  - [使用 uv（推薦）](#使用-uv推薦)
+  - [英文支援（espeak-ng）](#英文支援espeak-ng)
+- [開發/驗證](#開發驗證)
+- [授權](#授權)
+- [致謝](#致謝)
 
 ---
 
