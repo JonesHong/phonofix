@@ -40,7 +40,10 @@ _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
     "get_japanese_backend": ("phonofix.backend", "get_japanese_backend"),
     # Protocols（進階用途）
     "CorrectorProtocol": ("phonofix.core.protocols.corrector", "CorrectorProtocol"),
-    "ContextAwareCorrectorProtocol": ("phonofix.core.protocols.corrector", "ContextAwareCorrectorProtocol"),
+    "ContextAwareCorrectorProtocol": (
+        "phonofix.core.protocols.corrector",
+        "ContextAwareCorrectorProtocol",
+    ),
     # Events（進階用途）
     "CorrectionEvent": ("phonofix.core.events", "CorrectionEvent"),
     "CorrectionEventHandler": ("phonofix.core.events", "CorrectionEventHandler"),
@@ -76,7 +79,7 @@ __all__ = [
     "CorrectionEventHandler",
 ]
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 
 
 def __getattr__(name: str) -> Any:

@@ -1,6 +1,6 @@
 [project]
 name = "phonofix"
-version = "0.3.1"
+version = "0.3.2"
 description = "Multilingual phonetic-similarity replacement engine — a proper-noun substitution tool based on phonetic similarity, supporting ASR/LLM post-processing."
 readme = "README.md"
 license = { text = "MIT" }
