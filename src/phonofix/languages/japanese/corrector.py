@@ -83,7 +83,10 @@ class JapaneseCorrector(PipelineCorrectorBase):
         instance._logger = get_logger("corrector.japanese")
         instance.phonetic = engine.phonetic
         instance.tokenizer = engine.tokenizer
-        instance.protected_terms = protected_terms or set()
+        # Auto-protect canonical literals so input containing a canonical (e.g. "雷電将軍")
+        # is not destroyed by an alias that is its substring (e.g. "将軍") — without this,
+        # AC matcher would re-replace the embedded alias and yield "雷電雷電将軍".
+        instance.protected_terms = (protected_terms or set()) | set(term_mapping.keys())
         instance._on_event = on_event
 
         instance._exact_matcher = None
@@ -109,8 +112,12 @@ class JapaneseCorrector(PipelineCorrectorBase):
             tokenizer=instance.tokenizer,
             term_mapping=term_mapping,
         )
-        instance._exact_matcher, instance._exact_items_by_alias = indexing_ops.build_exact_matcher(instance.search_index)
-        instance._fuzzy_buckets = indexing_ops.build_fuzzy_buckets(search_index=instance.search_index)
+        instance._exact_matcher, instance._exact_items_by_alias = indexing_ops.build_exact_matcher(
+            instance.search_index
+        )
+        instance._fuzzy_buckets = indexing_ops.build_fuzzy_buckets(
+            search_index=instance.search_index
+        )
 
         return instance
 
@@ -118,7 +125,9 @@ class JapaneseCorrector(PipelineCorrectorBase):
     # 事件輸出（由 core pipeline 呼叫）
     # =============================================================================
 
-    def _emit_replacement(self, candidate: Dict[str, Any], *, silent: bool, trace_id: str | None) -> None:
+    def _emit_replacement(
+        self, candidate: Dict[str, Any], *, silent: bool, trace_id: str | None
+    ) -> None:
         """
         發送 replacement 事件（並在非 silent 模式輸出日誌）。
 
