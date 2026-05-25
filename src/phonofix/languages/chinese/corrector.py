@@ -87,7 +87,10 @@ class ChineseCorrector(PipelineCorrectorBase):
         instance.config = engine.config
         instance.utils = engine.utils
         instance.use_canonical = True
-        instance.protected_terms = protected_terms or set()
+        # Auto-protect canonical literals so input containing a canonical (e.g. "台北車站")
+        # is not destroyed by an alias that is its substring (e.g. "北車") — without this,
+        # AC matcher would re-replace the embedded alias and yield "台台北車站站".
+        instance.protected_terms = (protected_terms or set()) | set(term_mapping.keys())
         instance._on_event = on_event
         instance._exact_matcher = None
         instance._exact_items_by_alias = {}
@@ -113,7 +116,9 @@ class ChineseCorrector(PipelineCorrectorBase):
             utils=instance.utils,
             term_mapping=term_mapping,
         )
-        instance._exact_matcher, instance._exact_items_by_alias = indexing_ops.build_exact_matcher(instance.search_index)
+        instance._exact_matcher, instance._exact_items_by_alias = indexing_ops.build_exact_matcher(
+            instance.search_index
+        )
         instance._fuzzy_buckets = indexing_ops.build_fuzzy_buckets(
             search_index=instance.search_index,
             config=instance.config,
@@ -124,7 +129,9 @@ class ChineseCorrector(PipelineCorrectorBase):
     # 事件輸出（由 core pipeline 呼叫）
     # =============================================================================
 
-    def _emit_replacement(self, candidate: Dict[str, Any], *, silent: bool, trace_id: str | None) -> None:
+    def _emit_replacement(
+        self, candidate: Dict[str, Any], *, silent: bool, trace_id: str | None
+    ) -> None:
         """
         發送 replacement 事件（並在非 silent 模式輸出日誌）。
 
@@ -216,7 +223,9 @@ class ChineseCorrector(PipelineCorrectorBase):
 
     def _score_candidate_drafts(self, drafts: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """對候選草稿計分（委派給 candidates 模組）。"""
-        return candidate_ops.score_candidate_drafts(drafts=drafts, use_canonical=bool(self.use_canonical))
+        return candidate_ops.score_candidate_drafts(
+            drafts=drafts, use_canonical=bool(self.use_canonical)
+        )
 
     def _resolve_conflicts(self, candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """解決候選衝突（委派給 replacements 模組）。"""

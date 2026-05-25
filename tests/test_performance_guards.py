@@ -50,7 +50,26 @@ class DummyEnglishBackend:
     def _ipa_for(text: str) -> str:
         # 以第一個字母決定首音素群組；長度固定，避免長度差 pruning 影響測試。
         first = (text or "p")[0].lower()
-        if first in {"p", "b", "t", "d", "k", "g", "f", "v", "s", "z", "m", "n", "l", "r", "w", "i", "u", "a"}:
+        if first in {
+            "p",
+            "b",
+            "t",
+            "d",
+            "k",
+            "g",
+            "f",
+            "v",
+            "s",
+            "z",
+            "m",
+            "n",
+            "l",
+            "r",
+            "w",
+            "i",
+            "u",
+            "a",
+        }:
             return first + "aaaa"
         return "paaaa"
 
@@ -125,11 +144,16 @@ def test_chinese_initials_bucket_prunes_items(monkeypatch):
         calls["n"] += 1
         return None
 
-    monkeypatch.setattr("phonofix.languages.chinese.candidates.process_fuzzy_match_draft", _counting_process)
+    monkeypatch.setattr(
+        "phonofix.languages.chinese.candidates.process_fuzzy_match_draft", _counting_process
+    )
 
     # 不走 exact，避免干擾計數；這裡只關注 fuzzy 分桶是否只遍歷同群組的 items
     corrector._exact_matcher = None
     corrector._exact_items_by_alias = {}
+    # 清掉 canonical auto-protect（input 是 canonical 字面 → 不清會在 protect 階段 short-circuit）
+    corrector.protected_terms = set()
+    corrector._protected_matcher = None
 
     assert corrector.correct("流奶", silent=True) == "流奶"
     assert calls["n"] == 2
@@ -144,9 +168,36 @@ def test_japanese_group_pruning_limits_similarity_calls(monkeypatch):
     engine = JapaneseEngine(enable_surface_variants=False)
     keep_terms = ["パンダ", "バナナ"]  # p / b -> group 1
     noise_terms = [
-        "タコ", "トマト", "カメラ", "サケ", "マグロ", "ラーメン", "ヤマ", "ワサビ", "ジャズ", "チーズ",
-        "スシ", "ゼロ", "フジ", "ホン", "ナス", "ネコ", "ゴマ", "ガラス", "レモン", "リンゴ",
-        "イチゴ", "ウドン", "アメ", "オチャ", "キノコ", "テスト", "データ", "ハコ", "ミカン", "ソラ",
+        "タコ",
+        "トマト",
+        "カメラ",
+        "サケ",
+        "マグロ",
+        "ラーメン",
+        "ヤマ",
+        "ワサビ",
+        "ジャズ",
+        "チーズ",
+        "スシ",
+        "ゼロ",
+        "フジ",
+        "ホン",
+        "ナス",
+        "ネコ",
+        "ゴマ",
+        "ガラス",
+        "レモン",
+        "リンゴ",
+        "イチゴ",
+        "ウドン",
+        "アメ",
+        "オチャ",
+        "キノコ",
+        "テスト",
+        "データ",
+        "ハコ",
+        "ミカン",
+        "ソラ",
     ]
     corrector = engine.create_corrector(keep_terms + noise_terms)
 
@@ -157,6 +208,9 @@ def test_japanese_group_pruning_limits_similarity_calls(monkeypatch):
         return 1.0, False
 
     monkeypatch.setattr(corrector.phonetic, "calculate_similarity_score", _counting_similarity)
+    # 清掉 canonical auto-protect（input 是 canonical 字面 → 不清會在 protect 階段 short-circuit）
+    corrector.protected_terms = set()
+    corrector._protected_matcher = None
 
     assert corrector.correct("パンダ", silent=True) == "パンダ"
     assert calls["n"] == 2

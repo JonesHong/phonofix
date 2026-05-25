@@ -18,8 +18,13 @@ def resolve_conflicts(*, candidates: list[ChineseCandidate]) -> list[ChineseCand
     解決候選衝突
 
     當多個候選修正重疊時，選擇分數最低 (最佳) 的候選。
+
+    優先順序：
+    1) 分數越低越優先（既有行為）
+    2) 分數相同時，優先保留「跨度更長」的候選，避免短 alias 吃掉長 alias
+       典型案例：alias '北車' 與 '胎北車站' 都命中 input '胎北車站'，應選長者
     """
-    candidates.sort(key=lambda x: x["score"])
+    candidates.sort(key=lambda x: (x["score"], -(int(x["end"]) - int(x["start"]))))
     final_candidates: list[ChineseCandidate] = []
     for cand in candidates:
         is_conflict = False
