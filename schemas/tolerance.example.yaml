@@ -1,0 +1,76 @@
+# phonofix v0.4.0 — Tolerance Parameter Examples
+#
+# Structure:
+#   version: 1
+#   language: <zh|ja|en|ko>
+#   tolerance:
+#     - min_len: <int>    # inclusive lower bound of term length (in tokens/chars)
+#       max_len: <int>    # inclusive upper bound; use 999 for "unbounded"
+#       ratio:  <float>   # max allowed edit-distance / term_len (Levenshtein ratio)
+#
+# Matching rule: if len(term) in [min_len, max_len], apply ratio as tolerance ceiling.
+# Multiple bands are checked from top to bottom; first match wins.
+# Phoneme-level edit distance is used (not raw char distance).
+#
+# Tuning guidance:
+#   - Short terms tolerate proportionally more edits (typos hit harder on short strings)
+#   - Long terms can afford stricter ratios without losing recall
+#   - Start from these examples, then iterate against real ASR error samples
+
+# ---------------------------------------------------------------------------
+# zh — Mandarin Chinese
+# Tokenizer: character-level (each Han char = 1 token)
+# G2P backend: pypinyin → bopomofo/pinyin phoneme tuples
+# Confusion driver: bopomofo initial/final/tone conflation (ㄢ/ㄤ, ㄣ/ㄥ, zh/z/j, etc.)
+# ---------------------------------------------------------------------------
+version: 1
+language: zh
+tolerance:
+  - {min_len: 2, max_len: 3, ratio: 0.50}   # 2-3 字：允許 50% 編輯距離
+  - {min_len: 4, max_len: 6, ratio: 0.33}   # 4-6 字：允許約 1/3 編輯距離
+  - {min_len: 7, max_len: 999, ratio: 0.25} # 7 字+：嚴格 25%，長詞辨識度高
+
+---
+# ---------------------------------------------------------------------------
+# ja — Japanese
+# Tokenizer: character-level (hiragana/katakana/kanji each = 1 token)
+# G2P backend: cutlet + fugashi + unidic-lite → romaji phoneme sequences
+# Confusion driver: long-vowel doubling (ー), voiced/unvoiced (k/g, t/d),
+#                   small tsu (っ) gemination, mixed-script rendaku
+# ---------------------------------------------------------------------------
+version: 1
+language: ja
+tolerance:
+  - {min_len: 2, max_len: 3, ratio: 0.50}   # 短語：ー 脫落 / 促音偏移 容錯高
+  - {min_len: 4, max_len: 6, ratio: 0.33}   # 中語：渡濁音 (rendaku) 典型一位誤差
+  - {min_len: 7, max_len: 999, ratio: 0.20} # 長語：複合詞邊界清晰，從嚴
+
+---
+# ---------------------------------------------------------------------------
+# en — English
+# Tokenizer: word-level (split on whitespace/punctuation)
+# G2P backend: phonemizer (espeak-ng) → IPA phoneme sequence
+# Confusion driver: vowel reduction (schwa), silent consonants,
+#                   -ed/-s suffix, homophones (their/there)
+# ---------------------------------------------------------------------------
+version: 1
+language: en
+tolerance:
+  - {min_len: 1, max_len: 2, ratio: 0.50}   # 1-2 字詞：function words ("a", "the") 易誤
+  - {min_len: 3, max_len: 5, ratio: 0.33}   # 3-5 字詞：suffix variation (-ing/-ed) 一位誤差
+  - {min_len: 6, max_len: 999, ratio: 0.25} # 6 字詞+：長詞 IPA 序列長，比例容錯合理
+
+---
+# ---------------------------------------------------------------------------
+# ko — Korean
+# Tokenizer: syllable-block-level (each jamo block = 1 token)
+# G2P backend: ko-pron + python-mecab-ko → jamo phoneme sequences
+# Confusion driver: batchim (받침) assimilation, aspirate/plain (ㄱ/ㅋ/ㄲ),
+#                   vowel harmony (ㅓ/ㅗ), tensification (경음화)
+# ---------------------------------------------------------------------------
+version: 1
+language: ko
+tolerance:
+  - {min_len: 2, max_len: 3, ratio: 0.50}   # 2-3 음절：batchim 동화 한 위치 오류 허용
+  - {min_len: 4, max_len: 6, ratio: 0.33}   # 4-6 음절：경음화 / 유기음화 전형적 1위 오차
+  - {min_len: 7, max_len: 999, ratio: 0.25} # 7 음절+：복합어 경계 명확, 엄격하게
