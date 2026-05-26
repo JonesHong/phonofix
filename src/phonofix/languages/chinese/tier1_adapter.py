@@ -47,6 +47,10 @@ def apply(text: str, index: dict) -> list[tuple[int, int, str, str]]:
     """Sliding window; emit (start, end, matched, original_alias) when canonical_key matches.
 
     Skip literal exact (covered by AC literal layer).
+
+    Performance: pre-compute per-char pinyin ONCE (O(N)), then slice for each window.
+    Avoids O(N×window) pypinyin call hot loop (previous naive version 1.6K ops/s →
+    target ~50K ops/s).
     """
     if not _HAS_PYPINYIN or not index:
         return []
@@ -56,15 +60,23 @@ def apply(text: str, index: dict) -> list[tuple[int, int, str, str]]:
         return []
     min_len, max_len = min(alias_lens), max(alias_lens)
 
+    # Pre-compute per-char pinyin tokens for entire text (O(N) instead of O(N×window))
+    # pypinyin returns list of [primary_pinyin] per char
+    char_pinyin = pinyin(list(text), style=Style.NORMAL, errors="ignore")
+    # char_pinyin[i] = [pinyin_str]; flatten to text-aligned list
+    py_tokens = [grp[0] if grp else "" for grp in char_pinyin]
+
     hits: list[tuple[int, int, str, str]] = []
     for length in range(min_len, max_len + 1):
         for start in range(len(text) - length + 1):
-            substr = text[start : start + length]
-            py = _text_to_pinyin(substr)
-            if not py.strip():
+            # Slice pre-computed tokens (no pypinyin call)
+            window_tokens = py_tokens[start : start + length]
+            if not any(window_tokens):
                 continue
+            py = " ".join(t for t in window_tokens if t)
             key = canonical_key_for_phrase(py)
             if key in index:
+                substr = text[start : start + length]
                 for alias in index[key]:
                     if substr != alias:
                         hits.append((start, start + length, substr, alias))
