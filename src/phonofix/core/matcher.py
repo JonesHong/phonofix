@@ -548,7 +548,10 @@ class PhoneticMatcher:
         return ""
 
     def add_terms(self, entries: Iterable) -> None:
-        """Hot-reload: add new terms and rebuild indexes atomically."""
+        """Hot-reload: add new terms and rebuild indexes atomically.
+
+        Also invalidates Tier 5 legacy corrector cache (was built with old dict).
+        """
         entries_list = list(entries)
         # Normalize: accept Term instances or dicts
         term_objects: list[Term] = []
@@ -560,10 +563,15 @@ class PhoneticMatcher:
                 term_objects.extend(loaded)
         if term_objects:
             self._runtime.add_terms(term_objects)
+            self._legacy_corrector = None  # invalidate Tier 5 stale cache
 
     def remove_terms(self, canonical: Iterable[str]) -> None:
-        """Hot-reload: remove terms by canonical and rebuild indexes atomically."""
+        """Hot-reload: remove terms by canonical and rebuild indexes atomically.
+
+        Also invalidates Tier 5 legacy corrector cache (was built with old dict).
+        """
         self._runtime.remove_terms(list(canonical))
+        self._legacy_corrector = None  # invalidate Tier 5 stale cache
 
     def explain(self, text: str) -> dict:
         """
