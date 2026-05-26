@@ -1,4 +1,15 @@
-"""PhoneticMatcher — language-agnostic matching layer (Phase 5 integration)."""
+"""PhoneticMatcher — language-agnostic matching layer (Phase 5 integration).
+
+v0.4.0 fuzzy wire status:
+  Tier 3 — AC delete-1 expansion: WIRED  (in _build_aux_index + correct())
+  Tier 2 — mutation set (phoneme swap): DEFERRED to v0.4.1
+  Tier 1 — per-language hash key (zh canonical_key / ja / en metaphone): DEFERRED to v0.4.1
+
+correct() emits:
+  match.exact   — literal AC hit (is_original=True)
+  match.fuzzy   — delete-1 expansion hit (is_original=False), tier="delete-1"
+  match.protected — span overlaps canonical auto-protect mask
+"""
 
 from __future__ import annotations
 
@@ -225,15 +236,22 @@ class PhoneticMatcher:
         """
         Single-shot correction.
 
-        Algorithm (per plan §五 Phase 3 Tier 1-3 + Phase 2 P0 mask):
+        Algorithm v0.4.0 (AC literal + Tier 3 delete-1 fuzzy fallback):
           1. snapshot = self._runtime.get() (lock-free)
-          2. AC find_all (with delete-1 expansion) → raw_hits
-          3. filter_hits (prefer original > delete-1 at same span)
-          4. canonical auto-protect mask (per PHASE2-COMPAT-DESIGN §1)
-             Any text span that already IS a canonical literal is protected
-             from being replaced.
-          5. protect-mode terms: their canonical spans are also protected
-          6. Apply replacements + emit events
+          2. canonical auto-protect mask (PHASE2-COMPAT-DESIGN §1)
+             Any span that already IS a canonical literal is protected.
+          3. AC find_all (with delete-1 expansion already embedded in index) → raw_hits
+          4. filter_hits (prefer original > delete-1 at same span)
+          5. For each hit:
+             - protected span → emit match.protected, skip
+             - is_original hit → emit match.exact, apply replacement
+             - delete-1 hit   → emit match.fuzzy (tier=delete-1), apply replacement
+          6. Append remaining literal text
+
+        Tier wire status:
+          Tier 3 (AC delete-1 expansion): WIRED — handled by _build_aux_index + this method
+          Tier 2 (mutation set phoneme swap): DEFERRED to v0.4.1
+          Tier 1 (per-language hash key): DEFERRED to v0.4.1
         """
         if not text:
             return text
@@ -287,16 +305,34 @@ class PhoneticMatcher:
                 if start > cursor:
                     out_parts.append(text[cursor:start])
                 out_parts.append(term.canonical)
-                self._emit(
-                    "match.exact",
-                    {
-                        "start": start,
-                        "end": end,
-                        "term": _matched,
-                        "canonical": term.canonical,
-                        "is_delete1": not expanded.is_original,
-                    },
-                )
+
+                is_fuzzy = not expanded.is_original
+                if is_fuzzy:
+                    # Tier 3: delete-1 expansion hit
+                    self._emit(
+                        "match.fuzzy",
+                        {
+                            "start": start,
+                            "end": end,
+                            "term": _matched,
+                            "canonical": term.canonical,
+                            "tier": "delete-1",
+                            "original_alias": expanded.original_alias,
+                            "deletion_pos": expanded.deletion_pos,
+                        },
+                    )
+                else:
+                    # Literal / exact alias hit
+                    self._emit(
+                        "match.exact",
+                        {
+                            "start": start,
+                            "end": end,
+                            "term": _matched,
+                            "canonical": term.canonical,
+                            "is_delete1": False,
+                        },
+                    )
                 cursor = end
 
         # Append any remaining literal text
@@ -405,15 +441,53 @@ class PhoneticMatcher:
     def explain(self, text: str) -> dict:
         """
         Per-candidate score breakdown (SPEC.md §2 — 5 golden categories).
-        Phase 5 MVP: return basic structure with version/dict_size/trace_id/result.
+
+        v0.4.0: candidates now include tier annotation for each hit:
+          - tier="exact"    → literal AC hit (is_original=True)
+          - tier="delete-1" → AC delete-1 expansion hit (Tier 3 fuzzy)
         """
         snapshot = self._runtime.get()
+        aux = getattr(snapshot, "_aux_index", None)
+
+        candidates: list[dict] = []
+        if aux is not None:
+            ac = aux.get("ac")
+            alias_to_term = aux.get("alias_to_term", {})
+            if ac is not None and len(ac) > 0 and text:
+                protected_spans = self._compute_protected_spans(text, snapshot)
+                raw_hits = list(ac.find_all(text))
+                filtered = filter_hits(raw_hits, text)
+                seen_cursor = 0
+                for start, end, matched, expanded in filtered:
+                    if start < seen_cursor:
+                        continue
+                    is_protected = any(
+                        p_start <= start and end <= p_end for p_start, p_end in protected_spans
+                    )
+                    term = alias_to_term.get(expanded.original_alias)
+                    if term is None:
+                        continue
+                    tier = "exact" if expanded.is_original else "delete-1"
+                    candidates.append(
+                        {
+                            "start": start,
+                            "end": end,
+                            "matched": matched,
+                            "alias": expanded.original_alias,
+                            "canonical": term.canonical,
+                            "tier": tier,
+                            "protected": is_protected,
+                        }
+                    )
+                    if not is_protected and term.mode == TermMode.REPLACE:
+                        seen_cursor = end
+
         result = self.correct(text)
         return {
             "version": self.VERSION,
             "text": text,
             "trace_id": get_trace_id(),
-            "candidates": [],  # Phase 5+: per-tier score breakdown
+            "candidates": candidates,
             "result": result,
             "dict_version": snapshot.version,
             "dict_size": len(snapshot.terms),
@@ -425,7 +499,8 @@ class PhoneticMatcher:
         aux = getattr(snapshot, "_aux_index", None)
         ac_engine = "none"
         if aux is not None and "ac" in aux and aux["ac"] is not None:
-            ac_engine = "pyahocorasick"
+            # AC engine includes delete-1 expansion (Tier 3 fuzzy) built into the index
+            ac_engine = "pyahocorasick+expanded"
 
         eq_active = False
         if self._event_queue is not None:

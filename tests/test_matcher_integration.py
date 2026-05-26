@@ -274,9 +274,9 @@ def test_diagnose_returns_required_keys() -> None:
 
 
 def test_diagnose_ac_engine_pyahocorasick() -> None:
-    """diagnose()['ac_engine'] == 'pyahocorasick' when dict has aliases."""
+    """diagnose()['ac_engine'] == 'pyahocorasick+expanded' when dict has aliases (Tier 3 wired)."""
     m = _make_matcher({"台北車站": {"aliases": ["北車"]}})
-    assert m.diagnose()["ac_engine"] == "pyahocorasick"
+    assert m.diagnose()["ac_engine"] == "pyahocorasick+expanded"
 
 
 def test_diagnose_dict_size() -> None:
