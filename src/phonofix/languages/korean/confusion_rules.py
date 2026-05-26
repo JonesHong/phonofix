@@ -45,10 +45,19 @@ Paper [4] PHISH in MESH — Korean Adversarial Phonetic Substitution (2025)
 
 KOREAN_CONFUSION_MAP_JAMO: dict[str, set[str]] = {
     # Aspiration triad — Paper [1][4] 4-paper consensus, highest confidence
+    # Bidirectional (W4 揭露 single-direction bug: hash canonical 需所有 confusable 都 map)
     "ᄀ": {"ᄏ", "ᄁ"},  # ㄱ ↔ ㅋ, ㄲ
+    "ᄏ": {"ᄀ", "ᄁ"},  # ㅋ ↔ ㄱ, ㄲ
+    "ᄁ": {"ᄀ", "ᄏ"},  # ㄲ ↔ ㄱ, ㅋ
     "ᄃ": {"ᄐ", "ᄄ", "ᄌ"},  # ㄷ ↔ ㅌ, ㄸ + alveolar ㅈ (Paper [2])
+    "ᄐ": {"ᄃ", "ᄄ"},  # ㅌ ↔ ㄷ, ㄸ
+    "ᄄ": {"ᄃ", "ᄐ"},  # ㄸ ↔ ㄷ, ㅌ
     "ᄇ": {"ᄑ", "ᄈ"},  # ㅂ ↔ ㅍ, ㅃ
+    "ᄑ": {"ᄇ", "ᄈ"},  # ㅍ ↔ ㅂ, ㅃ
+    "ᄈ": {"ᄇ", "ᄑ"},  # ㅃ ↔ ㅂ, ㅍ
     "ᄌ": {"ᄎ", "ᄍ", "ᄃ"},  # ㅈ ↔ ㅊ, ㅉ + alveolar reverse
+    "ᄎ": {"ᄌ", "ᄍ"},  # ㅊ ↔ ㅈ, ㅉ
+    "ᄍ": {"ᄌ", "ᄎ"},  # ㅉ ↔ ㅈ, ㅊ
     # Vowel formant — Paper [1] + Zeroth real-data 補 (v0.4.0-rc2, 2026-05-26)
     "ᅢ": {"ᅦ"},  # ㅐ ↔ ㅔ
     "ᅦ": {"ᅢ"},

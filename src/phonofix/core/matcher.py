@@ -102,18 +102,25 @@ def _auto_upgrade_list(raw_list: list) -> list[Term]:
 
 
 def _auto_upgrade_legacy_dict(d: dict) -> list[Term]:
-    """Auto-upgrade legacy {canonical: {aliases/list}} dict to list[Term]."""
+    """Auto-upgrade legacy {canonical: {aliases/list}} dict to list[Term].
+
+    NOTE: alias == canonical is intentionally preserved (not filtered out).
+    Rationale: a caller may register the canonical as its own alias to enable
+    Tier 3 delete-1 fuzzy matching on the canonical form itself.
+    The canonical auto-protect mask in correct() prevents double-replacement
+    when the canonical already appears literally in the input text.
+    """
     terms = []
     for canonical, value in d.items():
         if not isinstance(canonical, str):
             continue
         if isinstance(value, list):
-            aliases = [str(a) for a in value if isinstance(a, str) and a != canonical]
+            aliases = [str(a) for a in value if isinstance(a, str)]
             keywords = []
             weight = 0.0
         elif isinstance(value, dict):
             raw_aliases = list(value.get("aliases") or [])
-            aliases = [str(a) for a in raw_aliases if a != canonical]
+            aliases = [str(a) for a in raw_aliases]
             keywords = list(value.get("keywords") or [])
             weight = float(value.get("weight") or 0.0)
         else:
@@ -140,13 +147,23 @@ def _auto_upgrade_legacy_dict(d: dict) -> list[Term]:
 _MIN_DELETE1_PATTERN_LEN = 2  # delete-1 variants shorter than this are skipped
 
 
-def _build_aux_index(terms: tuple) -> dict:
+_TIER1_DISPATCH = {
+    "zh": "phonofix.languages.chinese.tier1_adapter",
+    "ja": "phonofix.languages.japanese.tier1_adapter",
+    "en": "phonofix.languages.english.tier1_adapter",
+    "ko": "phonofix.languages.korean.tier1_adapter",
+}
+
+
+def _build_aux_index(terms: tuple, language: Optional[str] = None) -> dict:
     """
     Build auxiliary indexes from a tuple of Term instances.
 
     Returns dict with keys:
     - "ac": ACEngine (built with delete-1 expansion, only replace-mode aliases)
     - "alias_to_term": dict mapping alias_str -> Term
+    - "tier1_apply": optional per-language Tier 1 callable (text, index) -> hits
+    - "tier1_index": optional per-language Tier 1 build_index result
 
     Delete-1 pattern minimum length: patterns shorter than _MIN_DELETE1_PATTERN_LEN
     are not registered to avoid false positives from single-character hits.
@@ -171,10 +188,26 @@ def _build_aux_index(terms: tuple) -> dict:
                 ac.add(ep.pattern, payload=ep)
     ac.build()
 
-    return {
+    result: dict = {
         "ac": ac,
         "alias_to_term": alias_to_term,
     }
+
+    # Per-language Tier 1 dispatch (zh canonical_key / ja normalized / en metaphone / ko jamo)
+    if language and language in _TIER1_DISPATCH:
+        try:
+            import importlib
+
+            tier1_mod = importlib.import_module(_TIER1_DISPATCH[language])
+            replace_aliases = [a for a in alias_to_term.keys()]
+            tier1_index = tier1_mod.build_index(replace_aliases)
+            if tier1_index:
+                result["tier1_apply"] = tier1_mod.apply
+                result["tier1_index"] = tier1_index
+        except (ImportError, AttributeError):
+            pass  # language adapter not available or missing build_index/apply
+
+    return result
 
 
 class PhoneticMatcher:
@@ -212,9 +245,12 @@ class PhoneticMatcher:
     def _setup_dictionary(self, dictionary: Any) -> None:
         """Load dictionary into DictRuntime + build AC + auxiliary indexes."""
         initial_terms = _load_dict_v2(dictionary)
+        language = getattr(self.phonemizer, "language", None)
+        # Closure binds language so add_terms/remove_terms also rebuild Tier 1
+        build = lambda terms: _build_aux_index(terms, language=language)  # noqa: E731
         self._runtime = DictRuntime(
             initial_terms=initial_terms,
-            build_fn=_build_aux_index,
+            build_fn=build,
         )
 
     def _setup_event_queue(self, on_event: Optional[Callable]) -> None:
@@ -275,10 +311,23 @@ class PhoneticMatcher:
         raw_hits = list(ac.find_all(text))
         filtered = filter_hits(raw_hits, text)
 
+        # Merge Tier 1 per-language hits (if dispatch available)
+        # Tier 1 hits use tuple payload ("tier1", alias) to distinguish from ExpandedPattern
+        tier1_apply = aux.get("tier1_apply")
+        tier1_index = aux.get("tier1_index")
+        merged_hits: list = list(filtered)
+        if tier1_apply and tier1_index:
+            for t_start, t_end, t_matched, t_alias in tier1_apply(text, tier1_index):
+                # Skip if overlap with existing literal/Tier3 hits (those take priority)
+                if any(s < t_end and t_start < e for s, e, _, _ in filtered):
+                    continue
+                merged_hits.append((t_start, t_end, t_matched, ("tier1", t_alias)))
+            merged_hits.sort(key=lambda h: h[0])
+
         out_parts = []
         cursor = 0
 
-        for start, end, _matched, expanded in filtered:
+        for start, end, _matched, payload in merged_hits:
             # Skip if cursor has already passed this hit (overlapping)
             if start < cursor:
                 continue
@@ -295,8 +344,15 @@ class PhoneticMatcher:
                 )
                 continue
 
-            # Look up canonical replacement via original_alias
-            term = alias_to_term.get(expanded.original_alias)
+            # Identify hit tier from payload type
+            if isinstance(payload, tuple) and len(payload) == 2 and payload[0] == "tier1":
+                alias = payload[1]
+                tier_label = "tier1"
+            else:
+                alias = payload.original_alias
+                tier_label = "exact" if payload.is_original else "delete-1"
+
+            term = alias_to_term.get(alias)
             if term is None:
                 continue
 
@@ -306,23 +362,7 @@ class PhoneticMatcher:
                     out_parts.append(text[cursor:start])
                 out_parts.append(term.canonical)
 
-                is_fuzzy = not expanded.is_original
-                if is_fuzzy:
-                    # Tier 3: delete-1 expansion hit
-                    self._emit(
-                        "match.fuzzy",
-                        {
-                            "start": start,
-                            "end": end,
-                            "term": _matched,
-                            "canonical": term.canonical,
-                            "tier": "delete-1",
-                            "original_alias": expanded.original_alias,
-                            "deletion_pos": expanded.deletion_pos,
-                        },
-                    )
-                else:
-                    # Literal / exact alias hit
+                if tier_label == "exact":
                     self._emit(
                         "match.exact",
                         {
@@ -331,6 +371,19 @@ class PhoneticMatcher:
                             "term": _matched,
                             "canonical": term.canonical,
                             "is_delete1": False,
+                        },
+                    )
+                else:
+                    # Tier 3 delete-1 OR Tier 1 per-language hash hit
+                    self._emit(
+                        "match.fuzzy",
+                        {
+                            "start": start,
+                            "end": end,
+                            "term": _matched,
+                            "canonical": term.canonical,
+                            "tier": tier_label,
+                            "original_alias": alias,
                         },
                     )
                 cursor = end
@@ -498,7 +551,7 @@ class PhoneticMatcher:
         snapshot = self._runtime.get()
         aux = getattr(snapshot, "_aux_index", None)
         ac_engine = "none"
-        if aux is not None and "ac" in aux and aux["ac"] is not None:
+        if aux is not None and "ac" in aux and aux["ac"] is not None and len(aux["ac"]) > 0:
             # AC engine includes delete-1 expansion (Tier 3 fuzzy) built into the index
             ac_engine = "pyahocorasick+expanded"
 
