@@ -231,6 +231,7 @@ class PhoneticMatcher:
         on_event: Optional[Callable[[EventRecord], None]] = None,
         max_alias_len: int = 10,
         window_chars: int = 20,
+        enable_tier5_fallback: bool = True,
     ) -> None:
         self.phonemizer = phonemizer
         # Store original dictionary reference for legacy attribute access
@@ -239,6 +240,11 @@ class PhoneticMatcher:
         self.on_event = on_event
         self.max_alias_len = max_alias_len
         self.window_chars = window_chars
+        # Tier 5: legacy fuzzy_buckets fallback for "規則外 substitution" coverage
+        # Default True for v0.3.x backward-compat fuzzy parity (per Option D).
+        # Caller set False if 25-48× speed is critical and skip-on-miss is acceptable.
+        self.enable_tier5_fallback = enable_tier5_fallback
+        self._legacy_corrector = None  # lazy-built on first call
         self._setup_dictionary(dictionary)
         self._setup_event_queue(on_event)
 
@@ -392,7 +398,75 @@ class PhoneticMatcher:
         if cursor < len(text):
             out_parts.append(text[cursor:])
 
-        return "".join(out_parts)
+        result = "".join(out_parts)
+
+        # Tier 5 fallback (Option D): two-pass legacy fuzzy_buckets for "規則外
+        # substitution" coverage. Legacy engine's canonical mask prevents
+        # double-replacement of spans Tier 1-3 already corrected.
+        if self.enable_tier5_fallback:
+            legacy = self._get_legacy_corrector(snapshot)
+            if legacy is not None:
+                try:
+                    tier5_result = legacy.correct(result)
+                    if tier5_result != result:
+                        self._emit(
+                            "match.fuzzy",
+                            {
+                                "tier": "tier5",
+                                "before": result,
+                                "after": tier5_result,
+                            },
+                        )
+                        return tier5_result
+                except Exception:
+                    pass  # Tier 5 errors are non-fatal; return Tier 1-3 result
+
+        return result
+
+    def _get_legacy_corrector(self, snapshot: DictSnapshot):
+        """Lazy-build per-language legacy fuzzy_buckets corrector (Tier 5 fallback)."""
+        if self._legacy_corrector is not None:
+            return self._legacy_corrector
+
+        lang = getattr(self.phonemizer, "language", None)
+        if lang not in ("zh", "ja", "en"):
+            return None  # ko/other has no legacy engine; skip
+
+        # Convert snapshot.terms → legacy term_dict format
+        # legacy expects {canonical: {"aliases": [...], "keywords": [...], "weight": w}}
+        term_dict: dict = {}
+        for term in snapshot.terms:
+            if term.mode != TermMode.REPLACE:
+                continue
+            term_dict[term.canonical] = {
+                "aliases": list(term.aliases),
+                "keywords": list(term.keywords),
+                "weight": term.weight,
+            }
+
+        if not term_dict:
+            return None
+
+        try:
+            if lang == "zh":
+                from phonofix.languages.chinese.engine import ChineseEngine
+
+                engine = ChineseEngine()
+                self._legacy_corrector = engine.create_corrector(term_dict)
+            elif lang == "ja":
+                from phonofix.languages.japanese.engine import JapaneseEngine
+
+                engine = JapaneseEngine()
+                self._legacy_corrector = engine.create_corrector(term_dict)
+            elif lang == "en":
+                from phonofix.languages.english.engine import EnglishEngine
+
+                engine = EnglishEngine()
+                self._legacy_corrector = engine.create_corrector(term_dict)
+        except Exception:
+            self._legacy_corrector = None  # legacy init failed (e.g. espeak-ng missing)
+
+        return self._legacy_corrector
 
     def _compute_protected_spans(self, text: str, snapshot: DictSnapshot) -> list[tuple[int, int]]:
         """
