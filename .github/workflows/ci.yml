@@ -27,14 +27,15 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
 
-      - name: Install espeak-ng (en backend)
+      - name: Install system deps (espeak-ng for en backend, mecab for ja fugashi)
         run: |
           if [ "$RUNNER_OS" == "Linux" ]; then
-            sudo apt-get install -y espeak-ng
+            sudo apt-get update
+            sudo apt-get install -y espeak-ng mecab libmecab-dev mecab-ipadic-utf8
           elif [ "$RUNNER_OS" == "macOS" ]; then
-            brew install espeak-ng
+            brew install espeak-ng mecab
           fi
-          # Windows: caller responsibility, en tests will skip
+          # Windows: caller responsibility, en/ja tests will skip
         shell: bash
 
       - name: Ruff
