@@ -61,9 +61,12 @@ def apply(text: str, index: dict) -> list[tuple[int, int, str, str]]:
     min_len, max_len = min(alias_lens), max(alias_lens)
 
     # Pre-compute per-char pinyin tokens for entire text (O(N) instead of O(N×window))
-    # pypinyin returns list of [primary_pinyin] per char
-    char_pinyin = pinyin(list(text), style=Style.NORMAL, errors="ignore")
-    # char_pinyin[i] = [pinyin_str]; flatten to text-aligned list
+    # pypinyin returns list of [primary_pinyin] per char.
+    # IMPORTANT: errors="default" keeps non-hanzi chars (ASCII/标点) as themselves
+    # so py_tokens length == len(text) — preserves text-aligned offsets.
+    # (Codex P1 found: errors="ignore" silently dropped ASCII → offset drift)
+    char_pinyin = pinyin(list(text), style=Style.NORMAL, errors="default")
+    # char_pinyin[i] = [pinyin_or_origchar]; flatten to text-aligned list
     py_tokens = [grp[0] if grp else "" for grp in char_pinyin]
 
     hits: list[tuple[int, int, str, str]] = []

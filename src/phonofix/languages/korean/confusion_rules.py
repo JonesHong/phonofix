@@ -36,8 +36,20 @@ Paper [4] PHISH in MESH — Korean Adversarial Phonetic Substitution (2025)
    (per plan §五 Phase 5 + §七 Q4)。
 
 ⚠️ 覆蓋率驗證：Phase 5 day-0 task — Zeroth-Korean 50 句 mlx-whisper transcribe →
-   對比 8 rules 命中率 (target > 70%)。Coverage report 在 docs/PHASE5-KO-CONFUSION-COVERAGE.md.
+   對比 8 rules 命中率 (target > 70%)。
+   **Run 2 實測 (Zeroth 20 句, 15 jamo rules) 達 61.9%，低於 70% target**。
+   Coverage report: docs/PHASE5-KO-CONFUSION-COVERAGE.md.
+
+⚠️ **EXPERIMENTAL STATUS (v0.4.0)** — Korean support 標 experimental, 不算 stable:
+   - 覆蓋率 < 70% target (61.9% / 20 句 sample 過小 + Whisper-v3 太強)
+   - paper-cited aspiration triad 在 clean read speech 觸發少
+   - v0.4.1 計畫: 擴 100+ 句 sample / 補 vowel pairs / 換 weaker ASR model 重測
+   - caller 用 ko 須瞭解此限制; 重要 production 場景應 retest with 自己 dataset.
 """
+
+# Public flag for caller / diagnose() to read
+KOREAN_STATUS = "experimental"  # "stable" | "experimental"
+KOREAN_COVERAGE_PCT = 61.9  # last measured on Zeroth 20-sample test split
 
 # ---------------------------------------------------------------------------
 # Jamo-level reference (paper 直引，供 v0.4.1 jamo-decompose phonemizer 用)

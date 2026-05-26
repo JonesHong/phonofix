@@ -317,18 +317,37 @@ class PhoneticMatcher:
         raw_hits = list(ac.find_all(text))
         filtered = filter_hits(raw_hits, text)
 
-        # Merge Tier 1 per-language hits (if dispatch available)
-        # Tier 1 hits use tuple payload ("tier1", alias) to distinguish from ExpandedPattern
+        # Merge Tier 1 + Tier 3 with priority resolution (Codex P1 fix):
+        # Priority order: exact (Tier3 is_original) > Tier 1 full-span > Tier 3 delete-1
+        # Previous bug: tier1 hit was skipped if it overlapped Tier 3 delete-1 short
+        # span, causing full-alias-match loss.
+        # Fix: collect all hits with priority, resolve overlap by priority+span-length.
         tier1_apply = aux.get("tier1_apply")
         tier1_index = aux.get("tier1_index")
-        merged_hits: list = list(filtered)
+
+        # Tag each hit with priority (lower = higher priority)
+        prioritized: list = []
+        for start, end, matched, ep in filtered:
+            pri = 1 if ep.is_original else 3  # 1=exact, 3=delete-1
+            prioritized.append((pri, start, end, matched, ep))
         if tier1_apply and tier1_index:
             for t_start, t_end, t_matched, t_alias in tier1_apply(text, tier1_index):
-                # Skip if overlap with existing literal/Tier3 hits (those take priority)
-                if any(s < t_end and t_start < e for s, e, _, _ in filtered):
-                    continue
-                merged_hits.append((t_start, t_end, t_matched, ("tier1", t_alias)))
-            merged_hits.sort(key=lambda h: h[0])
+                prioritized.append((2, t_start, t_end, t_matched, ("tier1", t_alias)))  # 2=Tier 1
+
+        # Sort: priority asc → start asc → longer-span first (negative length)
+        prioritized.sort(key=lambda h: (h[0], h[1], -(h[2] - h[1])))
+
+        # Claim spans in priority order; later overlapping hits dropped
+        claimed_spans: list[tuple[int, int]] = []
+        merged_hits: list = []
+        for _pri, start, end, matched, payload in prioritized:
+            if any(s < end and start < e for s, e in claimed_spans):
+                continue  # overlap with higher-priority claimed
+            claimed_spans.append((start, end))
+            merged_hits.append((start, end, matched, payload))
+
+        # Process linearly by start
+        merged_hits.sort(key=lambda h: h[0])
 
         out_parts = []
         cursor = 0
@@ -403,6 +422,11 @@ class PhoneticMatcher:
         # Tier 5 fallback (Option D): two-pass legacy fuzzy_buckets for "規則外
         # substitution" coverage. Legacy engine's canonical mask prevents
         # double-replacement of spans Tier 1-3 already corrected.
+        #
+        # Event schema (Codex P1 fix): payload includes nullable start/end/term/
+        # canonical/original_alias so caller event handlers that assume Tier 1-3
+        # schema don't crash. Tier 5 is whole-text two-pass so span info is None.
+        # Caller dispatches on payload["tier"] field.
         if self.enable_tier5_fallback:
             legacy = self._get_legacy_corrector(snapshot)
             if legacy is not None:
@@ -413,7 +437,12 @@ class PhoneticMatcher:
                             "match.fuzzy",
                             {
                                 "tier": "tier5",
-                                "before": result,
+                                "start": None,  # whole-text two-pass; no span
+                                "end": None,
+                                "term": None,
+                                "canonical": None,
+                                "original_alias": None,
+                                "before": result,  # Tier 5-specific extras
                                 "after": tier5_result,
                             },
                         )
