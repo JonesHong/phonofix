@@ -12,6 +12,7 @@ from phonofix.backend import ChinesePhoneticBackend, get_chinese_backend
 
 from .config import ChinesePhoneticConfig
 
+
 class ChinesePhoneticUtils:
     """
     中文語音工具類別

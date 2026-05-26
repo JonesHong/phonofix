@@ -15,7 +15,7 @@ term_mapping 格式（由 Engine normalize 後傳入）：
 
 from __future__ import annotations
 
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 
 from phonofix.utils.aho_corasick import AhoCorasick
 

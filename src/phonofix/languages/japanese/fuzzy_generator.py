@@ -13,8 +13,8 @@ import itertools
 from dataclasses import dataclass
 from typing import List, Optional
 
-from phonofix.core.protocols.fuzzy import FuzzyGeneratorProtocol
 from phonofix.backend import JapanesePhoneticBackend, get_japanese_backend
+from phonofix.core.protocols.fuzzy import FuzzyGeneratorProtocol
 
 from .config import JapanesePhoneticConfig
 

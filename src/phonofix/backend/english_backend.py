@@ -11,7 +11,7 @@ import time
 import traceback
 import warnings
 from datetime import datetime
-from typing import Any, Dict, Literal, Optional
+from typing import Dict, Literal, Optional
 
 from phonofix.languages.english import ENGLISH_INSTALL_HINT
 from phonofix.utils.logger import get_logger

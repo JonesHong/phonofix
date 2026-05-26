@@ -7,10 +7,10 @@
 
 from typing import Any, Callable, Dict, List, Optional
 
+from phonofix.backend import JapanesePhoneticBackend, get_japanese_backend
 from phonofix.core.engine_interface import CorrectorEngine
 from phonofix.core.events import CorrectionEventHandler
 from phonofix.core.term_config import TermDictInput, normalize_term_dict
-from phonofix.backend import JapanesePhoneticBackend, get_japanese_backend
 
 from .config import JapanesePhoneticConfig
 from .corrector import JapaneseCorrector

@@ -21,6 +21,8 @@ from __future__ import annotations
 import importlib
 from typing import Any
 
+from phonofix.utils.logger import enable_debug_logging, enable_timing_logging, get_logger
+
 # =============================================================================
 # Lazy imports（PEP 562）
 # =============================================================================
@@ -52,7 +54,6 @@ _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
 # =============================================================================
 # 日誌工具
 # =============================================================================
-from phonofix.utils.logger import enable_debug_logging, enable_timing_logging, get_logger
 
 __all__ = [
     # Engines
