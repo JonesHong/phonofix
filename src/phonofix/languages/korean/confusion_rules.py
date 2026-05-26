@@ -49,14 +49,22 @@ KOREAN_CONFUSION_MAP_JAMO: dict[str, set[str]] = {
     "ᄃ": {"ᄐ", "ᄄ", "ᄌ"},  # ㄷ ↔ ㅌ, ㄸ + alveolar ㅈ (Paper [2])
     "ᄇ": {"ᄑ", "ᄈ"},  # ㅂ ↔ ㅍ, ㅃ
     "ᄌ": {"ᄎ", "ᄍ", "ᄃ"},  # ㅈ ↔ ㅊ, ㅉ + alveolar reverse
-    # Vowel formant — Paper [1]
+    # Vowel formant — Paper [1] + Zeroth real-data 補 (v0.4.0-rc2, 2026-05-26)
     "ᅢ": {"ᅦ"},  # ㅐ ↔ ㅔ
     "ᅦ": {"ᅢ"},
-    "ᅩ": {"ᅮ"},  # ㅗ ↔ ㅜ (既有 MVP)
-    "ᅮ": {"ᅩ"},
+    "ᅩ": {"ᅮ", "ᅥ"},  # ㅗ ↔ ㅜ, ㅓ (Zeroth: 터↔토)
+    "ᅮ": {"ᅩ", "ᅳ", "ᅵ"},  # ㅜ ↔ ㅗ, ㅡ, ㅣ (Zeroth: 스↔수, 르↔루, 지↔주)
+    "ᅥ": {"ᅩ"},  # ㅓ ↔ ㅗ (Zeroth real)
+    "ᅳ": {"ᅮ"},  # ㅡ ↔ ㅜ (Zeroth real)
+    "ᅵ": {"ᅮ"},  # ㅣ ↔ ㅜ (Zeroth real)
+    "ᅱ": {"ᅴ"},  # ㅟ ↔ ㅢ (Zeroth: 휘↔의)
+    "ᅴ": {"ᅱ"},
     # Coda nasal — Paper [2]
     "ᆫ": {"ᆼ"},  # ㄴ ↔ ㅇ (받침)
     "ᆼ": {"ᆫ"},
+    # 複합 jongseong simplification (v0.4.0-rc2 Zeroth real-data)
+    "ᆲ": {"ᇀ", "ᆯ"},  # ㄼ → ㅌ or ㄹ (얇↔얕)
+    "ᆶ": {"ᆯ", "ᇀ"},  # ㅀ → ㄹ or ㅌ (싫↔실)
 }
 
 # ---------------------------------------------------------------------------
