@@ -1,0 +1,29 @@
+name: Performance Regression Gate
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * *"  # nightly 06:00 UTC
+
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv python install 3.12
+      - run: uv sync --all-extras
+      - run: sudo apt-get install -y espeak-ng
+
+      - name: Run CI bench suite
+        run: |
+          uv run python -m phonofix.bench.runner --suite ci --output /tmp/bench.json --check-thresholds
+        # exit non-zero if any scenario falls below threshold (plan §六.5)
+
+      - name: Upload bench result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-result
+          path: /tmp/bench.json

@@ -1,15 +1,13 @@
-"""Phase 2 skeleton tests for PhoneticMatcher.
+"""Phase 2→5 sanity tests for PhoneticMatcher.
 
 Verify import hygiene, constructor attribute assignment,
-and that every method body raises NotImplementedError.
-No real G2P backend is exercised here.
+and that the integration no longer raises NotImplementedError.
+No real G2P backend is exercised here — uses a SimpleNamespace mock phonemizer.
 """
 
 from __future__ import annotations
 
 from types import SimpleNamespace
-
-import pytest
 
 from phonofix.core.matcher import PhoneticMatcher
 
@@ -70,13 +68,14 @@ def test_ctor_on_event_defaults_to_none() -> None:
 
 
 def test_ctor_stores_on_event_callable() -> None:
-    events: list[tuple[str, dict]] = []
+    events: list = []
 
-    def handler(event: str, payload: dict) -> None:
-        events.append((event, payload))
+    def handler(event) -> None:
+        events.append(event)
 
     m = PhoneticMatcher(phonemizer=_mock_phonemizer(), dictionary={}, on_event=handler)
     assert m.on_event is handler
+    m.close()
 
 
 def test_ctor_accepts_simple_namespace_phonemizer() -> None:
@@ -87,50 +86,63 @@ def test_ctor_accepts_simple_namespace_phonemizer() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 3. Phase 3 methods raise NotImplementedError
+# 3. Methods are now IMPLEMENTED (Phase 5) — no more NotImplementedError
 # ---------------------------------------------------------------------------
 
 
-def test_correct_raises() -> None:
-    with pytest.raises(NotImplementedError, match="Phase 3"):
-        _make_matcher().correct("台積電")
+def test_correct_returns_str() -> None:
+    """correct() no longer raises — returns a string."""
+    m = _make_matcher()
+    result = m.correct("台積電")
+    assert isinstance(result, str)
 
 
-def test_correct_batch_raises() -> None:
-    with pytest.raises(NotImplementedError, match="Phase 3"):
-        _make_matcher().correct_batch(["台積電", "微軟"])
+def test_correct_batch_returns_list() -> None:
+    """correct_batch() no longer raises — returns a list."""
+    m = _make_matcher()
+    result = m.correct_batch(["台積電", "微軟"])
+    assert isinstance(result, list)
+    assert len(result) == 2
 
 
-def test_explain_raises() -> None:
-    with pytest.raises(NotImplementedError, match="Phase 3"):
-        _make_matcher().explain("台積電")
+def test_explain_returns_dict() -> None:
+    """explain() no longer raises — returns a dict."""
+    m = _make_matcher()
+    result = m.explain("台積電")
+    assert isinstance(result, dict)
+    assert "version" in result
 
 
-def test_diagnose_raises() -> None:
-    with pytest.raises(NotImplementedError, match="Phase 3"):
-        _make_matcher().diagnose()
+def test_diagnose_returns_dict() -> None:
+    """diagnose() no longer raises — returns a dict."""
+    m = _make_matcher()
+    result = m.diagnose()
+    assert isinstance(result, dict)
+    assert "version" in result
 
 
-# ---------------------------------------------------------------------------
-# 4. Phase 4 methods raise NotImplementedError
-# ---------------------------------------------------------------------------
+def test_feed_returns_str() -> None:
+    """feed() no longer raises — returns a string."""
+    m = _make_matcher()
+    result = m.feed("台積")
+    assert isinstance(result, str)
 
 
-def test_feed_raises() -> None:
-    with pytest.raises(NotImplementedError, match="Phase 4"):
-        _make_matcher().feed("台積")
+def test_flush_returns_str() -> None:
+    """flush() no longer raises — returns a string."""
+    m = _make_matcher()
+    result = m.flush()
+    assert isinstance(result, str)
 
 
-def test_flush_raises() -> None:
-    with pytest.raises(NotImplementedError, match="Phase 4"):
-        _make_matcher().flush()
+def test_add_terms_no_raise() -> None:
+    """add_terms() no longer raises."""
+    m = _make_matcher()
+    # Empty dict entry — gracefully handled
+    m.add_terms([{"canonical": "台積電", "mode": "protect"}])
 
 
-def test_add_terms_raises() -> None:
-    with pytest.raises(NotImplementedError, match="Phase 4"):
-        _make_matcher().add_terms([{"canonical": "台積電"}])
-
-
-def test_remove_terms_raises() -> None:
-    with pytest.raises(NotImplementedError, match="Phase 4"):
-        _make_matcher().remove_terms(["台積電"])
+def test_remove_terms_no_raise() -> None:
+    """remove_terms() no longer raises."""
+    m = _make_matcher()
+    m.remove_terms(["台積電"])
