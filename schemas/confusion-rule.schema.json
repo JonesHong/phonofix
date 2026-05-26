@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/JonesHong/phonofix/schemas/confusion-rule.schema.json",
+  "title": "Phonofix Confusion Rule",
+  "description": "Schema for per-language phoneme confusion rules used by PhoneticMatcher",
+  "type": "object",
+  "required": ["version", "language", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version; must be 1 for this schema"
+    },
+    "language": {
+      "type": "string",
+      "enum": ["zh", "ja", "en", "ko"],
+      "description": "Target language code (ISO 639-1)"
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "description": "List of phoneme confusion rules",
+      "items": {
+        "$ref": "#/$defs/Rule"
+      }
+    }
+  },
+  "$defs": {
+    "Rule": {
+      "type": "object",
+      "required": ["from", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Source phoneme or token that may be misrecognised"
+        },
+        "to": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "List of phonemes or tokens commonly confused with 'from'"
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 1.0,
+          "description": "Confusion weight in [0, 1]; higher = more likely to be confused. Default 1.0"
+        },
+        "context": {
+          "type": "string",
+          "description": "Optional regex pattern; rule applies only when surrounding text matches"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "version": 1,
+      "language": "zh",
+      "rules": [
+        {"from": "ㄢ", "to": ["ㄤ"], "weight": 1.0},
+        {"from": "ㄣ", "to": ["ㄥ"], "weight": 0.9},
+        {"from": "ㄗ",  "to": ["ㄓ", "ㄘ"], "weight": 0.8, "context": "\\d"},
+        {"from": "zh", "to": ["z", "j"], "weight": 0.7}
+      ]
+    },
+    {
+      "version": 1,
+      "language": "ko",
+      "rules": [
+        {"from": "ㄱ", "to": ["ㅋ", "ㄲ"], "weight": 0.9},
+        {"from": "ㅓ", "to": ["ㅗ"], "weight": 0.7}
+      ]
+    }
+  ]
+}

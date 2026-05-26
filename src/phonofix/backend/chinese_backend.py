@@ -11,7 +11,7 @@
 
 import threading
 from functools import lru_cache
-from typing import Any, Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 from .base import PhoneticBackend
 from .stats import BackendStats, CacheStats

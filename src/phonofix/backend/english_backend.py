@@ -6,12 +6,13 @@
 """
 
 import os
+import sys
 import threading
 import time
 import traceback
 import warnings
 from datetime import datetime
-from typing import Any, Dict, Literal, Optional
+from typing import Dict, Literal, Optional
 
 from phonofix.languages.english import ENGLISH_INSTALL_HINT
 from phonofix.utils.logger import get_logger
@@ -33,36 +34,57 @@ _instance_lock = threading.Lock()
 # 環境設定 - 自動偵測 espeak-ng
 # =============================================================================
 
+
 def _setup_espeak_library():
     """
-    自動設定 PHONEMIZER_ESPEAK_LIBRARY 環境變數 (僅 Windows)
+    自動設定 PHONEMIZER_ESPEAK_LIBRARY 環境變數 (Windows + macOS)
 
-    phonemizer 在 Windows 上需要明確指定 libespeak-ng.dll 的路徑
+    phonemizer 預設找不到 brew/Windows 安裝的 libespeak-ng.{dylib,dll}，
+    需明確指定。Linux 通常透過 ldconfig 找到 .so 不用設。
     """
-    if os.name != "nt":  # 非 Windows
-        return
-
     if os.environ.get("PHONEMIZER_ESPEAK_LIBRARY"):
         return  # 已設定
 
-    # 常見安裝路徑
-    common_paths = [
-        r"C:\Program Files\eSpeak NG\libespeak-ng.dll",
-        r"C:\Program Files (x86)\eSpeak NG\libespeak-ng.dll",
-    ]
+    # ── macOS (Homebrew) ──
+    if sys.platform == "darwin":
+        import glob
 
-    for path in common_paths:
-        if os.path.exists(path):
-            os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = path
-            return
+        # brew prefix path (Apple Silicon: /opt/homebrew, Intel: /usr/local)
+        for prefix in ("/opt/homebrew", "/usr/local"):
+            patterns = [
+                f"{prefix}/Cellar/espeak-ng/*/lib/libespeak-ng.dylib",
+                f"{prefix}/opt/espeak-ng/lib/libespeak-ng.dylib",
+                f"{prefix}/lib/libespeak-ng.dylib",
+            ]
+            for pattern in patterns:
+                matches = sorted(glob.glob(pattern))
+                if matches:
+                    os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = matches[-1]
+                    return
+        return
 
-    # 嘗試從 PATH 中找 espeak-ng.exe 並推測 DLL 位置
-    import shutil
-    espeak_exe = shutil.which("espeak-ng")
-    if espeak_exe:
-        dll_path = os.path.join(os.path.dirname(espeak_exe), "libespeak-ng.dll")
-        if os.path.exists(dll_path):
-            os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = dll_path
+    # ── Windows ──
+    if os.name == "nt":
+        common_paths = [
+            r"C:\Program Files\eSpeak NG\libespeak-ng.dll",
+            r"C:\Program Files (x86)\eSpeak NG\libespeak-ng.dll",
+        ]
+        for path in common_paths:
+            if os.path.exists(path):
+                os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = path
+                return
+
+        # 嘗試從 PATH 中找 espeak-ng.exe 並推測 DLL 位置
+        import shutil
+
+        espeak_exe = shutil.which("espeak-ng")
+        if espeak_exe:
+            dll_path = os.path.join(os.path.dirname(espeak_exe), "libespeak-ng.dll")
+            if os.path.exists(dll_path):
+                os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = dll_path
+        return
+
+    # ── Linux ── 通常 ldconfig 找到，無需設定
 
 
 # =============================================================================
@@ -72,6 +94,7 @@ def _setup_espeak_library():
 _phonemizer_available: Optional[bool] = None
 _phonemize_func = None
 
+
 def _get_phonemize():
     """延遲載入 phonemizer 模組"""
     global _phonemizer_available, _phonemize_func
@@ -80,9 +103,7 @@ def _get_phonemize():
         if _phonemizer_available:
             return _phonemize_func
         else:
-            raise RuntimeError(
-                "phonemizer/espeak-ng 不可用。\n\n" + ENGLISH_INSTALL_HINT
-            )
+            raise RuntimeError("phonemizer/espeak-ng 不可用。\n\n" + ENGLISH_INSTALL_HINT)
 
     try:
         from phonemizer import phonemize
@@ -99,9 +120,7 @@ def _get_phonemize():
         raise ImportError(ENGLISH_INSTALL_HINT)
     except Exception as e:
         _phonemizer_available = False
-        raise RuntimeError(
-            f"phonemizer/espeak-ng 初始化失敗: {e}\n\n" + ENGLISH_INSTALL_HINT
-        )
+        raise RuntimeError(f"phonemizer/espeak-ng 初始化失敗: {e}\n\n" + ENGLISH_INSTALL_HINT)
 
 
 # =============================================================================
@@ -307,6 +326,7 @@ def _batch_ipa_convert(texts: list) -> Dict[str, str]:
 # EnglishPhoneticBackend 單例類別
 # =============================================================================
 
+
 class EnglishPhoneticBackend(PhoneticBackend):
     """
     英文語音後端 (單例)
@@ -331,7 +351,9 @@ class EnglishPhoneticBackend(PhoneticBackend):
         self._init_lock = threading.Lock()
         self._lazy_init_lock = threading.Lock()
         self._lazy_init_thread: Optional[threading.Thread] = None
-        self._lazy_init_status: Literal["not_started", "running", "succeeded", "failed"] = "not_started"
+        self._lazy_init_status: Literal["not_started", "running", "succeeded", "failed"] = (
+            "not_started"
+        )
         self._lazy_init_started_at: Optional[str] = None
         self._lazy_init_finished_at: Optional[str] = None
         self._lazy_init_duration_ms: Optional[int] = None
@@ -396,22 +418,32 @@ class EnglishPhoneticBackend(PhoneticBackend):
                 self.initialize()
                 with self._lazy_init_lock:
                     self._lazy_init_status = "succeeded"
-                    self._lazy_init_finished_at = datetime.utcnow().isoformat(timespec="seconds") + "Z"
-                    self._lazy_init_duration_ms = int((time.perf_counter() - started_monotonic) * 1000)
+                    self._lazy_init_finished_at = (
+                        datetime.utcnow().isoformat(timespec="seconds") + "Z"
+                    )
+                    self._lazy_init_duration_ms = int(
+                        (time.perf_counter() - started_monotonic) * 1000
+                    )
                     self._lazy_init_error = None
             except Exception as exc:
                 logger.exception("EnglishPhoneticBackend.initialize_lazy() 背景初始化失敗")
                 with self._lazy_init_lock:
                     self._lazy_init_status = "failed"
-                    self._lazy_init_finished_at = datetime.utcnow().isoformat(timespec="seconds") + "Z"
-                    self._lazy_init_duration_ms = int((time.perf_counter() - started_monotonic) * 1000)
+                    self._lazy_init_finished_at = (
+                        datetime.utcnow().isoformat(timespec="seconds") + "Z"
+                    )
+                    self._lazy_init_duration_ms = int(
+                        (time.perf_counter() - started_monotonic) * 1000
+                    )
                     self._lazy_init_error = {
                         "exception_type": type(exc).__name__,
                         "exception_message": str(exc),
                         "traceback": traceback.format_exc(),
                     }
 
-        thread = threading.Thread(target=_background_init, daemon=True, name="phonofix-english-backend-init")
+        thread = threading.Thread(
+            target=_background_init, daemon=True, name="phonofix-english-backend-init"
+        )
         with self._lazy_init_lock:
             self._lazy_init_thread = thread
         thread.start()
@@ -454,7 +486,9 @@ class EnglishPhoneticBackend(PhoneticBackend):
 
         normalized = [_normalize_english_text_for_ipa(t) for t in texts]
         normalized_map = _batch_ipa_convert(normalized)
-        return {orig: normalized_map.get(_normalize_english_text_for_ipa(orig), "") for orig in texts}
+        return {
+            orig: normalized_map.get(_normalize_english_text_for_ipa(orig), "") for orig in texts
+        }
 
     def get_cache_stats(self) -> BackendStats:
         """
@@ -504,6 +538,7 @@ class EnglishPhoneticBackend(PhoneticBackend):
 # =============================================================================
 # 便捷函數
 # =============================================================================
+
 
 def get_english_backend() -> EnglishPhoneticBackend:
     """

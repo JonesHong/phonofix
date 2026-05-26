@@ -4,6 +4,46 @@ This project follows Semantic Versioning (SemVer).
 
 > Note: Before `1.0.0` (i.e., in `0.x`), the API may include breaking changes. For the stable public surface, follow the official entry points documented in `README.md`.
 
+## [0.4.0] - 2026-05-26
+
+### Added
+
+- **Tier 1-3 fuzzy hash path** for 4 languages (zh/ja/en/ko). Per-language adapters: zh canonical_key + ja normalized_cache + en Double Metaphone (jellyfish) + ko jamo decompose with `KOREAN_CONFUSION_MAP_JAMO`.
+- **Tier 5 fallback** to legacy `fuzzy_buckets` for "rule-outside substitution" cases. Default `enable_tier5_fallback=True` gives 100% v0.3.x parity; set `False` for ~3× speed (literal-hit case stays fast either way).
+- **`pyahocorasick` C extension** replaces self-impl AC engine. Real-data measured: normal query 7-9× faster, delete-1 ~5×, memory 100×+ smaller.
+- **AC delete-1 expansion** (Tier 3) for 1-char-deletion fuzzy via `core/ac_expansion.py`.
+- **Korean support (experimental)**: `KoreanPhonemizer` + 17 syllable / 10 jamo confusion rules (8 paper-cited + Zeroth real-data 7 補). `KOREAN_STATUS="experimental"` flag, 61.9% measured coverage on Zeroth-20 (below 70% target — caller should retest with own dataset).
+- **macOS auto-detect `espeak-ng`** library path (brew install — no env var needed).
+- **DictRuntime atomic snapshot** + `add_terms` / `remove_terms` hot reload (< 1ms on 10K terms).
+- **StreamBuffer** `feed` / `flush` with crossing-hit retract + duplicate suppression.
+- **AsyncEventQueue** + `trace_id` contextvar for `on_event` async dispatch.
+- **5 CLI subcommands**: `phonofix lint / build / correct / bench / migrate`.
+- **Bench suite** + GitHub Actions perf regression gate (`.github/workflows/perf.yml`).
+- New OSS hygiene: `LICENSE` / `SECURITY.md` / `CONTRIBUTING.md` / `RELEASE.md`.
+
+### Changed
+
+- Speed: zh small dict literal-hit ~48× (2.5K → ~120K ops/s); full fuzzy with Tier 5 ON ~2-3× v0.3.x (LLM exact-hit hot path very fast).
+- `phonofix.ChineseEngine` / `JapaneseEngine` / `EnglishEngine` remain backward-compatible (走 v0.3.x path; thin-compat layer + `DeprecationWarning` planned for v0.5.0 with ≥ 3-month grace).
+- Dict yaml schema v2 introduced (`mode: protect | replace`); v1 still loaded via `phonofix migrate dict-v1.yaml --out v2.yaml`.
+
+### Fixed
+
+- Canonical auto-protect mask integrated into new `PhoneticMatcher` (carried from v0.3.2 P0).
+- Tier 1 overlap priority: longest-span exact > Tier 1 > Tier 3 delete-1 (Codex audit B.1).
+- `add_terms` / `remove_terms` now invalidates Tier 5 legacy corrector cache (reviewer P1).
+- zh Tier 1 pinyin offset drift on ASCII/punctuation input (`errors="default"` preserves 1:1 char alignment — Codex audit B.3).
+- Tier 5 event payload schema unified (nullable `start/end/term/canonical/original_alias` for caller dispatch — Codex audit A.4).
+
+### Dependencies
+
+- Added `pyahocorasick>=2.1.0`, `jellyfish>=1.2.1` to core.
+- New optional extras: `[ko]` with `ko-pron + python-mecab-ko`.
+
+### Tests
+
+- 554 in-scope tests passed (+18 adversarial tests via independent reviewer agent + Codex audit).
+
 ## [0.3.2] - 2026-05-25
 
 ### Fixed

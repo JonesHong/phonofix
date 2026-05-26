@@ -6,8 +6,8 @@
 
 from typing import List, Tuple
 
-from phonofix.core.tokenizer_interface import Tokenizer
 from phonofix.backend import JapanesePhoneticBackend, get_japanese_backend
+from phonofix.core.tokenizer_interface import Tokenizer
 
 
 class JapaneseTokenizer(Tokenizer):

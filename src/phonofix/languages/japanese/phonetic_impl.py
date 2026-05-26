@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from typing import Tuple
 
-from phonofix.core.phonetic_interface import PhoneticSystem
 from phonofix.backend import JapanesePhoneticBackend, get_japanese_backend
+from phonofix.core.phonetic_interface import PhoneticSystem
 
 from .config import JapanesePhoneticConfig
 

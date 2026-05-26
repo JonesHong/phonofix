@@ -4,6 +4,46 @@
 
 > 說明：在 `1.0.0` 之前（`0.x`），API 仍可能包含破壞性變更；若你依賴的是「穩定對外 API」，請以 `README.zh-TW.md` 內標註的官方入口為準。
 
+## [0.4.0] - 2026-05-26
+
+### 新增（Added）
+
+- **Tier 1-3 fuzzy hash 路徑** 4 語（中/日/英/韓）。Per-language adapter：中文 canonical_key + 日文 normalized_cache + 英文 Double Metaphone (jellyfish) + 韓文 jamo decompose + `KOREAN_CONFUSION_MAP_JAMO`。
+- **Tier 5 fallback** 回退到 legacy `fuzzy_buckets`，cover「規則外 substitution」。Default `enable_tier5_fallback=True` 給 100% v0.3.x 等效；設 `False` 換 ~3× 速度。
+- **`pyahocorasick` C extension** 取代自製 AC engine。實測：normal query 7-9× / delete-1 ~5× / memory 100×+ 小。
+- **AC delete-1 expansion** (Tier 3) 1-char-deletion fuzzy。
+- **韓文支援（experimental）**: `KoreanPhonemizer` + 17 syllable / 10 jamo 規則（8 paper-cited + Zeroth 實測 7 補）。`KOREAN_STATUS="experimental"` flag，Zeroth-20 句覆蓋 61.9%（< 70% target，caller 須用自己 dataset 重測）。
+- **macOS 自動偵測 `espeak-ng`**（brew 裝完不用 export env var）。
+- **DictRuntime atomic snapshot** + `add_terms` / `remove_terms` 熱重載（10K 字 < 1ms）。
+- **StreamBuffer** `feed` / `flush`（跨界 hit retract + duplicate suppression）。
+- **AsyncEventQueue** + `trace_id` contextvar `on_event` async。
+- **5 個 CLI 子指令**: `phonofix lint / build / correct / bench / migrate`。
+- **Bench suite** + GitHub Actions perf regression gate。
+- 新 OSS 檔: `LICENSE` / `SECURITY.md` / `CONTRIBUTING.md` / `RELEASE.md`。
+
+### 變更（Changed）
+
+- 速度：zh 小字典 literal-hit ~48×（2.5K → ~120K ops/s）；完整 fuzzy + Tier 5 ON ~2-3× v0.3.x。
+- `ChineseEngine / JapaneseEngine / EnglishEngine` 保留 backward compat（走 v0.3.x path；thin-compat layer + `DeprecationWarning` 預定 v0.5.0，≥ 3 個月 grace）。
+- Dict yaml schema v2（`mode: protect | replace`）；v1 用 `phonofix migrate` CLI 轉換。
+
+### 修復（Fixed）
+
+- canonical auto-protect mask 整合進新 `PhoneticMatcher`。
+- Tier 1 overlap priority: 最長 span exact > Tier 1 > Tier 3 delete-1（Codex audit B.1）。
+- `add_terms` / `remove_terms` 後 Tier 5 legacy corrector cache invalidate（reviewer P1）。
+- zh Tier 1 pinyin offset 漂移修（ASCII/標點 input — Codex audit B.3）。
+- Tier 5 event payload schema 統一（nullable span 欄位 — Codex audit A.4）。
+
+### 依賴（Dependencies）
+
+- 核心新增 `pyahocorasick>=2.1.0`, `jellyfish>=1.2.1`。
+- 新 optional extras: `[ko]` 含 `ko-pron + python-mecab-ko`。
+
+### 測試（Tests）
+
+- 554 個 in-scope 測試全綠（+18 個 adversarial — 獨立 reviewer agent + Codex 雙獨立 audit）。
+
 ## [0.3.2] - 2026-05-25
 
 ### 修復（Fixed）

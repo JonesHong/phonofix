@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import threading
 from functools import lru_cache
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from phonofix.languages.japanese import JAPANESE_INSTALL_HINT
 
