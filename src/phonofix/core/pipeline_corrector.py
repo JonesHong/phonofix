@@ -134,17 +134,33 @@ class PipelineCorrectorBase(ABC):
 
         參數約定：
         - `full_context`：提供完整上下文（例如 ASR 句子）；若未提供則以 text 作為 context
-        - `mode`：快捷模式（evaluation=raise、production=degrade）
+        - `mode`：快捷模式（evaluation=raise、production=degrade、exact=只跑 exact）
         - `fail_policy`：fuzzy 步驟失敗時的策略（raise 或 degrade）
         - `trace_id`：事件追蹤 ID（若未提供會自動產生）
 
         流程：
         1) 建立保護遮罩
         2) 產生 exact drafts
-        3) 產生 fuzzy drafts（可降級）
+        3) 產生 fuzzy drafts（可降級；`mode="exact"` 時跳過）
         4) 計分
         5) 去衝突
         6) 套用替換
+
+        ## `mode="exact"` 是給什麼用的
+
+        ASR / LLM 後處理的輸入是**帶噪音**的，fuzzy 音近比對正是價值所在。
+        但 TTS 前處理不是：字典是手工列的、輸入是作者自己寫的，沒有拼錯的
+        變體要收斂——**任何 fuzzy 命中都是誤改**。實際踩到的（2026-08-20，
+        繁中旁白 + 五層架構那批術語）：
+
+            CLI、MCP           → CLramCP        （英文引擎，dict 只有 RAM→ram）
+            固定帳單            → 固定漲到        （中文引擎，dict 只有 長到→漲到）
+            三個都沾到          → 三個都漲到
+            乘上五十輪對話      → 成漲函數輪對話
+
+        `enable_surface_variants=False` 關掉的是**自動生成的表面變體**，不是
+        fuzzy 音近比對這條 pipeline——在此之前沒有任何公開開關能關掉它，於是
+        README §3 描述的 TTS 情境實際上無法安全使用。
         """
         if not text:
             return text
@@ -164,7 +180,12 @@ class PipelineCorrectorBase(ABC):
             drafts.extend(self._generate_exact_candidate_drafts(text, context, protected_indices))
 
             try:
-                drafts.extend(self._generate_fuzzy_candidate_drafts(text, context, protected_indices))
+                # exact 模式跳過 fuzzy 候選；後面的計分／去衝突／套用照走，
+                # 只是候選集合裡沒有音近項。
+                if mode != "exact":
+                    drafts.extend(
+                        self._generate_fuzzy_candidate_drafts(text, context, protected_indices)
+                    )
             except Exception as exc:
                 self._emit_pipeline_event(
                     {
