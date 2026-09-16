@@ -51,8 +51,18 @@ jobs:
           "PHONEMIZER_ESPEAK_LIBRARY=C:\Program Files\eSpeak NG\libespeak-ng.dll" |
             Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      # Windows skips the ko extra (and `all`, which repeats it): python-mecab-ko
+      # publishes no 3.13 wheel and its source build wants mecab.h, which Windows
+      # has no package for — 2026-09-16 that was the last red job in the matrix.
+      # Korean stays covered on Linux and macOS.
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            uv sync --dev --extra ch --extra en --extra ja
+          else
+            uv sync --all-extras --dev
+          fi
 
       - name: Ruff
         run: uv run ruff check .
