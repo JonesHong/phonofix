@@ -4,6 +4,17 @@ This project follows Semantic Versioning (SemVer).
 
 > Note: Before `1.0.0` (i.e., in `0.x`), the API may include breaking changes. For the stable public surface, follow the official entry points documented in `README.md`.
 
+## [0.5.0] - 2026-09-16
+
+### Added
+
+- **`mode="exact"` on `correct()`** — skips fuzzy candidate generation while keeping scoring, conflict resolution and replacement intact. TTS pre-processing dictionaries are hand-curated and their input is text the author wrote, so a fuzzy hit there is always a corruption, and `enable_surface_variants=False` did not cover it (it only drops generated surface variants, not the phonetic pipeline). Measured against a Traditional Chinese narration corpus, one entry per dictionary: `CLI、MCP` became `CLramCP`, `固定帳單` became `固定漲到`. Both `ChineseCorrector` and `EnglishCorrector` inherit the guard from `PipelineCorrectorBase.correct()`.
+
+### Changed
+
+- `CLAUDE.md` rewritten against the v0.4 codebase.
+- GitHub Actions pinned to commit SHAs.
+
 ## [0.4.0] - 2026-05-26
 
 ### Added

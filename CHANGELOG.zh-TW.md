@@ -4,6 +4,17 @@
 
 > 說明：在 `1.0.0` 之前（`0.x`），API 仍可能包含破壞性變更；若你依賴的是「穩定對外 API」，請以 `README.zh-TW.md` 內標註的官方入口為準。
 
+## [0.5.0] - 2026-09-16
+
+### 新增（Added）
+
+- **`correct()` 的 `mode="exact"`** —— 跳過 fuzzy 候選生成，評分、衝突解決與替換維持不變。TTS 前處理的字典是人工維護的，輸入又是作者自己寫的文字，所以那裡的 fuzzy 命中一律是破壞；`enable_surface_variants=False` 蓋不到這件事（它只關掉生成的 surface variants，不是語音管線）。在一份繁體中文旁白語料上實測，每本字典只放一條：`CLI、MCP` 被改成 `CLramCP`、`固定帳單` 被改成 `固定漲到`。`ChineseCorrector` 與 `EnglishCorrector` 都從 `PipelineCorrectorBase.correct()` 繼承同一道守門。
+
+### 變更（Changed）
+
+- `CLAUDE.md` 依 v0.4 實際程式碼重寫。
+- GitHub Actions 釘 commit SHA。
+
 ## [0.4.0] - 2026-05-26
 
 ### 新增（Added）
