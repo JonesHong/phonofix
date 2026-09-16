@@ -24,10 +24,11 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
-      - name: Install dependencies
-        run: uv sync --all-extras --dev
-
-      - name: Install system deps (espeak-ng for en backend, mecab for ja fugashi)
+      # Before `uv sync`, not after: on 3.13 there is no python-mecab-ko wheel, so uv
+      # builds it from source and the build calls mecab-config. With this step second,
+      # ubuntu/macOS 3.13 died at install with "RuntimeError: mecab-config not found"
+      # while 3.10-3.12 passed on prebuilt wheels (2026-09-16).
+      - name: Install system deps (espeak-ng for en backend, mecab for ja/ko)
         run: |
           if [ "$RUNNER_OS" == "Linux" ]; then
             sudo apt-get update
@@ -35,8 +36,23 @@ jobs:
           elif [ "$RUNNER_OS" == "macOS" ]; then
             brew install espeak-ng mecab
           fi
-          # Windows: caller responsibility, en/ja tests will skip
         shell: bash
+
+      # The English backend needs espeak-ng itself, not just phonemizer. Windows has no
+      # package for it, and without it 15 tests raised RuntimeError rather than skipping,
+      # which is what the old "en/ja tests will skip" comment assumed.
+      - name: Install espeak-ng (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $url = "https://github.com/espeak-ng/espeak-ng/releases/download/1.52.0/espeak-ng.msi"
+          Invoke-WebRequest -Uri $url -OutFile espeak-ng.msi
+          Start-Process msiexec.exe -ArgumentList "/i","espeak-ng.msi","/quiet","/norestart" -Wait
+          "PHONEMIZER_ESPEAK_LIBRARY=C:\Program Files\eSpeak NG\libespeak-ng.dll" |
+            Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
 
       - name: Ruff
         run: uv run ruff check .
